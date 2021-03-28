@@ -1,0 +1,2 @@
+#TargetFrameworkVersion=v4.0:PlatformToolSet=v140:EnableManagedIncrementalBuild=false:VCToolArchitecture=Native32Bit:WindowsTargetPlatformVersion=8.1
+Release_Static|Win32|C:\Users\Charles\Documents\Visual Studio 2015\Projects\Space Visualsier\extern\freeglut-2.8.1\VisualStudio\2010\|

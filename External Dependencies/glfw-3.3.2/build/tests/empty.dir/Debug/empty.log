@@ -1,0 +1,6 @@
+﻿  Building Custom Rule A:/Documents/Visual Studio 2019/Projects/Space Visualiser Refresh/External Dependencies/glfw-3.3.2/tests/CMakeLists.txt
+  empty.c
+  tinycthread.c
+  glad_gl.c
+  Generating Code...
+  empty.vcxproj -> A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glfw-3.3.2\build\tests\Debug\empty.exe

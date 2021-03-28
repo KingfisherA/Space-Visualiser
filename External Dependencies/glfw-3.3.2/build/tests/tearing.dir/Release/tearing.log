@@ -1,0 +1,5 @@
+﻿  Building Custom Rule A:/Documents/Visual Studio 2019/Projects/Space Visualiser Refresh/External Dependencies/glfw-3.3.2/tests/CMakeLists.txt
+  tearing.c
+  glad_gl.c
+  Generating Code...
+  tearing.vcxproj -> A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glfw-3.3.2\build\tests\Release\tearing.exe

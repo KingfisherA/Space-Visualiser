@@ -1,0 +1,14 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 14
+VisualStudioVersion = 14.0.25420.1
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{059D6162-CD51-11D0-AE1F-00A0C90FFFC3}") = "freeglut", "freeglut.dsp", "{BE7FE142-80AF-4D26-A3BB-8F45E0438B50}"
+EndProject
+Project("{059D6162-CD51-11D0-AE1F-00A0C90FFFC3}") = "freeglut_static", "freeglut_static.dsp", "{BDFBD4CC-2368-4F60-8609-176903F3FFDC}"
+EndProject
+Global
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal

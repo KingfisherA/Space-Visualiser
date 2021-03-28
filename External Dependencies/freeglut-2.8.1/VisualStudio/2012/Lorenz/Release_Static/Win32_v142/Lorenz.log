@@ -1,0 +1,6 @@
+﻿  lorenz.c
+  Generating code
+  Previous IPDB not found, fall back to full compilation.
+  All 153 functions were compiled because no usable IPDB/IOBJ from previous compilation was found.
+  Finished generating code
+  Lorenz.vcxproj -> A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\freeglut-2.8.1\VisualStudio\2012\Lorenz\..\..\..\progs\demos\x86\release_static\Lorenz.exe

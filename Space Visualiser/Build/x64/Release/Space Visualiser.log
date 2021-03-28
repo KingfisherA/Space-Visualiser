@@ -1,0 +1,44 @@
+﻿  Precompiled Global.cpp
+  Atmosphere.cpp
+  AtmospherePrecomputer.cpp
+  FBO.cpp
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\OpenGL\FBO.cpp(326,10): warning C4309: 'return': truncation of constant value
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\OpenGL\FBO.cpp(335,10): warning C4309: 'return': truncation of constant value
+  OpenGL Context.cpp
+  Post Processing.cpp
+  ShaderProgram.cpp
+  Texture.cpp
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\OpenGL\Texture.cpp(469,39): warning C4309: 'return': truncation of constant value
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\OpenGL\Texture.cpp(480,53): warning C4305: 'return': truncation from 'const unsigned __int64' to 'float'
+  VAO.cpp
+  VBO.cpp
+  Camera.cpp
+  Display.cpp
+  Console.cpp
+  Maths.cpp
+  Geometry.cpp
+C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Tools\MSVC\14.27.29110\include\utility(192,1): warning C4267: 'initializing': conversion from 'size_t' to '_Ty2', possible loss of data
+          with
+          [
+              _Ty2=unsigned int
+          ]
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Utilities\Geometry.cpp(338): message : see reference to function template instantiation 'std::pair<const std::pair<unsigned int,unsigned int>,unsigned int>::pair<std::pair<unsigned int,unsigned int>&,size_t,0>(_Other1,_Other2 &&) noexcept' being compiled
+          with
+          [
+              _Other1=std::pair<unsigned int,unsigned int> &,
+              _Other2=size_t
+          ]
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Utilities\Geometry.cpp(338): message : see reference to function template instantiation 'std::pair<const std::pair<unsigned int,unsigned int>,unsigned int>::pair<std::pair<unsigned int,unsigned int>&,size_t,0>(_Other1,_Other2 &&) noexcept' being compiled
+          with
+          [
+              _Other1=std::pair<unsigned int,unsigned int> &,
+              _Other2=size_t
+          ]
+  String.cpp
+  SVMemory.cpp
+  SVUtilities.cpp
+  Shadows.cpp
+  Space Visualiser.vcxproj -> A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\bin\x64\Release\SV.GL.lib
+  Copying Include Files...
+  File not found - *.h
+  0 File(s) copied

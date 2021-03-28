@@ -1,0 +1,146 @@
+#include"SV/Precompiled Global.h"
+#include"Display.h"
+#include"SV/Utilities/GlobalItems.h"
+#include<functional>
+
+namespace SV
+{
+	//
+	DisplaysMap SV::Display::displays;
+	//
+	Display::Display(unsigned int widthIn, unsigned int heightIn, unsigned int displayParams, const SV::StringView windowTitle, const HANDLE smallIcon, const HANDLE largeIcon)
+	{
+		this->width = widthIn;
+		this->height = heightIn;
+
+		glutInitDisplayMode(displayParams);
+		glutInitWindowSize(widthIn, heightIn);
+		this->windowID = glutCreateWindow(windowTitle.GetStringArray());
+		glutSetOption(GLUT_ACTION_ON_WINDOW_CLOSE, GLUT_ACTION_GLUTMAINLOOP_RETURNS);
+
+		Display::SetWindowIconFromRes(windowTitle, smallIcon, largeIcon);
+
+		displays.insert({ windowID, this });
+	}
+	//
+	Display::~Display()
+	{
+		glutDestroyWindow(windowID);
+		windowID = -1;
+	}
+	//
+	void Display::Initilise(int argc, char* argv[], unsigned int majorVersion, unsigned int minorVersion)
+	{
+		glutInit(&argc, argv);
+		glutInitContextVersion(majorVersion, minorVersion);
+	}
+	//
+	void Display::SetWindowIconFromRes(const SV::StringView windowTitle, const HANDLE smallIcon, const HANDLE largeIcon)
+	{
+		HWND windowHandle = FindWindow(NULL, _T(windowTitle.GetStringArray()));
+		SendMessage(windowHandle, (unsigned int)WM_SETICON, ICON_SMALL, (LPARAM)smallIcon);
+		SendMessage(windowHandle, (unsigned int)WM_SETICON, ICON_BIG, (LPARAM)largeIcon);
+	}
+	//
+	void Display::AddDisplayEvent(DisplayHandler h)
+	{
+		this->displayHandle = h;
+		glutDisplayFunc(OnDisplay);
+	}
+	void Display::AddMouseClickEvent(MouseClickHandler h)
+	{
+		this->clickHandle = h;
+		glutMouseFunc(OnMouseClick);
+	}
+	void Display::AddMouseMotionEvent(MouseMotionHandler h)
+	{
+		this->motionHandle = h;
+		glutMotionFunc(OnMouseMotion);
+	}
+	void Display::AddWindowResizeEvent(ResizedHandler h)
+	{
+		this->resizeHandle = h;
+		glutReshapeFunc(OnWindowResized);
+	}
+	void Display::AddScrollEvent(ScrollHandler h)
+	{
+		this->scrollHandle = h;
+		glutMouseWheelFunc(OnScroll);
+	}
+	void Display::AddSpecialKeyboardEvent(SpecialKeyboardHandler h)
+	{
+		glutSpecialFunc(h);
+	}
+	void Display::AddKeyboardEvent(KeyboardHandler h)
+	{
+		glutKeyboardFunc(h);
+	}
+	//
+	void Display::OnDisplay()
+	{
+		Display* currentWindow = GetCurrentDisplay();
+		if (currentWindow == nullptr) return;
+
+		currentWindow->currentFrameTime = glutGet(GLUT_ELAPSED_TIME);
+		currentWindow->deltaFrameTime = currentWindow->currentFrameTime - currentWindow->lastFrameTime;
+		currentWindow->lastFrameTime = currentWindow->currentFrameTime;
+
+		currentWindow->displayHandle();
+	}
+	void Display::OnWindowResized(int newWidth, int newHeight)
+	{
+		Display* currentWindow = GetCurrentDisplay();
+		if (currentWindow == nullptr) return;
+
+		currentWindow->width = newWidth;
+		currentWindow->height = newHeight;
+
+		currentWindow->resizeHandle(newWidth, newHeight);
+
+		Display::FlushScreen();
+		glViewport(0, 0, newWidth, newHeight);
+	}
+	void Display::OnMouseMotion(int x, int y)
+	{
+		Display* currentWindow = GetCurrentDisplay();
+		if (currentWindow == nullptr) return;
+
+		currentWindow->mouseX = x;
+		currentWindow->mouseY = y;
+
+		currentWindow->mouseDX = currentWindow->mouseX - currentWindow->lastMouseX;
+		currentWindow->mouseDY = currentWindow->mouseY - currentWindow->lastMouseY;
+
+		currentWindow->lastMouseX = x;
+		currentWindow->lastMouseY = y;
+
+		currentWindow->motionHandle(x, currentWindow->mouseDX, y, currentWindow->mouseDY);
+	}
+	void Display::OnMouseClick(int button, int state, int x, int y)
+	{
+		Display* currentWindow = GetCurrentDisplay();
+		if (currentWindow == nullptr) return;
+
+		currentWindow->currentMouseButton = (MouseButton)button;
+		currentWindow->currentMouseAction = (MouseAction)state;
+
+		currentWindow->mouseX = x;
+		currentWindow->mouseY = y;
+		currentWindow->lastMouseX = x;
+		currentWindow->lastMouseY = y;
+
+		currentWindow->clickHandle(x, y);
+	}
+	void Display::OnScroll(int button, int direction, int x, int y)
+	{
+		Display* currentWindow = GetCurrentDisplay();
+		if (currentWindow == nullptr) return;
+
+		int currentScrollTime = int(glutGet(GLUT_ELAPSED_TIME));
+		currentWindow->deltaScroll = currentScrollTime - currentWindow->lastScrollTime;
+		currentWindow->lastScrollTime = currentScrollTime;
+
+		currentWindow->scrollHandle(direction, currentWindow->deltaScroll);
+	}
+	//
+}

@@ -1,0 +1,3 @@
+﻿  glew.c
+     Creating library ..\..\lib\Debug\Win32\glew32d.lib and object ..\..\lib\Debug\Win32\glew32d.exp
+  glew_shared.vcxproj -> A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glew-2.1.0\build\vc12\..\..\bin\Debug\Win32\glew32d.dll

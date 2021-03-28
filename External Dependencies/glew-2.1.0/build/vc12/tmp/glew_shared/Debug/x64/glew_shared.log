@@ -1,0 +1,4 @@
+﻿  glew.c
+     Creating library ..\..\lib\Debug\x64\glew32d.lib and object ..\..\lib\Debug\x64\glew32d.exp
+LINK : warning LNK4281: undesirable base address 0x62AA0000 for x64 image; set base address above 4GB for best ASLR optimization
+  glew_shared.vcxproj -> A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glew-2.1.0\build\vc12\..\..\bin\Debug\x64\glew32d.dll

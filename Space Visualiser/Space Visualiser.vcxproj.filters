@@ -1,0 +1,144 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Header Files">
+      <UniqueIdentifier>{fd0031ce-f640-4a15-b7d6-7b9c528ed959}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{6e04b2dc-819c-4381-9891-70f88ffafbfc}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Resource Files">
+      <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
+      <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
+    </Filter>
+    <Filter Include="Header Files\OpenGL API Objects">
+      <UniqueIdentifier>{d9a4b20a-5295-46ea-a17b-ef7cb32afdd4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\Universe Objects">
+      <UniqueIdentifier>{88e8eace-82fd-4f3e-ad9c-3c2004004b11}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\Utilities">
+      <UniqueIdentifier>{553e7694-c3f1-46b5-8335-d77621ee150d}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Universe Objects">
+      <UniqueIdentifier>{afd50927-be5d-4bf2-b317-92607b13957b}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Utilities">
+      <UniqueIdentifier>{1dd0100b-1051-4965-9522-7051c928628d}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\OpenGL API Objects">
+      <UniqueIdentifier>{a3b33973-91a5-4ff0-ae7c-dd81f9c68503}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Shaders">
+      <UniqueIdentifier>{7ad24af2-ce76-49fa-8f27-89171727d981}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Shaders\Post Processsing">
+      <UniqueIdentifier>{d7255354-94c8-486f-bb38-3572a43c756d}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Shaders\Star">
+      <UniqueIdentifier>{9a7c2952-1252-4c01-bb3e-9546d585fc1a}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Shaders\Noise">
+      <UniqueIdentifier>{3267b181-327f-47a2-86aa-5cbd3ec122ba}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Shaders\Planet">
+      <UniqueIdentifier>{3ae51d42-80d3-4538-94ae-ac06ded1c09c}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Shaders\Planet\Atmosphere Shaders">
+      <UniqueIdentifier>{3cd324c4-a654-4ff7-84ab-d10fc55b9a1a}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Shaders\Planet\Planet Rings">
+      <UniqueIdentifier>{a239acdb-4065-4272-ba8e-09492b564fb1}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Shaders\Misc">
+      <UniqueIdentifier>{d08343cd-81c5-4104-93e0-b1769308ec98}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Shaders\Misc\Sphere Soft Shadow">
+      <UniqueIdentifier>{305867f9-7a38-4ef2-bb44-6234e175afb8}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Shadows">
+      <UniqueIdentifier>{d93e181e-f78b-488d-b3a5-0519fd17b575}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\Shadows">
+      <UniqueIdentifier>{8e09a811-bf34-4116-a151-33f1de2c9e3e}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Shaders\Shadows">
+      <UniqueIdentifier>{3da0889c-c9b4-41d0-bb12-3ea74f7728bf}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\Post Processing">
+      <UniqueIdentifier>{3ee2c9d6-8bd4-4766-9f9a-25e530740593}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Post Processing">
+      <UniqueIdentifier>{4a046bae-288a-4abb-96ec-9454250ad066}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Shaders\Planet\Ring Headers">
+      <UniqueIdentifier>{db8cd328-2b61-417c-8833-fb2888df42c7}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="Source Files\SV\Utilities\Geometry.cpp">
+      <Filter>Source Files\Utilities</Filter>
+    </ClCompile>
+    <ClCompile Include="Source Files\SV\Utilities\Maths.cpp">
+      <Filter>Source Files\Utilities</Filter>
+    </ClCompile>
+    <ClCompile Include="Source Files\SV\Utilities\SVUtilities.cpp">
+      <Filter>Source Files\Utilities</Filter>
+    </ClCompile>
+    <ClCompile Include="Source Files\SV\Scene\Camera.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Source Files\SV\Scene\Shadows.cpp">
+      <Filter>Source Files\Shadows</Filter>
+    </ClCompile>
+    <ClCompile Include="Source Files\SV\GUI\Display.cpp">
+      <Filter>Source Files\OpenGL API Objects</Filter>
+    </ClCompile>
+    <ClCompile Include="Source Files\SV\Precompiled Global.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Source Files\SV\Utilities\SVMemory.cpp" />
+    <ClCompile Include="Source Files\SV\OpenGL\FBO.cpp" />
+    <ClCompile Include="Source Files\SV\OpenGL\OpenGL Context.cpp" />
+    <ClCompile Include="Source Files\SV\OpenGL\Post Processing.cpp" />
+    <ClCompile Include="Source Files\SV\OpenGL\ShaderProgram.cpp" />
+    <ClCompile Include="Source Files\SV\OpenGL\Texture.cpp" />
+    <ClCompile Include="Source Files\SV\OpenGL\VAO.cpp" />
+    <ClCompile Include="Source Files\SV\OpenGL\VBO.cpp" />
+    <ClCompile Include="Source Files\SV\Atmosphere\Atmosphere.cpp" />
+    <ClCompile Include="Source Files\SV\Atmosphere\AtmospherePrecomputer.cpp" />
+    <ClCompile Include="Source Files\SV\Utilities\String.cpp" />
+    <ClCompile Include="Source Files\SV\Utilities\Console.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="Source Files\SV\Atmosphere\Atmosphere.hpp" />
+    <ClInclude Include="Source Files\SV\Atmosphere\AtmospherePrecomputer.hpp" />
+    <ClInclude Include="Source Files\SV\OpenGL\FBO.hpp" />
+    <ClInclude Include="Source Files\SV\OpenGL\OpenGL Context.hpp" />
+    <ClInclude Include="Source Files\SV\OpenGL\Post Processing.hpp" />
+    <ClInclude Include="Source Files\SV\OpenGL\ShaderProgram.hpp" />
+    <ClInclude Include="Source Files\SV\OpenGL\Texture.hpp" />
+    <ClInclude Include="Source Files\SV\OpenGL\VAO.hpp" />
+    <ClInclude Include="Source Files\SV\OpenGL\VBO.hpp" />
+    <ClInclude Include="Source Files\SV\Scene\Camera.hpp" />
+    <ClInclude Include="Source Files\SV\GUI\Display.hpp" />
+    <ClInclude Include="Source Files\SV\Utilities\Chrono.hpp" />
+    <ClInclude Include="Source Files\SV\Utilities\Console.hpp" />
+    <ClInclude Include="Source Files\SV\Utilities\Errors.hpp" />
+    <ClInclude Include="Source Files\SV\Utilities\String.hpp" />
+    <ClInclude Include="Source Files\SV\Utilities\SVMemory.hpp" />
+    <ClInclude Include="Source Files\SV\Utilities\Array.hpp" />
+    <ClInclude Include="Source Files\SV\Precompiled Global.hpp" />
+    <ClInclude Include="Source Files\SV\Scene\Shadows.hpp" />
+    <ClInclude Include="Source Files\SV\Utilities\FunctionHandlers.hpp" />
+    <ClInclude Include="Source Files\SV\Utilities\Geometry.hpp" />
+    <ClInclude Include="Source Files\SV\Utilities\GlobalItems.hpp" />
+    <ClInclude Include="Source Files\SV\Utilities\Maths.hpp" />
+    <ClInclude Include="Source Files\SV\Utilities\SVUtilities.hpp" />
+    <ClInclude Include="Source Files\SV\Scene\Transformation.hpp" />
+    <ClInclude Include="Source Files\SV\Utilities\Tree.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <Natvis Include="SV.natvis" />
+  </ItemGroup>
+</Project>

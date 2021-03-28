@@ -1,0 +1,6 @@
+﻿  smooth_opengl3.c
+  Generating code
+  Previous IPDB not found, fall back to full compilation.
+  All 326 functions were compiled because no usable IPDB/IOBJ from previous compilation was found.
+  Finished generating code
+  smooth_opengl3.vcxproj -> A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\freeglut-2.8.1\VisualStudio\2012\smooth_opengl3\..\..\..\progs\demos\x86\release_static\smooth_opengl3.exe

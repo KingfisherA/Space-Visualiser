@@ -1,0 +1,32 @@
+﻿  freeglut_callbacks.c
+  freeglut_cursor.c
+  freeglut_display.c
+  freeglut_ext.c
+  freeglut_font.c
+  freeglut_font_data.c
+  freeglut_gamemode.c
+  freeglut_geometry.c
+  freeglut_glutfont_definitions.c
+  freeglut_init.c
+  freeglut_input_devices.c
+  freeglut_joystick.c
+  freeglut_main.c
+  freeglut_menu.c
+  freeglut_misc.c
+  freeglut_overlay.c
+  freeglut_spaceball.c
+  freeglut_state.c
+  freeglut_stroke_mono_roman.c
+  freeglut_stroke_roman.c
+  Compiling...
+  freeglut_structure.c
+  freeglut_teapot.c
+  freeglut_videoresize.c
+  freeglut_window.c
+  fgSetupPixelFormat(): there is still some work to do here!
+     Creating library ..\..\lib\x86\freeglut.lib and object ..\..\lib\x86\freeglut.exp
+  Generating code
+  Previous IPDB not found, fall back to full compilation.
+  All 304 functions were compiled because no usable IPDB/IOBJ from previous compilation was found.
+  Finished generating code
+  freeglut.vcxproj -> A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\freeglut-2.8.1\VisualStudio\2012\..\..\lib\x86\freeglut.dll

@@ -1,0 +1,287 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|Win32">
+      <Configuration>Debug</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|Win32">
+      <Configuration>Release</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="Sandbox.cpp" />
+    <ClCompile Include="Source Files\Application\Application.cpp" />
+    <ClCompile Include="Source Files\Universe\Planet.cpp" />
+    <ClCompile Include="Source Files\Universe\Planetary System.cpp" />
+    <ClCompile Include="Source Files\Universe\PlanetNew.cpp" />
+    <ClCompile Include="Source Files\Universe\Star.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="Resource Files\resource.hpp" />
+    <ClInclude Include="Source Files\Application\Application.hpp" />
+    <ClInclude Include="Source Files\Universe\CelestrialBody.hpp" />
+    <ClInclude Include="Source Files\Universe\Planet.hpp" />
+    <ClInclude Include="Source Files\Universe\Planetary System.h" />
+    <ClInclude Include="Source Files\Universe\PlanetNew.hpp" />
+    <ClInclude Include="Source Files\Universe\Star.hpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Space Visualiser\Space Visualiser.vcxproj">
+      <Project>{ecc9306c-a7af-494d-9d63-544b303629ce}</Project>
+    </ProjectReference>
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="Resource Files\Space Visualiser.rc" />
+  </ItemGroup>
+  <ItemGroup>
+    <Image Include="Resource Files\Space Icon.ico" />
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>16.0</VCProjectVersion>
+    <ProjectGuid>{277C3DA1-5D8E-4157-8CF0-CAA3B97315C4}</ProjectGuid>
+    <RootNamespace>Sandbox</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v142</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v142</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v142</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v142</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Label="Shared">
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <LinkIncremental>true</LinkIncremental>
+    <OutDir>$(ProjectDir)bin\$(Platform)\$(Configuration)\</OutDir>
+    <IntDir>$(ProjectDir)Build\$(Platform)\$(Configuration)\</IntDir>
+    <CustomBuildAfterTargets>
+    </CustomBuildAfterTargets>
+    <CustomBuildBeforeTargets>
+    </CustomBuildBeforeTargets>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <LinkIncremental>true</LinkIncremental>
+    <OutDir>$(ProjectDir)bin\$(Platform)\$(Configuration)\</OutDir>
+    <IntDir>$(ProjectDir)Build\$(Platform)\$(Configuration)\</IntDir>
+    <CustomBuildAfterTargets>
+    </CustomBuildAfterTargets>
+    <CustomBuildBeforeTargets>
+    </CustomBuildBeforeTargets>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <LinkIncremental>false</LinkIncremental>
+    <OutDir>$(ProjectDir)bin\$(Platform)\$(Configuration)\</OutDir>
+    <IntDir>$(ProjectDir)Build\$(Platform)\$(Configuration)\</IntDir>
+    <CustomBuildAfterTargets>
+    </CustomBuildAfterTargets>
+    <CustomBuildBeforeTargets>
+    </CustomBuildBeforeTargets>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <LinkIncremental>false</LinkIncremental>
+    <OutDir>$(ProjectDir)bin\$(Platform)\$(Configuration)\</OutDir>
+    <IntDir>$(ProjectDir)Build\$(Platform)\$(Configuration)\</IntDir>
+    <CustomBuildAfterTargets>
+    </CustomBuildAfterTargets>
+    <CustomBuildBeforeTargets>
+    </CustomBuildBeforeTargets>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>_DEBUG;_CONSOLE;SOLUTION_DIR=R"($(SolutionDir))";OUTPUT_DIR=R"($(OutputPath))"</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>$(SolutionDir)Space Visualiser\Source Files\;$(SolutionDir)Sandbox\Source Files\;$(SolutionDir)External Dependencies\glm\glm;$(SolutionDir)External Dependencies\SOIL\src;$(SolutionDir)External Dependencies\glew-2.1.0\include\GL;$(SolutionDir)External Dependencies\freeglut-2.8.1\include\GL;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalLibraryDirectories>$(SolutionDir)External Dependencies\freeglut-2.8.1\lib\x86\Debug\;$(SolutionDir)External Dependencies\glew-2.1.0\lib\Debug\Win32;$(SolutionDir)External Dependencies\SOIL\lib\;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>SOILd.lib;freeglut_static.lib;glew32sd.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <IgnoreSpecificDefaultLibraries>LIBCMTD;LIBCMT;%(IgnoreSpecificDefaultLibraries)</IgnoreSpecificDefaultLibraries>
+    </Link>
+    <CustomBuildStep>
+      <Command>
+      </Command>
+      <Message>
+      </Message>
+      <Outputs>
+      </Outputs>
+    </CustomBuildStep>
+    <PostBuildEvent>
+      <Command>
+      </Command>
+    </PostBuildEvent>
+    <PostBuildEvent>
+      <Message>
+      </Message>
+    </PostBuildEvent>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <ClCompile>
+      <WarningLevel>EnableAllWarnings</WarningLevel>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>_DEBUG;_CONSOLE;SOLUTION_DIR=R"($(SolutionDir))";OUTPUT_DIR=R"($(OutputPath))"</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>$(SolutionDir)Space Visualiser\Source Files\;$(SolutionDir)Sandbox\Source Files\;$(SolutionDir)External Dependencies\glm\glm;$(SolutionDir)External Dependencies\SOIL\src;$(SolutionDir)External Dependencies\glew-2.1.0\include\GL;$(SolutionDir)External Dependencies\freeglut-2.8.1\include\GL;$(SolutionDir)External Dependencies\glfw-3.3.2\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <EnableModules>false</EnableModules>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalDependencies>opengl32.lib;SOILd.lib;glew32sd.lib;$(SolutionDir)External Dependencies\glfw-3.3.2\lib\x64\glfw3.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(SolutionDir)External Dependencies\glew-2.1.0\lib\Debug\x64\;$(SolutionDir)External Dependencies\SOIL\lib\x64\;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <IgnoreSpecificDefaultLibraries>LIBCMTD;LIBCMT;%(IgnoreSpecificDefaultLibraries)</IgnoreSpecificDefaultLibraries>
+    </Link>
+    <CustomBuildStep>
+      <Command>
+      </Command>
+      <Message>
+      </Message>
+      <Outputs>
+      </Outputs>
+    </CustomBuildStep>
+    <PostBuildEvent>
+      <Command>
+      </Command>
+    </PostBuildEvent>
+    <PostBuildEvent>
+      <Message>
+      </Message>
+    </PostBuildEvent>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions);SOLUTION_DIR=R"($(SolutionDir))";OUTPUT_DIR=R"($(OutputPath))"</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>$(SolutionDir)Space Visualiser\Source Files\;$(SolutionDir)Sandbox\Source Files\;$(SolutionDir)External Dependencies\glm\glm;$(SolutionDir)External Dependencies\SOIL\src;$(SolutionDir)External Dependencies\glew-2.1.0\include\GL;$(SolutionDir)External Dependencies\freeglut-2.8.1\include\GL;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <IgnoreSpecificDefaultLibraries>LIBCMTD;LIBCMT;%(IgnoreSpecificDefaultLibraries)</IgnoreSpecificDefaultLibraries>
+    </Link>
+    <CustomBuildStep>
+      <Command>
+      </Command>
+      <Message>
+      </Message>
+      <Outputs>
+      </Outputs>
+    </CustomBuildStep>
+    <PostBuildEvent>
+      <Command>
+      </Command>
+    </PostBuildEvent>
+    <PostBuildEvent>
+      <Message>
+      </Message>
+    </PostBuildEvent>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions);SOLUTION_DIR=R"($(SolutionDir))";OUTPUT_DIR=R"($(OutputPath))"</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>$(SolutionDir)Space Visualiser\Source Files\;$(SolutionDir)Sandbox\Source Files\;$(SolutionDir)External Dependencies\glm\glm;$(SolutionDir)External Dependencies\SOIL\src;$(SolutionDir)External Dependencies\glew-2.1.0\include\GL;$(SolutionDir)External Dependencies\freeglut-2.8.1\include\GL;$(SolutionDir)External Dependencies\glfw-3.3.2\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
+      <EnableModules>false</EnableModules>
+      <Optimization>MaxSpeed</Optimization>
+      <WholeProgramOptimization>true</WholeProgramOptimization>
+      <InlineFunctionExpansion>Disabled</InlineFunctionExpansion>
+      <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
+      <EnableFiberSafeOptimizations>true</EnableFiberSafeOptimizations>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <IgnoreSpecificDefaultLibraries>LIBCMTD;LIBCMT;%(IgnoreSpecificDefaultLibraries)</IgnoreSpecificDefaultLibraries>
+      <AdditionalLibraryDirectories>$(SolutionDir)External Dependencies\glew-2.1.0\lib\Release\x64\;$(SolutionDir)External Dependencies\SOIL\lib\x64\;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>opengl32.lib;SOIL.lib;glew32s.lib;$(SolutionDir)External Dependencies\glfw-3.3.2\lib\x64\glfw3.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+    <CustomBuildStep>
+      <Command>
+      </Command>
+      <Message>
+      </Message>
+      <Outputs>
+      </Outputs>
+    </CustomBuildStep>
+    <PostBuildEvent>
+      <Command>
+      </Command>
+    </PostBuildEvent>
+    <PostBuildEvent>
+      <Message>
+      </Message>
+    </PostBuildEvent>
+  </ItemDefinitionGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>

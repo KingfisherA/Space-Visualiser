@@ -1,0 +1,19 @@
+﻿  Sandbox.cpp
+  Application.cpp
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Sandbox\Source Files\Application\Application.cpp(215,33): warning C4244: 'argument': conversion from 'double' to 'float', possible loss of data
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Sandbox\Source Files\Application\Application.cpp(215,25): warning C4244: 'argument': conversion from 'double' to 'float', possible loss of data
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Sandbox\Source Files\Application\Application.cpp(380,108): warning C4244: 'argument': conversion from 'double' to 'const float', possible loss of data
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Sandbox\Source Files\Application\Application.cpp(381,57): warning C4244: 'argument': conversion from 'double' to 'float', possible loss of data
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Sandbox\Source Files\Universe\CelestrialBody.hpp(59,1): warning C4267: 'initializing': conversion from 'size_t' to 'unsigned int', possible loss of data
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Sandbox\Source Files\Application\Application.cpp(335): message : see reference to function template instantiation 'const std::shared_ptr<SV::Mercury> SV::CelestrialRenderer<SV::PlanetNew>::GetInstance<SV::Mercury,true>(void)' being compiled
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Sandbox\Source Files\Application\Application.cpp(335): message : see reference to function template instantiation 'const std::shared_ptr<SV::Mercury> SV::CelestrialRenderer<SV::PlanetNew>::GetInstance<SV::Mercury,true>(void)' being compiled
+  Planet.cpp
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Sandbox\Source Files\Universe\Planet.cpp(136,40): warning C4244: 'argument': conversion from 'double' to 'const float', possible loss of data
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Sandbox\Source Files\Universe\Planet.cpp(137,40): warning C4244: 'argument': conversion from 'double' to 'const float', possible loss of data
+  PlanetNew.cpp
+  Star.cpp
+  Generating code
+  Previous IPDB not found, fall back to full compilation.
+  All 5222 functions were compiled because no usable IPDB/IOBJ from previous compilation was found.
+  Finished generating code
+  Sandbox.vcxproj -> A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Sandbox\bin\x64\Release\Sandbox.exe

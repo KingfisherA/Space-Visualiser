@@ -1,0 +1,692 @@
+﻿  Application.cpp
+C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Tools\MSVC\14.28.29333\include\xmemory(141,5): warning C4365: 'argument': conversion from 'long' to 'unsigned int', signed/unsigned mismatch
+C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Tools\MSVC\14.28.29333\include\xmemory(151,5): warning C4365: 'argument': conversion from 'long' to 'unsigned int', signed/unsigned mismatch
+C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Tools\MSVC\14.28.29333\include\atomic(214,9): warning C4365: 'argument': conversion from 'long' to 'unsigned int', signed/unsigned mismatch
+C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Tools\MSVC\14.28.29333\include\atomic(230,9): warning C4365: 'argument': conversion from 'long' to 'unsigned int', signed/unsigned mismatch
+C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Tools\MSVC\14.28.29333\include\atomic(247,9): warning C4365: 'argument': conversion from 'long' to 'unsigned int', signed/unsigned mismatch
+C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Tools\MSVC\14.28.29333\include\atomic(313,9): warning C4365: 'argument': conversion from 'long' to 'unsigned int', signed/unsigned mismatch
+C:\Program Files (x86)\Windows Kits\10\Include\10.0.19041.0\um\winbase.h(7609,48): warning C5039: 'TpSetCallbackCleanupGroup': pointer or reference to potentially throwing function passed to 'extern "C"' function under -EHc. Undefined behavior may occur if this function throws an exception.
+C:\Program Files (x86)\Windows Kits\10\Include\10.0.19041.0\um\winioctl.h(10326,22): warning C4668: '_WIN32_WINNT_WIN10_TH2' is not defined as a preprocessor macro, replacing with '0' for '#if/#elif'
+C:\Program Files (x86)\Windows Kits\10\Include\10.0.19041.0\um\winioctl.h(10332,22): warning C4668: '_WIN32_WINNT_WIN10_RS1' is not defined as a preprocessor macro, replacing with '0' for '#if/#elif'
+C:\Program Files (x86)\Windows Kits\10\Include\10.0.19041.0\um\winioctl.h(10337,22): warning C4668: '_WIN32_WINNT_WIN10_TH2' is not defined as a preprocessor macro, replacing with '0' for '#if/#elif'
+C:\Program Files (x86)\Windows Kits\10\Include\10.0.19041.0\um\winioctl.h(10341,22): warning C4668: '_WIN32_WINNT_WIN10_TH2' is not defined as a preprocessor macro, replacing with '0' for '#if/#elif'
+C:\Program Files (x86)\Windows Kits\10\Include\10.0.19041.0\um\winioctl.h(10348,22): warning C4668: '_WIN32_WINNT_WIN10_RS2' is not defined as a preprocessor macro, replacing with '0' for '#if/#elif'
+C:\Program Files (x86)\Windows Kits\10\Include\10.0.19041.0\um\winioctl.h(10358,22): warning C4668: '_WIN32_WINNT_WIN10_RS2' is not defined as a preprocessor macro, replacing with '0' for '#if/#elif'
+C:\Program Files (x86)\Windows Kits\10\Include\10.0.19041.0\um\winioctl.h(10362,22): warning C4668: '_WIN32_WINNT_WIN10_TH2' is not defined as a preprocessor macro, replacing with '0' for '#if/#elif'
+C:\Program Files (x86)\Windows Kits\10\Include\10.0.19041.0\um\winioctl.h(10367,22): warning C4668: '_WIN32_WINNT_WIN10_RS3' is not defined as a preprocessor macro, replacing with '0' for '#if/#elif'
+C:\Program Files (x86)\Windows Kits\10\Include\10.0.19041.0\um\winioctl.h(10374,22): warning C4668: '_WIN32_WINNT_WIN10_RS4' is not defined as a preprocessor macro, replacing with '0' for '#if/#elif'
+C:\Program Files (x86)\Windows Kits\10\Include\10.0.19041.0\um\winioctl.h(10377,22): warning C4668: '_WIN32_WINNT_WIN10_RS1' is not defined as a preprocessor macro, replacing with '0' for '#if/#elif'
+C:\Program Files (x86)\Windows Kits\10\Include\10.0.19041.0\um\winioctl.h(10380,22): warning C4668: '_WIN32_WINNT_WIN10_RS4' is not defined as a preprocessor macro, replacing with '0' for '#if/#elif'
+C:\Program Files (x86)\Windows Kits\10\Include\10.0.19041.0\um\winioctl.h(10385,22): warning C4668: '_WIN32_WINNT_WIN10_RS1' is not defined as a preprocessor macro, replacing with '0' for '#if/#elif'
+C:\Program Files (x86)\Windows Kits\10\Include\10.0.19041.0\um\winioctl.h(10388,22): warning C4668: '_WIN32_WINNT_WIN10_RS5' is not defined as a preprocessor macro, replacing with '0' for '#if/#elif'
+C:\Program Files (x86)\Windows Kits\10\Include\10.0.19041.0\um\winioctl.h(10588,22): warning C4668: '_WIN32_WINNT_WIN10_RS2' is not defined as a preprocessor macro, replacing with '0' for '#if/#elif'
+C:\Program Files (x86)\Windows Kits\10\Include\10.0.19041.0\um\winioctl.h(10612,22): warning C4668: '_WIN32_WINNT_WIN10_RS5' is not defined as a preprocessor macro, replacing with '0' for '#if/#elif'
+C:\Program Files (x86)\Windows Kits\10\Include\10.0.19041.0\um\winioctl.h(14064,22): warning C4668: '_WIN32_WINNT_WIN10_RS5' is not defined as a preprocessor macro, replacing with '0' for '#if/#elif'
+C:\Program Files (x86)\Windows Kits\10\Include\10.0.19041.0\um\winioctl.h(14267,22): warning C4668: '_WIN32_WINNT_WIN10_RS5' is not defined as a preprocessor macro, replacing with '0' for '#if/#elif'
+C:\Program Files (x86)\Windows Kits\10\Include\10.0.19041.0\um\winioctl.h(14370,22): warning C4668: '_WIN32_WINNT_WIN10_RS5' is not defined as a preprocessor macro, replacing with '0' for '#if/#elif'
+C:\Program Files (x86)\Windows Kits\10\Include\10.0.19041.0\um\winioctl.h(14466,21): warning C4668: '_WIN32_WINNT_WIN10_RS5' is not defined as a preprocessor macro, replacing with '0' for '#if/#elif'
+C:\Program Files (x86)\Windows Kits\10\Include\10.0.19041.0\um\winioctl.h(14570,22): warning C4668: '_WIN32_WINNT_WIN10_RS5' is not defined as a preprocessor macro, replacing with '0' for '#if/#elif'
+C:\Program Files (x86)\Windows Kits\10\Include\10.0.19041.0\um\winioctl.h(15321,23): warning C4668: '_WIN32_WINNT_WIN10_RS2' is not defined as a preprocessor macro, replacing with '0' for '#if/#elif'
+C:\Program Files (x86)\Windows Kits\10\Include\10.0.19041.0\um\winioctl.h(15377,22): warning C4668: '_WIN32_WINNT_WIN10_RS2' is not defined as a preprocessor macro, replacing with '0' for '#if/#elif'
+C:\Program Files (x86)\Windows Kits\10\Include\10.0.19041.0\um\winioctl.h(15496,22): warning C4668: '_WIN32_WINNT_WIN10_RS3' is not defined as a preprocessor macro, replacing with '0' for '#if/#elif'
+C:\Program Files (x86)\Windows Kits\10\Include\10.0.19041.0\um\winioctl.h(15646,22): warning C4668: '_WIN32_WINNT_WIN10_RS4' is not defined as a preprocessor macro, replacing with '0' for '#if/#elif'
+C:\Program Files (x86)\Windows Kits\10\Include\10.0.19041.0\um\winioctl.h(15659,22): warning C4668: '_WIN32_WINNT_WIN10_RS4' is not defined as a preprocessor macro, replacing with '0' for '#if/#elif'
+C:\Program Files (x86)\Windows Kits\10\Include\10.0.19041.0\um\winioctl.h(15887,22): warning C4668: '_WIN32_WINNT_WIN10_RS1' is not defined as a preprocessor macro, replacing with '0' for '#if/#elif'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\detail\setup.hpp(33,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\vector_bool2.hpp(5,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\vector_bool2_precision.hpp(5,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\vector_float2.hpp(5,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\vector_float2_precision.hpp(5,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\vector_double2.hpp(5,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\vector_double2_precision.hpp(5,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\vector_int2.hpp(5,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\vector_int2_precision.hpp(5,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\vector_uint2.hpp(5,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\vector_uint2_precision.hpp(5,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\vector_bool3.hpp(5,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\vector_bool3_precision.hpp(5,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\vector_float3.hpp(5,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\vector_float3_precision.hpp(5,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\vector_double3.hpp(5,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\vector_double3_precision.hpp(5,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\vector_int3.hpp(5,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\vector_int3_precision.hpp(5,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\vector_uint3.hpp(5,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\vector_uint3_precision.hpp(5,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\vector_bool4.hpp(5,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\vector_bool4_precision.hpp(5,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\vector_float4.hpp(5,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\vector_float4_precision.hpp(5,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\vector_double4.hpp(5,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\vector_double4_precision.hpp(5,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\vector_double4_precision.hpp(6,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\vector_int4.hpp(5,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\vector_int4_precision.hpp(5,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\vector_uint4.hpp(5,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\vector_uint4_precision.hpp(5,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\matrix_double2x2.hpp(5,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\detail\type_mat2x2.inl(1,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\matrix_double2x3.hpp(5,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\matrix_double2x3_precision.hpp(5,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\matrix_float2x3.hpp(5,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\matrix_float2x3_precision.hpp(5,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\matrix_double2x4.hpp(5,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\matrix_double2x4_precision.hpp(5,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\matrix_float2x4.hpp(5,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\matrix_float2x4_precision.hpp(5,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\matrix_double3x2.hpp(5,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\matrix_double3x2_precision.hpp(5,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\matrix_float3x2.hpp(5,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\matrix_float3x2_precision.hpp(5,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\matrix_double3x3.hpp(5,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\detail\type_mat3x3.inl(1,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\matrix_double3x3_precision.hpp(5,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\matrix_float3x3.hpp(5,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\matrix_float3x3_precision.hpp(5,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\matrix_double3x4.hpp(5,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\matrix_double3x4_precision.hpp(5,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\matrix_float3x4.hpp(5,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\matrix_float3x4_precision.hpp(5,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\matrix_double4x2.hpp(5,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\matrix_double4x2_precision.hpp(5,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\matrix_float4x2.hpp(5,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\matrix_float4x2_precision.hpp(5,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\matrix_double4x3.hpp(5,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\matrix_double4x3_precision.hpp(5,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\matrix_float4x3.hpp(5,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\matrix_float4x3_precision.hpp(5,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\matrix_double4x4.hpp(5,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\detail\type_mat4x4.inl(1,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\matrix_double4x4_precision.hpp(5,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\matrix_float4x4.hpp(5,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\matrix_float4x4_precision.hpp(5,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\detail\func_matrix.inl(1,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\detail\func_geometric.inl(1,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\detail\func_exponential.inl(4,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\detail\func_geometric.inl(2,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\detail\func_common.inl(4,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\matrix_double2x2_precision.hpp(5,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\matrix_float2x2.hpp(5,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\matrix_float2x2_precision.hpp(5,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\detail\func_packing.inl(4,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\gtc\type_ptr.hpp(37,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\gtc\quaternion.hpp(17,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\gtc\constants.hpp(16,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\scalar_constants.hpp(14,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\gtc\quaternion.hpp(18,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\gtc\matrix_transform.hpp(24,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\gtc\matrix_transform.hpp(25,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\gtc\matrix_transform.hpp(26,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\gtc\matrix_transform.hpp(27,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\gtc\matrix_transform.hpp(28,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\matrix_projection.hpp(23,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\matrix_projection.hpp(24,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\matrix_projection.hpp(25,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\matrix_projection.hpp(26,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\gtc\matrix_transform.hpp(29,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\matrix_clip_space.hpp(23,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\matrix_clip_space.hpp(24,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\matrix_clip_space.hpp(25,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\gtc\matrix_transform.hpp(30,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\matrix_transform.hpp(23,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\matrix_transform.hpp(24,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\matrix_transform.hpp(25,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\matrix_transform.hpp(26,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\gtc\matrix_transform.inl(1,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\gtc\matrix_transform.inl(2,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\gtc\matrix_transform.inl(3,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\gtc\quaternion.hpp(19,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\vector_relational.hpp(18,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\vector_relational.inl(1,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\vector_relational.inl(2,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\vector_relational.inl(3,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\vector_relational.inl(4,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\gtc\quaternion.hpp(20,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\quaternion_common.hpp(24,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\quaternion_common.hpp(25,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\quaternion_geometric.hpp(18,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\quaternion_geometric.hpp(19,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\quaternion_geometric.hpp(20,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\quaternion_common.hpp(26,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\quaternion_common.hpp(27,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\quaternion_common.hpp(28,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\gtc\quaternion.hpp(21,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\quaternion_float.hpp(23,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\detail\type_quat.hpp(17,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\detail\type_quat.hpp(18,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\detail\type_quat.hpp(19,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\detail\type_quat.hpp(20,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\detail\type_quat.hpp(21,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\detail\type_quat.hpp(22,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\quaternion_relational.hpp(20,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\detail\type_quat.hpp(23,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\detail\type_quat.hpp(24,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\detail\type_quat.hpp(58,1): warning C4201: nonstandard extension used: nameless struct/union
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\detail\type_quat.hpp(137): message : see reference to class template instantiation 'glm::qua<T,Q>' being compiled
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\detail\type_quat.inl(1,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\detail\type_quat.inl(2,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\detail\type_quat.inl(3,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\gtc\quaternion.hpp(22,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\quaternion_float_precision.hpp(14,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\gtc\quaternion.hpp(23,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\quaternion_double.hpp(23,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\gtc\quaternion.hpp(24,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\quaternion_double_precision.hpp(14,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\gtc\quaternion.hpp(25,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\gtc\quaternion.hpp(26,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\gtc\quaternion.hpp(27,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\quaternion_trigonometric.hpp(21,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\quaternion_trigonometric.hpp(22,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\gtc\quaternion.hpp(28,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\quaternion_transform.hpp(21,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\quaternion_transform.hpp(22,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\quaternion_transform.hpp(23,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\gtc\quaternion.hpp(29,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\gtc\quaternion.hpp(30,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\gtc\quaternion.hpp(31,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\gtc\quaternion.hpp(32,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\gtc\quaternion.inl(1,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\gtc\quaternion.inl(2,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\gtc\quaternion.inl(3,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\gtc\epsilon.hpp(17,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\gtc\epsilon.hpp(18,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\gtc\epsilon.inl(4,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\gtc\epsilon.inl(5,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\gtc\type_ptr.hpp(38,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\gtc\vec1.hpp(16,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\vector_bool1.hpp(15,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\gtc\vec1.hpp(17,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\vector_bool1_precision.hpp(13,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\gtc\vec1.hpp(18,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\vector_float1.hpp(16,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\gtc\vec1.hpp(19,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\vector_float1_precision.hpp(15,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\gtc\vec1.hpp(20,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\vector_double1.hpp(16,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\gtc\vec1.hpp(21,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\vector_double1_precision.hpp(15,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\gtc\vec1.hpp(22,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\vector_int1.hpp(16,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\gtc\vec1.hpp(23,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\vector_int1_precision.hpp(13,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\gtc\vec1.hpp(24,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\vector_uint1.hpp(16,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\gtc\vec1.hpp(25,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\vector_uint1_precision.hpp(13,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\gtc\type_ptr.hpp(39,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\gtc\type_ptr.hpp(40,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\gtc\type_ptr.hpp(41,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\gtc\type_ptr.hpp(42,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\gtc\type_ptr.hpp(43,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\gtc\type_ptr.hpp(44,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\gtc\type_ptr.hpp(45,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\gtc\type_ptr.hpp(46,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\gtc\type_ptr.hpp(47,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\gtc\type_ptr.hpp(48,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\gtc\type_ptr.hpp(49,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\gtc\type_ptr.hpp(50,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\gtx\transform.hpp(19,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\gtx\transform.hpp(20,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\gtx\quaternion.hpp(17,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\gtx\quaternion.hpp(18,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\gtx\quaternion.hpp(19,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\gtx\quaternion.hpp(20,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\quaternion_exponential.hpp(18,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\quaternion_exponential.hpp(19,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\quaternion_exponential.hpp(20,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\quaternion_exponential.hpp(21,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\gtx\quaternion.hpp(21,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\gtx\norm.hpp(17,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\gtx\norm.hpp(18,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\gtx\norm.inl(3,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\gtx\quaternion.inl(4,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\gtx\string_cast.hpp(20,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\gtx\string_cast.hpp(21,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\gtc\type_precision.hpp(17,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\gtc\type_precision.hpp(18,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\gtc\type_precision.hpp(19,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\scalar_int_sized.hpp(15,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\gtc\type_precision.hpp(20,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\scalar_uint_sized.hpp(15,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\gtc\type_precision.hpp(21,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\gtc\type_precision.hpp(22,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\gtc\type_precision.hpp(23,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\gtc\type_precision.hpp(24,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\gtc\type_precision.hpp(25,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\gtc\type_precision.hpp(26,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\gtc\type_precision.hpp(27,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\gtc\type_precision.hpp(28,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\gtc\type_precision.hpp(29,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\gtc\type_precision.hpp(30,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\gtc\type_precision.hpp(31,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\gtc\type_precision.hpp(32,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\gtx\string_cast.hpp(22,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\gtx\string_cast.hpp(23,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\gtx\dual_quaternion.hpp(19,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\gtx\dual_quaternion.hpp(20,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\gtx\dual_quaternion.hpp(21,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\gtx\dual_quaternion.inl(3,10): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Sandbox\Source Files\Application\Application.cpp(4,9): warning C4464: relative include path contains '..'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Scene\Transformation.hpp(21,22): warning C5038: data member 'SV::Transformation::transformationMatrix' will be initialized after data member 'SV::Transformation::translation'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Scene\Transformation.hpp(22,44): warning C5038: data member 'SV::Transformation::transformationMatrix' will be initialized after data member 'SV::Transformation::translation'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Scene\Transformation.hpp(23,81): warning C5038: data member 'SV::Transformation::transformationMatrix' will be initialized after data member 'SV::Transformation::translation'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Scene\Transformation.hpp(23,129): warning C5038: data member 'SV::Transformation::rotations' will be initialized after data member 'SV::Transformation::scaling'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Scene\Transformation.hpp(24,107): warning C5038: data member 'SV::Transformation::transformationMatrix' will be initialized after data member 'SV::Transformation::translation'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Scene\Transformation.hpp(24,155): warning C5038: data member 'SV::Transformation::rotations' will be initialized after data member 'SV::Transformation::scaling'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Scene\Transformation.hpp(25,73): warning C5038: data member 'SV::Transformation::rotations' will be initialized after data member 'SV::Transformation::scaling'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Scene\Transformation.hpp(26,74): warning C5038: data member 'SV::Transformation::rotations' will be initialized after data member 'SV::Transformation::scaling'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Scene\Transformation.hpp(43,1): warning C4365: 'argument': conversion from 'size_t' to 'const __int64', signed/unsigned mismatch
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Utilities\Array.hpp(258,1): warning C4820: 'SV::Array<SV::ArraySpan<unsigned char>>': '6' bytes padding added after data member 'SV::Array<SV::ArraySpan<unsigned char>>::retractionIncrement'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Utilities\Array.hpp(432): message : see reference to class template instantiation 'SV::Array<SV::ArraySpan<unsigned char>>' being compiled
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Utilities\Array.hpp(258,1): warning C4820: 'SV::Array<unsigned char>': '6' bytes padding added after data member 'SV::Array<unsigned char>::retractionIncrement'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Utilities\Array.hpp(433): message : see reference to class template instantiation 'SV::Array<unsigned char>' being compiled
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Utilities\Array.hpp(258,1): warning C4820: 'SV::Array<size_t>': '6' bytes padding added after data member 'SV::Array<size_t>::retractionIncrement'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Utilities\Array.cpp(169): message : see reference to class template instantiation 'SV::Array<size_t>' being compiled
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Utilities\Array.hpp(258,1): warning C4820: 'SV::Array<int>': '6' bytes padding added after data member 'SV::Array<int>::retractionIncrement'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Utilities\Array.cpp(288): message : see reference to class template instantiation 'SV::Array<int>' being compiled
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Utilities\Array.cpp(1334,3): warning C5038: data member 'SV::ArrayGroup::byteBuffer' will be initialized after data member 'SV::ArrayGroup::arraySpans'
+C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Tools\MSVC\14.28.29333\include\ppltaskscheduler.h(52,50): warning C4355: 'this': used in base member initializer list
+C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Tools\MSVC\14.28.29333\include\pplwin.h(78,1): warning C5204: 'Concurrency::details::_DefaultPPLTaskScheduler': class has virtual functions, but its trivial destructor is not virtual; instances of objects derived from this class may not be destructed correctly
+C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Tools\MSVC\14.28.29333\include\pplwin.h(60,78): warning C4355: 'this': used in base member initializer list
+C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Tools\MSVC\14.28.29333\include\ppltasks.h(801,45): warning C4820: 'Concurrency::details::_ExceptionHolder': '4' bytes padding added after data member 'Concurrency::details::_ExceptionHolder::_M_exceptionObserved'
+C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Tools\MSVC\14.28.29333\include\ppltasks.h(809,5): warning C4625: 'Concurrency::details::_ExceptionHolder': copy constructor was implicitly defined as deleted
+C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Tools\MSVC\14.28.29333\include\ppltasks.h(809,5): warning C4626: 'Concurrency::details::_ExceptionHolder': assignment operator was implicitly defined as deleted
+C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Tools\MSVC\14.28.29333\include\ppltasks.h(1078,1): warning C4820: 'Concurrency::task_continuation_context': '7' bytes padding added after data member 'Concurrency::task_continuation_context::_M_RunInline'
+C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Tools\MSVC\14.28.29333\include\ppltasks.h(1086,58): warning C4820: 'Concurrency::details::_Internal_task_options': '7' bytes padding added after data member 'Concurrency::details::_Internal_task_options::_M_hasPresetCreationCallstack'
+C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Tools\MSVC\14.28.29333\include\ppltasks.h(1276,1): warning C4820: 'Concurrency::task_options': '6' bytes padding added after data member 'Concurrency::task_options::_M_HasScheduler'
+C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Tools\MSVC\14.28.29333\include\ppltasks.h(1294,57): warning C4820: 'Concurrency::details::_ThenImplOptions': '4' bytes padding added after data member 'Concurrency::details::_ThenImplOptions::_InliningMode'
+C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Tools\MSVC\14.28.29333\include\ppltasks.h(1342,44): warning C4820: 'Concurrency::details::_ContinuationTaskHandleBase': '3' bytes padding added after data member 'Concurrency::details::_ContinuationTaskHandleBase::_M_isTaskBasedContinuation'
+C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Tools\MSVC\14.28.29333\include\ppltasks.h(1389,5): warning C4820: 'Concurrency::details::_TaskEventLogger': '6' bytes padding added after data member 'Concurrency::details::_TaskEventLogger::_M_taskPostEventStarted'
+C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Tools\MSVC\14.28.29333\include\ppltasks.h(2074,63): warning C4820: 'Concurrency::details::_Task_impl_base': '2' bytes padding added after data member 'Concurrency::details::_Task_impl_base::_M_fUnwrappedTask'
+C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Tools\MSVC\14.28.29333\include\ppltasks.h(2098,5): warning C5220: 'Concurrency::details::_Task_impl_base::_M_TaskState': a non-static data member with a volatile qualified type no longer implies
+           that compiler generated copy/move constructors and copy/move assignment operators are not trivial
+C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Tools\MSVC\14.28.29333\include\ppltasks.h(2064): message : see declaration of 'Concurrency::details::_Task_impl_base::_M_TaskState'
+C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Tools\MSVC\14.28.29333\include\ppltasks.h(1513,48): warning C4355: 'this': used in base member initializer list
+C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Tools\MSVC\14.28.29333\include\ppltasks.h(2340,1): warning C4820: 'Concurrency::details::_Task_completion_event_impl<_ResultType>': '7' bytes padding added after data member 'Concurrency::details::_Task_completion_event_impl<_ResultType>::_M_value'
+          with
+          [
+              _ResultType=Concurrency::details::_Unit_type
+          ]
+C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Tools\MSVC\14.28.29333\include\ppltasks.h(2568): message : see reference to class template instantiation 'Concurrency::details::_Task_completion_event_impl<_ResultType>' being compiled
+          with
+          [
+              _ResultType=Concurrency::details::_Unit_type
+          ]
+C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Tools\MSVC\14.28.29333\include\ppltasks.h(2773): message : see reference to class template instantiation 'Concurrency::task_completion_event<Concurrency::details::_Unit_type>' being compiled
+C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Tools\MSVC\14.28.29333\include\ppltasks.h(2343,1): warning C4820: 'Concurrency::details::_Task_completion_event_impl<_ResultType>': '6' bytes padding added after data member 'Concurrency::details::_Task_completion_event_impl<_ResultType>::_M_fIsCanceled'
+          with
+          [
+              _ResultType=Concurrency::details::_Unit_type
+          ]
+C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Tools\MSVC\14.28.29333\include\ppltasks.h(2302,1): warning C4820: 'Concurrency::details::_Task_impl<_ReturnType>': '7' bytes padding added after data member 'Concurrency::details::_Task_impl<_ReturnType>::_M_Result'
+          with
+          [
+              _ReturnType=Concurrency::details::_Unit_type
+          ]
+C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Tools\MSVC\14.28.29333\include\ppltasks.h(4154): message : see reference to class template instantiation 'Concurrency::details::_Task_impl<_ReturnType>' being compiled
+          with
+          [
+              _ReturnType=Concurrency::details::_Unit_type
+          ]
+C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Tools\MSVC\14.28.29333\include\ppltasks.h(2303,1): warning C4625: 'Concurrency::details::_Task_impl<_ReturnType>': copy constructor was implicitly defined as deleted
+          with
+          [
+              _ReturnType=Concurrency::details::_Unit_type
+          ]
+C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Tools\MSVC\14.28.29333\include\ppltasks.h(2303,1): warning C4626: 'Concurrency::details::_Task_impl<_ReturnType>': assignment operator was implicitly defined as deleted
+          with
+          [
+              _ReturnType=Concurrency::details::_Unit_type
+          ]
+C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Tools\MSVC\14.28.29333\include\ppltasks.h(6094,1): warning C4625: 'Concurrency::details::_RunAllParam<Concurrency::details::_Unit_type>': copy constructor was implicitly defined as deleted
+C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Tools\MSVC\14.28.29333\include\ppltasks.h(6094,1): warning C5026: 'Concurrency::details::_RunAllParam<Concurrency::details::_Unit_type>': move constructor was implicitly defined as deleted
+C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Tools\MSVC\14.28.29333\include\ppltasks.h(6094,1): warning C4626: 'Concurrency::details::_RunAllParam<Concurrency::details::_Unit_type>': assignment operator was implicitly defined as deleted
+C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Tools\MSVC\14.28.29333\include\ppltasks.h(6094,1): warning C5027: 'Concurrency::details::_RunAllParam<Concurrency::details::_Unit_type>': move assignment operator was implicitly defined as deleted
+C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Tools\MSVC\14.28.29333\include\ppltasks.h(2343,1): warning C4820: 'Concurrency::details::_Task_completion_event_impl<_ResultType>': '6' bytes padding added after data member 'Concurrency::details::_Task_completion_event_impl<_ResultType>::_M_fIsCanceled'
+          with
+          [
+              _ResultType=std::pair<size_t,Concurrency::details::_CancellationTokenState *>
+          ]
+C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Tools\MSVC\14.28.29333\include\ppltasks.h(2568): message : see reference to class template instantiation 'Concurrency::details::_Task_completion_event_impl<_ResultType>' being compiled
+          with
+          [
+              _ResultType=std::pair<size_t,Concurrency::details::_CancellationTokenState *>
+          ]
+C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Tools\MSVC\14.28.29333\include\ppltasks.h(6578): message : see reference to class template instantiation 'Concurrency::task_completion_event<_CompletionType>' being compiled
+          with
+          [
+              _CompletionType=std::pair<size_t,Concurrency::details::_CancellationTokenState *>
+          ]
+C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Tools\MSVC\14.28.29333\include\ppltasks.h(6719): message : see reference to class template instantiation 'Concurrency::details::_RunAnyParam<std::pair<size_t,Concurrency::details::_CancellationTokenState *>>' being compiled
+C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Tools\MSVC\14.28.29333\include\ppltasks.h(6763): message : see reference to class template instantiation 'Concurrency::details::_WhenAnyImpl<void,_Iterator>' being compiled
+C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Tools\MSVC\14.28.29333\include\ppltasks.h(6584,1): warning C4820: 'Concurrency::details::_RunAnyParam<std::pair<size_t,Concurrency::details::_CancellationTokenState *>>': '7' bytes padding added after data member 'Concurrency::details::_RunAnyParam<std::pair<size_t,Concurrency::details::_CancellationTokenState *>>::_M_fHasExplicitToken'
+C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Tools\MSVC\14.28.29333\include\ppltasks.h(6584,1): warning C4625: 'Concurrency::details::_RunAnyParam<std::pair<size_t,Concurrency::details::_CancellationTokenState *>>': copy constructor was implicitly defined as deleted
+C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Tools\MSVC\14.28.29333\include\ppltasks.h(6584,1): warning C4626: 'Concurrency::details::_RunAnyParam<std::pair<size_t,Concurrency::details::_CancellationTokenState *>>': assignment operator was implicitly defined as deleted
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Utilities\String.hpp(38,1): warning C4820: 'SV::BasicStringView<char>': '6' bytes padding added after data member 'SV::BasicStringView<char>::charStore'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Utilities\String.hpp(506): message : see reference to class template instantiation 'SV::BasicStringView<char>' being compiled
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Utilities\String.hpp(911): message : see reference to class template instantiation 'SV::BasicString<char>' being compiled
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Utilities\String.hpp(520,1): warning C4820: 'SV::BasicString<char>': '4' bytes padding added after data member 'SV::BasicString<char>::optimiseStore'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Utilities\String.hpp(38,1): warning C4820: 'SV::BasicStringView<wchar_t>': '4' bytes padding added after data member 'SV::BasicStringView<wchar_t>::charStore'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Utilities\String.hpp(506): message : see reference to class template instantiation 'SV::BasicStringView<wchar_t>' being compiled
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Utilities\String.hpp(1131): message : see reference to class template instantiation 'SV::BasicString<wchar_t>' being compiled
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Utilities\String.hpp(516,1): warning C4820: 'SV::BasicString<wchar_t>': '1' bytes padding added after data member 'SV::BasicString<wchar_t>::allocatorStore'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Utilities\String.hpp(38,1): warning C4820: 'SV::BasicStringView<char16_t>': '4' bytes padding added after data member 'SV::BasicStringView<char16_t>::charStore'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Utilities\String.hpp(506): message : see reference to class template instantiation 'SV::BasicStringView<char16_t>' being compiled
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Utilities\String.hpp(1135): message : see reference to class template instantiation 'SV::BasicString<char16_t>' being compiled
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Utilities\String.hpp(516,1): warning C4820: 'SV::BasicString<char16_t>': '1' bytes padding added after data member 'SV::BasicString<char16_t>::allocatorStore'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Utilities\String.hpp(516,1): warning C4820: 'SV::BasicString<char32_t>': '3' bytes padding added after data member 'SV::BasicString<char32_t>::allocatorStore'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Utilities\String.hpp(1139): message : see reference to class template instantiation 'SV::BasicString<char32_t>' being compiled
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\OpenGL\Texture.hpp(270,5): warning C4201: nonstandard extension used: nameless struct/union
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\OpenGL\Texture.hpp(286,5): warning C4201: nonstandard extension used: nameless struct/union
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\OpenGL\Texture.hpp(288,2): warning C4626: 'SV::TextureWrapOptions': assignment operator was implicitly defined as deleted
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\OpenGL\Texture.hpp(516,20): warning C4820: 'SV::ITexture': '3' bytes padding added after data member 'SV::ITexture::hasMipmapping'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\OpenGL\Texture.hpp(517,2): warning C4820: 'SV::ITexture': '4' bytes padding added after data member 'SV::ITexture::textureID'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\OpenGL\Texture.hpp(318,1): warning C4365: 'argument': conversion from 'int' to 'GLenum', signed/unsigned mismatch
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\OpenGL\Texture.hpp(394,1): warning C4061: enumerator 'SV::TexFormat::Depth' in switch of enum 'SV::TexFormat' is not explicitly handled by a case label
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\OpenGL\Texture.hpp(160): message : see declaration of 'SV::TexFormat'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\OpenGL\Texture.hpp(457,1): warning C4061: enumerator 'SV::TexFormat::Depth' in switch of enum 'SV::TexFormat' is not explicitly handled by a case label
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\OpenGL\Texture.hpp(160): message : see declaration of 'SV::TexFormat'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\OpenGL\Texture.hpp(549,1): warning C4365: '=': conversion from 'unsigned int' to 'int', signed/unsigned mismatch
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\OpenGL\Texture.hpp(550,1): warning C4365: '=': conversion from 'unsigned int' to 'int', signed/unsigned mismatch
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\OpenGL\Texture.hpp(560,40): warning C4365: 'return': conversion from 'const int' to 'unsigned int', signed/unsigned mismatch
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\OpenGL\Texture.hpp(561,41): warning C4365: 'return': conversion from 'const int' to 'unsigned int', signed/unsigned mismatch
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\OpenGL\Texture.hpp(562,45): warning C4365: 'return': conversion from 'int' to 'unsigned int', signed/unsigned mismatch
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\OpenGL\Texture.hpp(639,2): warning C4820: 'SV::AsyncTextureData': '7' bytes padding added after data member 'SV::AsyncTextureData::aLoaded'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\OpenGL\Texture.hpp(639,2): warning C4625: 'SV::AsyncTextureData': copy constructor was implicitly defined as deleted
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\OpenGL\Texture.hpp(639,2): warning C5026: 'SV::AsyncTextureData': move constructor was implicitly defined as deleted
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\OpenGL\Texture.hpp(639,2): warning C4626: 'SV::AsyncTextureData': assignment operator was implicitly defined as deleted
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\OpenGL\Texture.hpp(639,2): warning C5027: 'SV::AsyncTextureData': move assignment operator was implicitly defined as deleted
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\OpenGL\Texture.hpp(662,2): warning C4626: 'SV::Texture2D': assignment operator was implicitly defined as deleted
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\OpenGL\Texture.hpp(704,22): warning C4820: 'SV::AsyncTexture2D': '3' bytes padding added after data member 'SV::AsyncTexture2D::texLoaded'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\OpenGL\Texture.hpp(706,44): warning C4820: 'SV::AsyncTexture2D': '4' bytes padding added after data member 'SV::AsyncTexture2D::borderCol'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\OpenGL\Texture.hpp(732,2): warning C4820: 'SV::Texture3D': '4' bytes padding added after data member 'SV::Texture3D::depth'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\OpenGL\Texture.hpp(725,8): warning C4263: 'void SV::Texture3D::SetTextureWrapping(SV::TextureWrap,SV::TextureWrap,SV::TextureWrap)': member function does not override any base class virtual member function
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\OpenGL\Texture.hpp(732,2): warning C4264: 'void SV::ITexture::SetTextureWrapping(SV::TextureWrap,SV::TextureWrap)': no override available for virtual member function from base 'SV::ITexture'; function is hidden
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\OpenGL\Texture.hpp(475): message : see declaration of 'SV::ITexture::SetTextureWrapping'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\OpenGL\Texture.hpp(294): message : see declaration of 'SV::ITexture'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\OpenGL\Texture.hpp(749,2): warning C4820: 'SV::DepthTexture2D': '4' bytes padding added after data member 'SV::DepthTexture2D::depthFormat'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Utilities\Array.hpp(468,1): warning C4820: 'SV::StaticArrayGroup<4>': '4' bytes padding added after data member 'SV::StaticArrayGroup<4>::arraySpansOccupied'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Utilities\Geometry.hpp(20): message : see reference to class template instantiation 'SV::StaticArrayGroup<4>' being compiled
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glfw-3.3.2\include\GLFW\glfw3.h(1677,1): warning C4820: 'GLFWgammaramp': '4' bytes padding added after data member 'GLFWgammaramp::size'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glfw-3.3.2\include\GLFW\glfw3.h(1725,18): warning C4820: 'GLFWgamepadstate': '1' bytes padding added after data member 'GLFWgamepadstate::buttons'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\GUI\Display.hpp(102,17): warning C4820: 'SV::Display': '4' bytes padding added after data member 'SV::Display::currentMouseMods'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\GUI\Display.hpp(36,53): warning C4365: 'argument': conversion from 'const unsigned int' to 'int', signed/unsigned mismatch
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\OpenGL\VBO.hpp(23,23): warning C4820: 'SV::AttributeLayout': '3' bytes padding added after data member 'SV::AttributeLayout::elementSize'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\OpenGL\VBO.hpp(28,2): warning C4820: 'SV::AttributeLayout': '2' bytes padding added after data member 'SV::AttributeLayout::divisor'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Utilities\Array.hpp(258,1): warning C4820: 'SV::Array<std::shared_ptr<SV::ArrayBuffer>>': '6' bytes padding added after data member 'SV::Array<std::shared_ptr<SV::ArrayBuffer>>::retractionIncrement'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\OpenGL\VAO.hpp(19): message : see reference to class template instantiation 'SV::Array<std::shared_ptr<SV::ArrayBuffer>>' being compiled
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\OpenGL\VAO.hpp(110,2): warning C4820: 'SV::VAO': '4' bytes padding added after data member 'SV::VAO::vaoID'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\OpenGL\ShaderProgram.hpp(57,2): warning C4820: 'SV::IShader': '4' bytes padding added after data member 'SV::IShader::shaderID'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Utilities\Array.hpp(258,1): warning C4820: 'SV::Array<const SV::IShader *>': '6' bytes padding added after data member 'SV::Array<const SV::IShader *>::retractionIncrement'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\OpenGL\ShaderProgram.hpp(204): message : see reference to class template instantiation 'SV::Array<const SV::IShader *>' being compiled
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\OpenGL\ShaderProgram.hpp(204,40): warning C4820: 'SV::ShaderProgram': '4' bytes padding added after data member 'SV::ShaderProgram::shaderProgramID'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\OpenGL\ShaderProgram.hpp(208,2): warning C4626: 'SV::ShaderProgram': assignment operator was implicitly defined as deleted
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\OpenGL\ShaderProgram.hpp(237,2): warning C4820: 'SV::DiffuseShader': '4' bytes padding added after data member 'SV::DiffuseShader::diffuseColourUni'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\OpenGL\ShaderProgram.hpp(237,2): warning C4625: 'SV::DiffuseShader': copy constructor was implicitly defined as deleted
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\OpenGL\ShaderProgram.hpp(237,2): warning C5026: 'SV::DiffuseShader': move constructor was implicitly defined as deleted
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\OpenGL\ShaderProgram.hpp(237,2): warning C4626: 'SV::DiffuseShader': assignment operator was implicitly defined as deleted
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\OpenGL\ShaderProgram.hpp(237,2): warning C5027: 'SV::DiffuseShader': move assignment operator was implicitly defined as deleted
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\OpenGL\ShaderProgram.hpp(269,2): warning C4820: 'SV::TexturedDiffuseShader': '4' bytes padding added after data member 'SV::TexturedDiffuseShader::diffuseMapUni'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\OpenGL\ShaderProgram.hpp(269,2): warning C4625: 'SV::TexturedDiffuseShader': copy constructor was implicitly defined as deleted
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\OpenGL\ShaderProgram.hpp(269,2): warning C4626: 'SV::TexturedDiffuseShader': assignment operator was implicitly defined as deleted
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\OpenGL\ShaderProgram.hpp(288,2): warning C4820: 'SV::GridShader': '4' bytes padding added after data member 'SV::GridShader::camPosUni'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\OpenGL\ShaderProgram.hpp(288,2): warning C4625: 'SV::GridShader': copy constructor was implicitly defined as deleted
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\OpenGL\ShaderProgram.hpp(288,2): warning C5026: 'SV::GridShader': move constructor was implicitly defined as deleted
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\OpenGL\ShaderProgram.hpp(288,2): warning C4626: 'SV::GridShader': assignment operator was implicitly defined as deleted
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\OpenGL\ShaderProgram.hpp(288,2): warning C5027: 'SV::GridShader': move assignment operator was implicitly defined as deleted
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\OpenGL\FBO.hpp(45,2): warning C4820: 'SV::RenderBuffer': '3' bytes padding added after data member 'SV::RenderBuffer::multisampled'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\OpenGL\FBO.hpp(45,2): warning C4626: 'SV::RenderBuffer': assignment operator was implicitly defined as deleted
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\OpenGL\FBO.hpp(294,48): warning C4820: 'SV::FBO': '7' bytes padding added after data member 'SV::FBO::multisampled'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\OpenGL\FBO.hpp(304,2): warning C4820: 'SV::FBO': '4' bytes padding added after data member 'SV::FBO::fboID'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\OpenGL\FBO.hpp(205,1): warning C4365: 'argument': conversion from 'const T' to 'GLsizei', signed/unsigned mismatch
+          with
+          [
+              T=glm::u32
+          ]
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\OpenGL\FBO.hpp(205,1): warning C4365: 'argument': conversion from 'const T' to 'GLint', signed/unsigned mismatch
+          with
+          [
+              T=glm::u32
+          ]
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Scene\Shadows.hpp(25,2): warning C4625: 'SV::ShadowMapShader': copy constructor was implicitly defined as deleted
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Scene\Shadows.hpp(25,2): warning C5026: 'SV::ShadowMapShader': move constructor was implicitly defined as deleted
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Scene\Shadows.hpp(25,2): warning C4626: 'SV::ShadowMapShader': assignment operator was implicitly defined as deleted
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Scene\Shadows.hpp(25,2): warning C5027: 'SV::ShadowMapShader': move assignment operator was implicitly defined as deleted
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Scene\Shadows.hpp(57,2): warning C4820: 'SV::ShadowObjectShader': '4' bytes padding added after data member 'SV::ShadowObjectShader::depthVPUni'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Scene\Shadows.hpp(57,2): warning C4625: 'SV::ShadowObjectShader': copy constructor was implicitly defined as deleted
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Scene\Shadows.hpp(57,2): warning C5026: 'SV::ShadowObjectShader': move constructor was implicitly defined as deleted
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Scene\Shadows.hpp(57,2): warning C4626: 'SV::ShadowObjectShader': assignment operator was implicitly defined as deleted
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Scene\Shadows.hpp(57,2): warning C5027: 'SV::ShadowObjectShader': move assignment operator was implicitly defined as deleted
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Scene\Shadows.hpp(110,2): warning C4820: 'SV::ShadowFBO': '4' bytes padding added after data member 'SV::ShadowFBO::fboSize'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Scene\Shadows.hpp(143,2): warning C4625: 'SV::SphereShadowShader': copy constructor was implicitly defined as deleted
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Scene\Shadows.hpp(143,2): warning C5026: 'SV::SphereShadowShader': move constructor was implicitly defined as deleted
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Scene\Shadows.hpp(143,2): warning C4626: 'SV::SphereShadowShader': assignment operator was implicitly defined as deleted
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Scene\Shadows.hpp(143,2): warning C5027: 'SV::SphereShadowShader': move assignment operator was implicitly defined as deleted
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\OpenGL\Post Processing.hpp(25,2): warning C4625: 'SV::GaussianBlurShader': copy constructor was implicitly defined as deleted
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\OpenGL\Post Processing.hpp(25,2): warning C5026: 'SV::GaussianBlurShader': move constructor was implicitly defined as deleted
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\OpenGL\Post Processing.hpp(25,2): warning C4626: 'SV::GaussianBlurShader': assignment operator was implicitly defined as deleted
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\OpenGL\Post Processing.hpp(25,2): warning C5027: 'SV::GaussianBlurShader': move assignment operator was implicitly defined as deleted
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Scene\Camera.hpp(75,25): warning C4820: 'SV::Camera': '3' bytes padding added after data member 'SV::Camera::isFollowingPath'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Sandbox\Source Files\Universe\CelestrialBody.hpp(46,2): warning C4820: 'SV::CelestrialBody': '4' bytes padding added after data member 'SV::CelestrialBody::mytype'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Sandbox\Source Files\Universe\CelestrialBody.hpp(29,92): warning C5038: data member 'SV::CelestrialBody::mytype' will be initialized after data member 'SV::CelestrialBody::mass'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Sandbox\Source Files\Universe\CelestrialBody.hpp(30,121): warning C5038: data member 'SV::CelestrialBody::mytype' will be initialized after data member 'SV::CelestrialBody::mass'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Sandbox\Source Files\Universe\CelestrialBody.hpp(31,89): warning C5038: data member 'SV::CelestrialBody::mytype' will be initialized after data member 'SV::CelestrialBody::mass'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Sandbox\Source Files\Universe\Star.hpp(35,2): warning C4625: 'SV::StarShader': copy constructor was implicitly defined as deleted
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Sandbox\Source Files\Universe\Star.hpp(35,2): warning C5026: 'SV::StarShader': move constructor was implicitly defined as deleted
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Sandbox\Source Files\Universe\Star.hpp(35,2): warning C4626: 'SV::StarShader': assignment operator was implicitly defined as deleted
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Sandbox\Source Files\Universe\Star.hpp(35,2): warning C5027: 'SV::StarShader': move assignment operator was implicitly defined as deleted
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Sandbox\Source Files\Universe\Star.hpp(56,2): warning C4625: 'SV::CoronaShader': copy constructor was implicitly defined as deleted
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Sandbox\Source Files\Universe\Star.hpp(56,2): warning C5026: 'SV::CoronaShader': move constructor was implicitly defined as deleted
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Sandbox\Source Files\Universe\Star.hpp(56,2): warning C4626: 'SV::CoronaShader': assignment operator was implicitly defined as deleted
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Sandbox\Source Files\Universe\Star.hpp(56,2): warning C5027: 'SV::CoronaShader': move assignment operator was implicitly defined as deleted
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Sandbox\Source Files\Universe\Star.hpp(47,49): warning C4365: 'argument': conversion from 'const GLsizei' to 'const unsigned int', signed/unsigned mismatch
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Sandbox\Source Files\Universe\Star.hpp(102,2): warning C4820: 'SV::Star': '4' bytes padding added after data member 'SV::Star::starColour'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Sandbox\Source Files\Universe\Star.hpp(64,4): warning C5038: data member 'SV::Star::starColour' will be initialized after data member 'SV::Star::radius'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Sandbox\Source Files\Universe\Star.hpp(78,108): warning C4100: 'position': unreferenced formal parameter
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Utilities\Array.hpp(258,1): warning C4820: 'SV::Array<std::shared_ptr<CelestrialType>>': '6' bytes padding added after data member 'SV::Array<std::shared_ptr<CelestrialType>>::retractionIncrement'
+          with
+          [
+              CelestrialType=SV::Star
+          ]
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Sandbox\Source Files\Universe\CelestrialBody.hpp(57): message : see reference to class template instantiation 'SV::Array<std::shared_ptr<CelestrialType>>' being compiled
+          with
+          [
+              CelestrialType=SV::Star
+          ]
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Sandbox\Source Files\Universe\Star.hpp(120): message : see reference to class template instantiation 'SV::CelestrialRenderer<SV::Star>' being compiled
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Utilities\Array.hpp(258,1): warning C4820: 'SV::Array<A>': '6' bytes padding added after data member 'SV::Array<A>::retractionIncrement'
+          with
+          [
+              A=float
+          ]
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Sandbox\Source Files\Universe\Star.hpp(132): message : see reference to class template instantiation 'SV::Array<A>' being compiled
+          with
+          [
+              A=float
+          ]
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Sandbox\Source Files\Universe\Star.hpp(145,2): warning C4626: 'SV::StarRenderer': assignment operator was implicitly defined as deleted
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Sandbox\Source Files\Universe\Star.hpp(145,2): warning C5027: 'SV::StarRenderer': move assignment operator was implicitly defined as deleted
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Sandbox\Source Files\Universe\Planet.hpp(57,2): warning C4820: 'SV::IPlanetShader': '4' bytes padding added after data member 'SV::IPlanetShader::ringsParamUni'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Sandbox\Source Files\Universe\Planet.hpp(57,2): warning C4625: 'SV::IPlanetShader': copy constructor was implicitly defined as deleted
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Sandbox\Source Files\Universe\Planet.hpp(57,2): warning C5026: 'SV::IPlanetShader': move constructor was implicitly defined as deleted
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Sandbox\Source Files\Universe\Planet.hpp(57,2): warning C4626: 'SV::IPlanetShader': assignment operator was implicitly defined as deleted
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Sandbox\Source Files\Universe\Planet.hpp(57,2): warning C5027: 'SV::IPlanetShader': move assignment operator was implicitly defined as deleted
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Sandbox\Source Files\Universe\Planet.hpp(90,2): warning C4820: 'SV::TerrestrialShader': '4' bytes padding added after data member 'SV::TerrestrialShader::timeUni'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Sandbox\Source Files\Universe\Planet.hpp(90,2): warning C4625: 'SV::TerrestrialShader': copy constructor was implicitly defined as deleted
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Sandbox\Source Files\Universe\Planet.hpp(90,2): warning C5026: 'SV::TerrestrialShader': move constructor was implicitly defined as deleted
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Sandbox\Source Files\Universe\Planet.hpp(90,2): warning C4626: 'SV::TerrestrialShader': assignment operator was implicitly defined as deleted
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Sandbox\Source Files\Universe\Planet.hpp(90,2): warning C5027: 'SV::TerrestrialShader': move assignment operator was implicitly defined as deleted
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Sandbox\Source Files\Universe\Planet.hpp(96,2): warning C4625: 'SV::PlanetRingsShader': copy constructor was implicitly defined as deleted
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Sandbox\Source Files\Universe\Planet.hpp(96,2): warning C5026: 'SV::PlanetRingsShader': move constructor was implicitly defined as deleted
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Sandbox\Source Files\Universe\Planet.hpp(96,2): warning C4626: 'SV::PlanetRingsShader': assignment operator was implicitly defined as deleted
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Sandbox\Source Files\Universe\Planet.hpp(96,2): warning C5027: 'SV::PlanetRingsShader': move assignment operator was implicitly defined as deleted
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Sandbox\Source Files\Universe\Planet.hpp(91,8): warning C4435: 'SV::PlanetRingsShader': Object layout under /vd2 will change due to virtual base 'SV::IPlanetShader'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Sandbox\Source Files\Universe\Planet.hpp(105,2): warning C4625: 'SV::GasPlanetShader': copy constructor was implicitly defined as deleted
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Sandbox\Source Files\Universe\Planet.hpp(105,2): warning C5026: 'SV::GasPlanetShader': move constructor was implicitly defined as deleted
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Sandbox\Source Files\Universe\Planet.hpp(105,2): warning C4626: 'SV::GasPlanetShader': assignment operator was implicitly defined as deleted
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Sandbox\Source Files\Universe\Planet.hpp(105,2): warning C5027: 'SV::GasPlanetShader': move assignment operator was implicitly defined as deleted
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Sandbox\Source Files\Universe\Planet.hpp(97,8): warning C4435: 'SV::GasPlanetShader': Object layout under /vd2 will change due to virtual base 'SV::IPlanetShader'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Sandbox\Source Files\Universe\Planet.hpp(248,2): warning C4625: 'SV::AtmosphereShader': copy constructor was implicitly defined as deleted
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Sandbox\Source Files\Universe\Planet.hpp(248,2): warning C5026: 'SV::AtmosphereShader': move constructor was implicitly defined as deleted
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Sandbox\Source Files\Universe\Planet.hpp(248,2): warning C4626: 'SV::AtmosphereShader': assignment operator was implicitly defined as deleted
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Sandbox\Source Files\Universe\Planet.hpp(248,2): warning C5027: 'SV::AtmosphereShader': move assignment operator was implicitly defined as deleted
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Sandbox\Source Files\Universe\Planet.hpp(288,34): warning C4820: 'SV::IPlanet': '3' bytes padding added after data member 'SV::IPlanet::hasAtmosphere'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Sandbox\Source Files\Universe\Planet.hpp(290,2): warning C4820: 'SV::IPlanet': '4' bytes padding added after data member 'SV::IPlanet::atmosphereData'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Sandbox\Source Files\Universe\Planet.hpp(312,28): warning C4820: 'SV::TerrestrialPlanet': '4' bytes padding added after data member 'SV::TerrestrialPlanet::pNightMapTint'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Atmosphere\AtmospherePrecomputer.hpp(301,2): warning C4626: 'SV::Atmosphere::WavelengthData': assignment operator was implicitly defined as deleted
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Atmosphere\AtmospherePrecomputer.hpp(301,2): warning C5027: 'SV::Atmosphere::WavelengthData': move assignment operator was implicitly defined as deleted
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Atmosphere\AtmospherePrecomputer.hpp(374,73): warning C4820: 'SV::Atmosphere::ProcessedAtmoData': '4' bytes padding added after data member 'SV::Atmosphere::ProcessedAtmoData::rayleighScattering'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Atmosphere\AtmospherePrecomputer.hpp(379,80): warning C4820: 'SV::Atmosphere::ProcessedAtmoData': '4' bytes padding added after data member 'SV::Atmosphere::ProcessedAtmoData::miePhaseFunctionG'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Atmosphere\AtmospherePrecomputer.hpp(493,35): warning C4820: 'SV::Atmosphere::AtmospherePrecomputer': '4' bytes padding added after data member 'SV::Atmosphere::AtmospherePrecomputer::precomputedWavelengths'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Atmosphere\Atmosphere.hpp(188,38): warning C4820: 'SV::Atmosphere::AtmosphereShader': '4' bytes padding added after data member 'SV::Atmosphere::AtmosphereShader::shaderType'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Atmosphere\Atmosphere.hpp(189,2): warning C4625: 'SV::Atmosphere::AtmosphereShader': copy constructor was implicitly defined as deleted
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Atmosphere\Atmosphere.hpp(189,2): warning C5026: 'SV::Atmosphere::AtmosphereShader': move constructor was implicitly defined as deleted
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Atmosphere\Atmosphere.hpp(189,2): warning C4626: 'SV::Atmosphere::AtmosphereShader': assignment operator was implicitly defined as deleted
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Atmosphere\Atmosphere.hpp(189,2): warning C5027: 'SV::Atmosphere::AtmosphereShader': move assignment operator was implicitly defined as deleted
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Atmosphere\Atmosphere.hpp(61,1): warning C4365: 'argument': conversion from 'const TextureUnits' to 'const int', signed/unsigned mismatch
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Atmosphere\Atmosphere.hpp(65,1): warning C4365: 'argument': conversion from 'const TextureUnits' to 'const int', signed/unsigned mismatch
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Atmosphere\Atmosphere.hpp(69,1): warning C4365: 'argument': conversion from 'const TextureUnits' to 'const int', signed/unsigned mismatch
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Atmosphere\Atmosphere.hpp(73,1): warning C4365: 'argument': conversion from 'const TextureUnits' to 'const int', signed/unsigned mismatch
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Atmosphere\Atmosphere.hpp(78,1): warning C4365: 'argument': conversion from 'const TextureUnits' to 'const int', signed/unsigned mismatch
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Atmosphere\Atmosphere.hpp(79,1): warning C4365: 'argument': conversion from 'const TextureUnits' to 'const int', signed/unsigned mismatch
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Atmosphere\Atmosphere.hpp(80,1): warning C4365: 'argument': conversion from 'const TextureUnits' to 'const int', signed/unsigned mismatch
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Atmosphere\Atmosphere.hpp(81,1): warning C4365: 'argument': conversion from 'const TextureUnits' to 'const int', signed/unsigned mismatch
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Sandbox\Source Files\Universe\PlanetNew.hpp(187,2): warning C4625: 'SV::PlanetRingShader': copy constructor was implicitly defined as deleted
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Sandbox\Source Files\Universe\PlanetNew.hpp(187,2): warning C5026: 'SV::PlanetRingShader': move constructor was implicitly defined as deleted
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Sandbox\Source Files\Universe\PlanetNew.hpp(187,2): warning C4626: 'SV::PlanetRingShader': assignment operator was implicitly defined as deleted
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Sandbox\Source Files\Universe\PlanetNew.hpp(187,2): warning C5027: 'SV::PlanetRingShader': move assignment operator was implicitly defined as deleted
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Sandbox\Source Files\Universe\PlanetNew.hpp(179,73): warning C4365: 'argument': conversion from 'const TextureUnits' to 'const int', signed/unsigned mismatch
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Utilities\Array.hpp(258,1): warning C4820: 'SV::Array<std::shared_ptr<CelestrialType>>': '6' bytes padding added after data member 'SV::Array<std::shared_ptr<CelestrialType>>::retractionIncrement'
+          with
+          [
+              CelestrialType=SV::PlanetNew
+          ]
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Sandbox\Source Files\Universe\CelestrialBody.hpp(57): message : see reference to class template instantiation 'SV::Array<std::shared_ptr<CelestrialType>>' being compiled
+          with
+          [
+              CelestrialType=SV::PlanetNew
+          ]
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Sandbox\Source Files\Universe\PlanetNew.hpp(191): message : see reference to class template instantiation 'SV::CelestrialRenderer<SV::PlanetNew>' being compiled
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Sandbox\Source Files\Universe\PlanetNew.hpp(212,2): warning C4820: 'SV::PlanetNewRenderer': '4' bytes padding added after data member 'SV::PlanetNewRenderer::skyCamera'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Sandbox\Source Files\Universe\PlanetNew.hpp(212,2): warning C4625: 'SV::PlanetNewRenderer': copy constructor was implicitly defined as deleted
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Sandbox\Source Files\Universe\PlanetNew.hpp(212,2): warning C5026: 'SV::PlanetNewRenderer': move constructor was implicitly defined as deleted
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Sandbox\Source Files\Universe\PlanetNew.hpp(212,2): warning C4626: 'SV::PlanetNewRenderer': assignment operator was implicitly defined as deleted
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Sandbox\Source Files\Universe\PlanetNew.hpp(212,2): warning C5027: 'SV::PlanetNewRenderer': move assignment operator was implicitly defined as deleted
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Utilities\Array.hpp(258,1): warning C4820: 'SV::Array<std::shared_ptr<SV::CelestrialBody>>': '6' bytes padding added after data member 'SV::Array<std::shared_ptr<SV::CelestrialBody>>::retractionIncrement'
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Sandbox\Source Files\Universe\Planetary System.h(55): message : see reference to class template instantiation 'SV::Array<std::shared_ptr<SV::CelestrialBody>>' being compiled
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Sandbox\Source Files\Application\Application.cpp(164,57): warning C4100: 'scancode': unreferenced formal parameter
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Sandbox\Source Files\Application\Application.cpp(164,36): warning C4100: 'sender': unreferenced formal parameter
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Sandbox\Source Files\Application\Application.cpp(216,74): warning C4100: 'mods': unreferenced formal parameter
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Sandbox\Source Files\Application\Application.cpp(216,62): warning C4100: 'action': unreferenced formal parameter
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Sandbox\Source Files\Application\Application.cpp(216,50): warning C4100: 'button': unreferenced formal parameter
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Sandbox\Source Files\Application\Application.cpp(216,38): warning C4100: 'sender': unreferenced formal parameter
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Sandbox\Source Files\Application\Application.cpp(224,33): warning C4244: 'argument': conversion from 'double' to 'float', possible loss of data
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Sandbox\Source Files\Application\Application.cpp(224,25): warning C4244: 'argument': conversion from 'double' to 'float', possible loss of data
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Sandbox\Source Files\Application\Application.cpp(220,82): warning C4100: 'yPos': unreferenced formal parameter
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Sandbox\Source Files\Application\Application.cpp(220,54): warning C4100: 'xPos': unreferenced formal parameter
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Sandbox\Source Files\Application\Application.cpp(220,39): warning C4100: 'sender': unreferenced formal parameter
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Sandbox\Source Files\Application\Application.cpp(226,49): warning C4100: 'xOffset': unreferenced formal parameter
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Sandbox\Source Files\Application\Application.cpp(226,34): warning C4100: 'sender': unreferenced formal parameter
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Sandbox\Source Files\Application\Application.cpp(230,41): warning C4100: 'sender': unreferenced formal parameter
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Sandbox\Source Files\Application\Application.cpp(429,4): warning C4244: 'argument': conversion from 'double' to 'const float', possible loss of data
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Sandbox\Source Files\Application\Application.cpp(430,57): warning C4244: 'argument': conversion from 'double' to 'float', possible loss of data
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Sandbox\Source Files\Application\Application.cpp(496,57): warning C4365: 'argument': conversion from 'unsigned int' to 'GLsizei', signed/unsigned mismatch
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Sandbox\Source Files\Application\Application.cpp(516,75): warning C4365: 'argument': conversion from 'unsigned int' to 'GLsizei', signed/unsigned mismatch
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\matrix_clip_space.inl(107,1): warning C4127: conditional expression is constant
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\matrix_clip_space.inl(107,1): message : consider using 'if constexpr' statement instead
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Sandbox\Source Files\Application\Application.cpp(243): message : see reference to function template instantiation 'glm::mat<4,4,glm::f32,glm::packed_highp> glm::ortho<float>(T,T,T,T,T,T)' being compiled
+          with
+          [
+              T=float
+          ]
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\matrix_clip_space.inl(109,1): warning C4127: conditional expression is constant
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\matrix_clip_space.inl(109,1): message : consider using 'if constexpr' statement instead
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\matrix_clip_space.inl(111,1): warning C4127: conditional expression is constant
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\matrix_clip_space.inl(111,1): message : consider using 'if constexpr' statement instead
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\matrix_clip_space.inl(113,1): warning C4127: conditional expression is constant
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\glm\glm\ext\matrix_clip_space.inl(113,1): message : consider using 'if constexpr' statement instead
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Sandbox\Source Files\Universe\CelestrialBody.hpp(86,1): warning C4267: 'initializing': conversion from 'size_t' to 'unsigned int', possible loss of data
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Sandbox\Source Files\Application\Application.cpp(379): message : see reference to function template instantiation 'const std::shared_ptr<SV::Earth> SV::CelestrialRenderer<SV::PlanetNew>::GetInstance<SV::Earth,true>(void)' being compiled
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Sandbox\Source Files\Application\Application.cpp(379): message : see reference to function template instantiation 'const std::shared_ptr<SV::Earth> SV::CelestrialRenderer<SV::PlanetNew>::GetInstance<SV::Earth,true>(void)' being compiled
+C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Tools\MSVC\14.28.29333\include\xmemory(228,1): warning C4365: 'argument': conversion from 'int' to 'unsigned int', signed/unsigned mismatch
+C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Tools\MSVC\14.28.29333\include\memory(1563): message : see reference to function template instantiation 'void std::_Construct_in_place<_Ty,int&,int&,const char(&)[17],HANDLE&,HANDLE&>(_Ty &,int &,int &,const char (&)[17],HANDLE &,HANDLE &) noexcept(false)' being compiled
+          with
+          [
+              _Ty=SV::Display
+          ]
+C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Tools\MSVC\14.28.29333\include\memory(2207): message : see reference to function template instantiation 'std::_Ref_count_obj2<_Ty>::_Ref_count_obj2<int&,int&,const char(&)[17],HANDLE&,HANDLE&>(int &,int &,const char (&)[17],HANDLE &,HANDLE &)' being compiled
+          with
+          [
+              _Ty=SV::Display
+          ]
+C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Tools\MSVC\14.28.29333\include\memory(2208): message : see reference to function template instantiation 'std::_Ref_count_obj2<_Ty>::_Ref_count_obj2<int&,int&,const char(&)[17],HANDLE&,HANDLE&>(int &,int &,const char (&)[17],HANDLE &,HANDLE &)' being compiled
+          with
+          [
+              _Ty=SV::Display
+          ]
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Utilities\SVMemory.hpp(34): message : see reference to function template instantiation 'std::shared_ptr<SV::Display> std::make_shared<T,int&,int&,const char(&)[17],HANDLE&,HANDLE&>(int &,int &,const char (&)[17],HANDLE &,HANDLE &)' being compiled
+          with
+          [
+              T=SV::Display
+          ]
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Sandbox\Source Files\Application\Application.cpp(121): message : see reference to function template instantiation 'std::shared_ptr<SV::Display> make<SV::Display,int,int,const char(&)[17],HANDLE&,HANDLE&>(int &&,int &&,const char (&)[17],HANDLE &,HANDLE &)' being compiled
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Sandbox\Source Files\Universe\CelestrialBody.hpp(97): warning C5045: Compiler will insert Spectre mitigation for memory load if /Qspectre switch specified
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Sandbox\Source Files\Universe\CelestrialBody.hpp(95): message : index '' range checked by comparison on this line
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Sandbox\Source Files\Universe\CelestrialBody.hpp(97): message : feeds call on this line
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\OpenGL\VAO.hpp(77): warning C5045: Compiler will insert Spectre mitigation for memory load if /Qspectre switch specified
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\OpenGL\VAO.hpp(75): message : index '' range checked by comparison on this line
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\OpenGL\VAO.hpp(77): message : feeds call on this line
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\OpenGL\VAO.hpp(93): warning C5045: Compiler will insert Spectre mitigation for memory load if /Qspectre switch specified
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\OpenGL\VAO.hpp(91): message : index '' range checked by comparison on this line
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\OpenGL\VAO.hpp(93): message : feeds call on this line
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\OpenGL\VAO.hpp(101): warning C5045: Compiler will insert Spectre mitigation for memory load if /Qspectre switch specified
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\OpenGL\VAO.hpp(99): message : index 'i' range checked by comparison on this line
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\OpenGL\VAO.hpp(101): message : feeds call on this line
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\OpenGL\VAO.hpp(85): warning C5045: Compiler will insert Spectre mitigation for memory load if /Qspectre switch specified
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\OpenGL\VAO.hpp(83): message : index 'i' range checked by comparison on this line
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\OpenGL\VAO.hpp(85): message : feeds call on this line
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Utilities\Array.cpp(1383): warning C5045: Compiler will insert Spectre mitigation for memory load if /Qspectre switch specified
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Utilities\Array.cpp(1381): message : index 'index' range checked by comparison on this line
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Utilities\Array.cpp(1383): message : feeds call on this line
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Utilities\Array.cpp(1378): warning C5045: Compiler will insert Spectre mitigation for memory load if /Qspectre switch specified
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Utilities\Array.cpp(1376): message : index '' range checked by comparison on this line
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Utilities\Array.cpp(1378): message : feeds call on this line
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Utilities\Array.cpp(973): warning C5045: Compiler will insert Spectre mitigation for memory load if /Qspectre switch specified
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Utilities\Array.cpp(971): message : index 'i' range checked by comparison on this line
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Utilities\Array.cpp(973): message : feeds call on this line
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Utilities\Array.cpp(966): warning C5045: Compiler will insert Spectre mitigation for memory load if /Qspectre switch specified
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Utilities\Array.cpp(964): message : index 'numberOfElements' range checked by comparison on this line
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Utilities\Array.cpp(966): message : feeds call on this line
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Utilities\Array.cpp(1042): warning C5045: Compiler will insert Spectre mitigation for memory load if /Qspectre switch specified
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Utilities\Array.cpp(1038): message : index 'i' range checked by comparison on this line
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Utilities\Array.cpp(1042): message : feeds call on this line
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Utilities\Array.cpp(555): warning C5045: Compiler will insert Spectre mitigation for memory load if /Qspectre switch specified
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Utilities\Array.cpp(553): message : index 'i' range checked by comparison on this line
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Utilities\Array.cpp(555): message : feeds call on this line
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Utilities\Array.cpp(915): warning C5045: Compiler will insert Spectre mitigation for memory load if /Qspectre switch specified
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Utilities\Array.cpp(913): message : index '' range checked by comparison on this line
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Utilities\Array.cpp(915): message : feeds call on this line
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Utilities\Array.cpp(908): warning C5045: Compiler will insert Spectre mitigation for memory load if /Qspectre switch specified
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Utilities\Array.cpp(905): message : index '' range checked by comparison on this line
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Utilities\Array.cpp(908): message : feeds call on this line
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Utilities\Array.cpp(915): warning C5045: Compiler will insert Spectre mitigation for memory load if /Qspectre switch specified
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Utilities\Array.cpp(913): message : index 'i' range checked by comparison on this line
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Utilities\Array.cpp(915): message : feeds call on this line
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Utilities\Array.cpp(209): warning C5045: Compiler will insert Spectre mitigation for memory load if /Qspectre switch specified
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Utilities\Array.cpp(207): message : index '' range checked by comparison on this line
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Utilities\Array.cpp(209): message : feeds call on this line
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Utilities\Array.cpp(209): warning C5045: Compiler will insert Spectre mitigation for memory load if /Qspectre switch specified
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Utilities\Array.cpp(207): message : index 'i' range checked by comparison on this line
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Utilities\Array.cpp(209): message : feeds call on this line
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Utilities\Array.cpp(1316): warning C4702: unreachable code
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Utilities\Array.cpp(1316): warning C4702: unreachable code
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Utilities\Array.cpp(1047): warning C5045: Compiler will insert Spectre mitigation for memory load if /Qspectre switch specified
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Utilities\Array.cpp(1038): message : index 'i' range checked by comparison on this line
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Utilities\Array.cpp(1047): message : feeds call on this line
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Utilities\Array.cpp(1023): warning C5045: Compiler will insert Spectre mitigation for memory load if /Qspectre switch specified
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Utilities\Array.cpp(1021): message : index 'i' range checked by comparison on this line
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Utilities\Array.cpp(1023): message : feeds call on this line
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Utilities\Array.cpp(1316): warning C4702: unreachable code
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Utilities\Array.cpp(1316): warning C4702: unreachable code
+A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Utilities\Array.cpp(1316): warning C4702: unreachable code
+  Sandbox.vcxproj -> A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Sandbox\bin\x64\Debug\Sandbox.exe

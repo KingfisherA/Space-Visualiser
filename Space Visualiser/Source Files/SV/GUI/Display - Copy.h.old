@@ -1,0 +1,159 @@
+#pragma once
+#include"SV\OpenGL\OpenGL Context.h"
+#include"SV/Utilities/Strings.h"
+#include<chrono>
+#include<unordered_map>
+//FreeGLUT Window Library
+//
+#define FREEGLUT_STATIC
+#include<freeglut.h>
+#include<GLFW/glfw3.h>
+
+namespace SV
+{
+	//
+	enum class MouseButton
+	{
+		Invalid = -1,
+		Left = GLUT_LEFT_BUTTON,
+		Middle = GLUT_MIDDLE_BUTTON,
+		Right = GLUT_RIGHT_BUTTON
+	};
+	enum class MouseAction
+	{
+		Invalid = -1,
+		Pressed = GLUT_DOWN,
+		Releases = GLUT_UP
+	};
+	enum class SpecialKey
+	{
+		Left = GLUT_KEY_LEFT,
+		Right = GLUT_KEY_RIGHT,
+		Up = GLUT_KEY_UP,
+		Down = GLUT_KEY_DOWN
+	};
+	//
+	constexpr float FRAME_RATE = 100.0f;
+
+	//
+	typedef void (*ResizedHandler) (int, int);
+	typedef void (*MouseClickHandler) (int, int);
+	typedef void (*MouseMotionHandler) (int, int, int, int);
+	typedef void (*ScrollHandler)(int, int);
+	typedef void (*DisplayHandler)();
+	typedef void (*KeyboardHandler)(unsigned char, int, int);
+	typedef void (*SpecialKeyboardHandler)(int, int, int);
+	typedef void(*RenderHandler) ();
+
+	class Display;
+
+	using DisplaysMap = std::unordered_map<int, Display*>;
+
+	//
+	class Display
+	{
+	public:
+		Display(unsigned int widthIn, unsigned int heightIn, unsigned int displayParams, const SV::StringView windowTitle = "", const HANDLE smallIcon = nullptr, const HANDLE largeIcon = nullptr);
+		~Display();
+		//
+		static void Initilise(int argc, char* argv[], unsigned int majorVersion, unsigned int minorVersion);
+		//
+		void SetOption(GLenum option, int val) { glutSetOption(option, val); }
+		void Bind() { glutSetWindow(windowID); }
+		//
+		int GetMouseX() const { return mouseX; }
+		int GetMouseDX() const { return mouseDX; }
+		int GetMouseY() const { return mouseY; }
+		int GetMouseDY() const { return mouseDY; }
+		//
+		int GetDScroll() const { return deltaScroll; }
+		//
+		//Get the current delta frame time in milliseconds
+		unsigned int GetDeltaFrameTime() const noexcept { return deltaFrameTime; }
+		template<typename Duration>
+		Duration ConvertDeltaFrameTime() const noexcept
+		{
+			return std::chrono::duration_cast<Duration>(std::chrono::milliseconds((long long)deltaFrameTime));
+		}
+		//
+		MouseButton GetMouseButton() const { return MouseButton(currentMouseButton); }
+		MouseAction GetMouseAction() const { return MouseAction(currentMouseAction); }
+		//
+		unsigned int GetWidth() const { return width; }
+		unsigned int GetHeight() const { return height; }
+		//
+		inline int GetWindowID() { return windowID; }
+		//
+		void AddDisplayEvent(DisplayHandler h);
+		void AddMouseClickEvent(MouseClickHandler h);
+		void AddMouseMotionEvent(MouseMotionHandler h);
+		void AddWindowResizeEvent(ResizedHandler h);
+		void AddScrollEvent(ScrollHandler h);
+		void AddSpecialKeyboardEvent(SpecialKeyboardHandler h);
+		void AddKeyboardEvent(KeyboardHandler h);
+		//
+		static void FlushScreen()
+		{
+			glutPostRedisplay();
+			glutSwapBuffers();
+		}
+		static void ExecuteLoop()
+		{
+			TimedDisplayLoop(0);
+			glutMainLoop();
+		}
+		static Display* GetCurrentDisplay()
+		{
+			DisplaysMap::iterator currentWindowIt = displays.find(glutGetWindow());
+			if (currentWindowIt == displays.end()) return nullptr;
+			return (*currentWindowIt).second;
+		}
+		//
+	private:
+		//
+		static void SetWindowIconFromRes(const SV::StringView windowTitle, const HANDLE smallIcon, const HANDLE largeIcon);
+		static void TimedDisplayLoop(int)
+		{
+			Display::FlushScreen();
+			glutTimerFunc(unsigned int(1000.0f / FRAME_RATE), TimedDisplayLoop, 0);
+		}
+		//
+		static DisplaysMap displays;
+		//
+		static void OnDisplay();
+		static void OnWindowResized(int newWidth, int newHeight);
+		static void OnMouseMotion(int x, int y);
+		static void OnMouseClick(int button, int state, int x, int y);
+		static void OnScroll(int button, int direction, int x, int y);
+		//
+		unsigned int width = 0, height = 0;
+		//
+		int windowID = -1;
+		//
+		MouseButton currentMouseButton = MouseButton::Invalid;
+		MouseAction currentMouseAction = MouseAction::Invalid;
+		//
+		int mouseX = 0;
+		int lastMouseX = 0;
+		int mouseDX = 0;
+		//
+		int mouseY = 0;
+		int lastMouseY = 0;
+		int mouseDY = 0;
+		//
+		int lastScrollTime = 0;
+		int deltaScroll = 0;
+		//
+		unsigned int lastFrameTime = 0;
+		unsigned int currentFrameTime = 0;
+		unsigned int deltaFrameTime = 0;
+		//
+		DisplayHandler displayHandle = nullptr;
+		ResizedHandler resizeHandle = nullptr;
+		MouseMotionHandler motionHandle = nullptr;
+		MouseClickHandler clickHandle = nullptr;
+		ScrollHandler scrollHandle = nullptr;
+		//
+	};
+
+}
