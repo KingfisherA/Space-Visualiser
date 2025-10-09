@@ -1,9 +1,0 @@
-﻿  Sandbox.cpp
-  Application.cpp
-A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Atmosphere\AtmospherePrecomputer.h(15,19): warning C4099: 'SV::Dimension2D': type name first seen using 'struct' now seen using 'class'
-A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\OpenGL\Texture.h(16): message : see declaration of 'SV::Dimension2D'
-A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\Atmosphere\AtmospherePrecomputer.h(16,19): warning C4099: 'SV::Dimension3D': type name first seen using 'struct' now seen using 'class'
-A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\Space Visualiser\Source Files\SV\OpenGL\Texture.h(28): message : see declaration of 'SV::Dimension3D'
-  Planet.cpp
-  Star.cpp
-LINK : fatal error LNK1104: cannot open file 'freeglut_static.lib'

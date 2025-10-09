@@ -1,6 +1,0 @@
-﻿  shapes.c
-  Generating code
-  Previous IPDB not found, fall back to full compilation.
-  All 42 functions were compiled because no usable IPDB/IOBJ from previous compilation was found.
-  Finished generating code
-  shapes.vcxproj -> A:\Documents\Visual Studio 2019\Projects\Space Visualiser Refresh\External Dependencies\freeglut-2.8.1\VisualStudio\2012\shapes\..\..\..\progs\demos\x86\release_dll\shapes.exe

@@ -1,6 +1,0 @@
-﻿  subwin.c
-  Generating code
-  All 14 functions were compiled because no usable IPDB/IOBJ from previous compilation was found.
-  Finished generating code
-  subwin.vcxproj -> C:\Users\Charles\Documents\Visual Studio 2015\Projects\Space Visualsier\extern\freeglut-2.8.1\VisualStudio\2012\subwin\..\..\..\progs\demos\x64\release_dll\subwin.exe
-  subwin.vcxproj -> ..\..\..\progs\demos\x64\release_dll\subwin.pdb (Full PDB)

@@ -1,4 +1,0 @@
-﻿  glew.c
-     Creating library ..\..\lib\Release\Win32\glew32.lib and object ..\..\lib\Release\Win32\glew32.exp
-glew.obj : error LNK2019: unresolved external symbol _memset referenced in function _glewContextInit@0
-..\..\bin\Release\Win32\glew32.dll : fatal error LNK1120: 1 unresolved externals

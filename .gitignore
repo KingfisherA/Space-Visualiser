@@ -1,3 +1,7 @@
 
 *.ipch
 /Data Files/
+/bin/
+/build/
+*.DS_Store
+desktop.ini
