@@ -33,16 +33,6 @@ namespace SV
 		//glCreateVertexArrays(1, &vaoID);
 	}
 	//
-	VAO::VAO(VAO& vaoIn)
-	{
-		glCreateVertexArrays(1, &vaoID);
-
-		memcpy(&buffers[0], &vaoIn.buffers[0], sizeof(buffers));
-
-		renderMethod = vaoIn.renderMethod;
-		arrayLength = vaoIn.arrayLength;
-	}
-	//
 	VAO::VAO(GLuint id)
 	{
 		vaoID = id;

@@ -51,7 +51,8 @@ namespace SV
 	class CelestrialRenderer
 	{
 	public:
-		using DistanceCache = std::map<float, size_t, std::greater<float>>;
+		//Multimap, as bodies at equal distances from the camera would otherwise overwrite each other
+		using DistanceCache = std::multimap<float, size_t, std::greater<float>>;
 		static_assert(std::is_base_of_v<CelestrialBody, CelestrialType>, "CelestrialType must be a derived class of CelestrialBody");
 	protected:
 		SV::Array<Ref<CelestrialType>> celestrialBodies;
@@ -67,7 +68,7 @@ namespace SV
 		}
 		void Remove(CelestrialIndex index)
 		{
-			if ((size_t)index + 1 < celestrialBodies.GetCount()) celestrialBodies.Remove(index);
+			if ((size_t)index < celestrialBodies.GetCount()) celestrialBodies.Remove(index);
 		}
 		void Remove(const Ref<CelestrialType>& body)
 		{

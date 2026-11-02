@@ -33,7 +33,9 @@ namespace SV
 		static Array<Ref<VAO>> GenerateArrays(unsigned int number);
 		//
 		VAO();
-		VAO(VAO& vaoIn);
+		//Not copyable: the GL vertex array state can't be duplicated, and the destructor deletes the GL object
+		VAO(const VAO&) = delete;
+		VAO& operator=(const VAO&) = delete;
 		VAO(GLuint id);
 		//
 		~VAO();

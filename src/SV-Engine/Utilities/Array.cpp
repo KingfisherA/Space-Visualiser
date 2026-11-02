@@ -214,7 +214,9 @@ namespace SV
 	{
 		SV_ASSERT_T(index + 1 > this->count, SV::ArrayBase<A>::SetByteCopy, "Index is greater than array this->count");
 
-		memcpy(&internalArray[index], &obj, sizeof(A));
+		//Byte copying is only valid for trivially copyable types; otherwise use copy assignment
+		if constexpr (std::is_trivially_copyable_v<A>) memcpy(&internalArray[index], &obj, sizeof(A));
+		else internalArray[index] = obj;
 	}
 
 	//Move and Swap Functions
@@ -225,18 +227,9 @@ namespace SV
 		SV_ASSERT_T(newIndex + 1 > this->count, SV::Array<A>::Move, "New index cannot be greater than this->count");
 		if (index == newIndex) return;
 
-		unsigned char* tempObj = (unsigned char*)alloca(sizeof(A));
-		memcpy(tempObj, internalArray + index, sizeof(A));
-
-		unsigned char* indexPtr = reinterpret_cast<unsigned char*>(internalArray + index);
-		unsigned char* endPtr = reinterpret_cast<unsigned char*>(internalArray + this->count - 1);
-
-		for (; indexPtr < endPtr; indexPtr++)
-		{
-			(*indexPtr) = *(indexPtr + sizeof(A));
-		}
-
-		memcpy(internalArray + newIndex, tempObj, sizeof(A));
+		//Shift the elements between the two indices by one and place the element at newIndex
+		if (index < newIndex) std::rotate(internalArray + index, internalArray + index + 1, internalArray + newIndex + 1);
+		else std::rotate(internalArray + newIndex, internalArray + index, internalArray + index + 1);
 	}
 	template<typename A>
 	 void ArrayBase<A>::Swap(size_t index1, size_t index2)
@@ -530,7 +523,7 @@ namespace SV
 	template<typename A>
 	 Array<A>::Array(const Array<A>& arr)
 	{
-		this->operator=(std::forward(arr));
+		this->operator=(arr);
 	}
 	template<typename A>
 	 Array<A>::Array(Array<A>&& arr) noexcept
@@ -548,6 +541,11 @@ namespace SV
 	template<typename A>
 	 Array<A>::~Array() noexcept
 	{
+		Release();
+	}
+	template<typename A>
+	 void Array<A>::Release() noexcept
+	{
 		if constexpr (!std::is_trivially_destructible_v<A>)
 		{
 			for (size_t i = 0; i < this->count; i++)
@@ -564,12 +562,15 @@ namespace SV
 		this->internalArray = nullptr;
 		this->count = 0;
 		this->capacity = 0;
+		this->typeCachePtr = nullptr;
 	}
 
 	//Assignment Operators
 	template<typename A>
 	 void Array<A>::operator=(const Array<A>& arr) noexcept
 	{
+		if (this == &arr) return;
+
 		size_t i = 0;
 		if constexpr (!std::is_trivially_destructible_v<A>)
 		{
@@ -578,23 +579,25 @@ namespace SV
 				this->internalArray[i].~A();
 			}
 		}
+		//Elements are destroyed, so Allocate must not try to relocate them
+		this->count = 0;
 
 		if (this->capacity < arr.count)  Allocate(arr.count);
-		this->count = arr.count;
-		this->typeCachePtr = arr.typeCachePtr;
+		//The type cache holds indices into this array, so it must not be shared with the source
+		this->typeCachePtr = nullptr;
 
-		for (i = 0; i < this->count; i++)
+		for (i = 0; i < arr.count; i++)
 		{
-			if constexpr (std::is_move_constructible_v<A>) ::new(static_cast<void*>(this->internalArray + i)) A((A&&)arr.internalArray[i]);
-			else ::new(static_cast<void*>(this->internalArray + i)) A((const A&)arr.internalArray[i]);
+			::new(static_cast<void*>(this->internalArray + i)) A(static_cast<const A&>(arr.internalArray[i]));
 		}
+		this->count = arr.count;
 	}
 	template<typename A>
 	 void Array<A>::operator=(Array<A>&& arr) noexcept
 	{
 		if (this != &arr)
 		{
-			this->~Array();
+			Release();
 
 			this->internalArray = arr.internalArray;
 			this->count = arr.count;
@@ -604,6 +607,7 @@ namespace SV
 			arr.internalArray = nullptr;
 			arr.count = 0;
 			arr.capacity = 0;
+			arr.typeCachePtr = nullptr;
 		}
 	}
 
@@ -920,7 +924,9 @@ namespace SV
 	{
 		SV_ASSERT_T(index + 1 > this->count, SV::Array<A>::SetByteCopy(), "Index is greater than array this->count");
 
-		memcpy(&this->internalArray[index], &obj, sizeof(A));
+		//Byte copying is only valid for trivially copyable types; otherwise use copy assignment
+		if constexpr (std::is_trivially_copyable_v<A>) memcpy(&this->internalArray[index], &obj, sizeof(A));
+		else this->internalArray[index] = obj;
 	}
 
 	//Trim and Clear Functions
@@ -933,7 +939,7 @@ namespace SV
 	template<typename A>
 	 void Array<A>::Clear()
 	{
-		this->~Array();
+		Release();
 	}
 	template<typename A>
 	 void Array<A>::ResizeToCapacity()
@@ -961,20 +967,30 @@ namespace SV
 	template<typename A>
 	 void Array<A>::Resize(size_t numberOfElements)
 	{
-		if (numberOfElements > capacity - this->count)
+		if (numberOfElements > capacity)
 		{
-			Expand(numberOfElements - (capacity - this->count) + 1);
+			Expand(numberOfElements - capacity);
 		}
 
-		if constexpr (std::is_default_constructible_v<A>)
+		if (numberOfElements > this->count)
 		{
-			for (size_t i = this->count; i < numberOfElements; i++)
+			if constexpr (std::is_default_constructible_v<A>)
 			{
-				::new((void*)(this->internalArray + i)) A();
+				for (size_t i = this->count; i < numberOfElements; i++)
+				{
+					::new((void*)(this->internalArray + i)) A();
+				}
+			}
+		}
+		else if constexpr (!std::is_trivially_destructible_v<A>)
+		{
+			for (size_t i = numberOfElements; i < this->count; i++)
+			{
+				this->internalArray[i].~A();
 			}
 		}
 
-		this->count += numberOfElements;
+		this->count = numberOfElements;
 	}
 
 	//Retract and Expand Functions
@@ -1018,7 +1034,7 @@ namespace SV
 		{
 			if constexpr (!std::is_trivially_destructible_v<A>)
 			{
-				for (size_t i = this->count; i > newCapacity; i--)
+				for (size_t i = newCapacity; i < this->count; i++)
 				{
 					this->internalArray[i].~A();
 				}
@@ -1076,7 +1092,7 @@ namespace SV
 		{
 			if constexpr (!std::is_trivially_destructible_v<A>)
 			{
-				for (size_t i = this->count; i > newCapacity; i--)
+				for (size_t i = newCapacity; i < this->count; i++)
 				{
 					this->internalArray[i].~A();
 				}

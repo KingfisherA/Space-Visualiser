@@ -18,12 +18,19 @@ namespace SV
 		this->height = heightIn;
 
 		windowID = glfwCreateWindow(widthIn, heightIn, "Space Visualiser", nullptr, nullptr);
-#ifdef SV_DEBUG
 		if (!windowID)
 		{
 			SV_FATAL_T(SV::Display::Display, "GLFW cannot create a window with OpenGL context selected. Please see error callback for more information.");
+			throw std::runtime_error("GLFW cannot create a window with OpenGL context selected.");
 		}
-#endif // SV_DEBUG
+
+		//Width and height track the framebuffer (in pixels) rather than the window (in screen coordinates),
+		//as they differ on high-DPI displays and the viewport must match the framebuffer.
+		int fbWidth = 0, fbHeight = 0;
+		glfwGetFramebufferSize(windowID, &fbWidth, &fbHeight);
+		this->width = fbWidth;
+		this->height = fbHeight;
+
 		glfwMakeContextCurrent(windowID);
 		glfwSwapInterval(DEFAULT_SWAP_INTERVAL);
 		glfwSetWindowUserPointer(windowID, (void*)this);
@@ -105,12 +112,16 @@ namespace SV
 	{
 		Display* display = (Display*)glfwGetWindowUserPointer(window);
 
+		//Minimised windows report a 0x0 framebuffer; skip to avoid a degenerate viewport and projection
+		if (newWidth <= 0 || newHeight <= 0) return;
+
 		display->width = newWidth;
 		display->height = newHeight;
 
 		display->resizeHandle(display, newWidth, newHeight);
 
-		display->FlushScreen();
+		//No buffer swap here: this is called outside the render loop, so swapping would
+		//present a back buffer that hasn't been drawn to and cause a flicker.
 	}
 	void Display::OnCursorMotion(GLFWwindow* window, double x, double y)
 	{

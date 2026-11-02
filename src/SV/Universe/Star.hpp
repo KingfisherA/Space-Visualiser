@@ -76,7 +76,7 @@ namespace SV
 		}
 
 		Star(const double massIn, float radiusIn, float starTempIn, const glm::vec3& starColIn, const glm::vec3& position) :
-			CelestrialBody(CelestrialBodyType::Star, massIn),
+			CelestrialBody(CelestrialBodyType::Star, massIn, position),
 			radius(radiusIn),
 			starTemperature(starTempIn),
 			starColour(starColIn)

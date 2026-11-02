@@ -38,9 +38,9 @@ namespace SV::Universe
 		const Ref<SV::PlanetNew> Get<SV::PlanetNew>(const PlanetarySystemI index) const
 		{
 			Ref<SV::CelestrialBody> body = celestrialBodies[index];
-			if (body->GetType() != SV::CelestrialBodyType::Star)
+			if (body->GetType() != SV::CelestrialBodyType::Planet)
 			{
-				SV_WARN_T(SV::Universe::PlanetarySystem::Get<SV::PlanetNew>, "Object at index is not a star");
+				SV_WARN_T(SV::Universe::PlanetarySystem::Get<SV::PlanetNew>, "Object at index is not a planet");
 				return nullptr;
 			}
 

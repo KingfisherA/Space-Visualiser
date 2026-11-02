@@ -250,6 +250,8 @@ namespace SV
 		friend class ArraySpan<A>;
 		//
 		void Allocate(size_t newCapacity);
+		//Destroys all elements and frees the internal array, leaving an empty, usable array
+		void Release() noexcept;
 		//
 		size_t capacity = 0;
 		const unsigned short retractionIncrement = (const unsigned short)200 / sizeof(A);

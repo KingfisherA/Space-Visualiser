@@ -51,7 +51,11 @@ namespace SV
 	{
 		if (this != &tex)
 		{
+			//Release the texture currently owned before taking ownership of the other
+			glDeleteTextures(1, &textureID);
+
 			this->textureID = tex.textureID;
+			this->textureDimensions = tex.textureDimensions;
 			this->currentTextureUnit = tex.currentTextureUnit;
 			this->textureType = tex.textureType;
 			this->internalFormat = tex.internalFormat;
@@ -294,8 +298,12 @@ namespace SV
 
 		if (texPixels == nullptr)
 		{
-			SV_FATAL_T(SV::TextureData::LoadTexData, ("Unable to load texture data.\n Log: " + String(SOIL_last_result())).GetStringArray());
-			throw std::runtime_error(("Unable to load texture data.\n Log: " + StringView(SOIL_last_result())).GetStringArray());
+			//Don't throw or exit on the loading thread: the exception would be lost in the future.
+			//The error is reported on the main thread by AsyncTexture2D::TryLoadData.
+			this->asyncError = "Unable to load texture data from \""_str + asyncFilePath + "\".\n Log: " + SOIL_last_result();
+			this->aFailed = true;
+			this->aLoaded = true;
+			return;
 		}
 
 		this->pixels = texPixels;
@@ -347,29 +355,27 @@ namespace SV
 	{
 		if (this != &tex)
 		{
-			this->textureID = tex.textureID;
-			this->currentTextureUnit = tex.currentTextureUnit;
-			this->textureType = tex.textureType;
-			this->internalFormat = tex.internalFormat;
+			ITexture::operator=(std::move(tex));
 
-			this->texData = std::move(texData);
+			this->texData = std::move(tex.texData);
 			this->iParams = std::move(tex.iParams);
 			this->fParams = std::move(tex.fParams);
 			this->texLoaded = tex.texLoaded;
 			this->borderCol = tex.borderCol;
-
-			tex.textureID = 0;
-			tex.currentTextureUnit = 0;
-			tex.textureDimensions.width = 0;
-			tex.textureDimensions.height = 0;
-			tex.textureType = TextureType(0);
-			tex.internalFormat = TexFormat::RGB;
 		}
 		return *this;
 	}
 	//
 	bool AsyncTexture2D::TryLoadData()
 	{
+		if (texData == nullptr) return texLoaded;
+		if (!texLoaded && texData->Failed())
+		{
+			//Report the loading thread's error once, then leave the texture empty rather than terminating
+			SV_WARN_T(SV::AsyncTexture2D::TryLoadData, texData->GetError().GetStringArray());
+			texData.reset();
+			return false;
+		}
 		if (!texLoaded && texData->Loaded() && texData->GetPixelArray() != nullptr)
 		{
 			this->internalFormat = texData->GetInternalFormat();

@@ -1160,6 +1160,7 @@ inline SV::StringViewW operator""_view(const wchar_t* stringA, std::size_t lengt
 //
 
 //Custom hash definitions for use with std::unordered_map
+//These hash the string contents; hashing the pointer would make equal strings at different addresses hash differently
 namespace std
 {
 	template<> class hash<SV::BasicStringView<char>>
@@ -1167,7 +1168,7 @@ namespace std
 	public:
 		[[nodiscard]] size_t operator()(const SV::BasicStringView<char> s) const noexcept
 		{
-			return std::hash<const char*>()(s.GetStringArray());
+			return std::hash<std::string_view>()(std::string_view(s.GetStringArray(), s.GetLength()));
 		}
 	};
 	template<> class hash<SV::BasicString<char>>
@@ -1175,7 +1176,7 @@ namespace std
 	public:
 		size_t operator()(const SV::BasicString<char>& s) const
 		{
-			return std::hash<const char*>()(s.GetStringArray());
+			return std::hash<std::string_view>()(std::string_view(s.GetStringArray(), s.GetLength()));
 		}
 	};
 	template<> class hash<SV::BasicStringView<char>*>
@@ -1183,7 +1184,7 @@ namespace std
 	public:
 		[[nodiscard]] size_t operator()(const SV::BasicStringView<char>* s) const noexcept
 		{
-			return std::hash<const char*>()(s->GetStringArray());
+			return std::hash<std::string_view>()(std::string_view(s->GetStringArray(), s->GetLength()));
 		}
 	};
 	template<> class hash<SV::BasicString<char>*>
@@ -1191,7 +1192,7 @@ namespace std
 	public:
 		size_t operator()(const SV::BasicString<char>* s) const
 		{
-			return std::hash<const char*>()(s->GetStringArray());
+			return std::hash<std::string_view>()(std::string_view(s->GetStringArray(), s->GetLength()));
 		}
 	};
 	template<> class hash<const SV::BasicStringView<char>*>
@@ -1199,7 +1200,7 @@ namespace std
 	public:
 		[[nodiscard]] size_t operator()(const SV::BasicStringView<char>* s) const noexcept
 		{
-			return std::hash<const char*>()(s->GetStringArray());
+			return std::hash<std::string_view>()(std::string_view(s->GetStringArray(), s->GetLength()));
 		}
 	};
 	template<> class hash<const SV::BasicString<char>*>
@@ -1207,7 +1208,7 @@ namespace std
 	public:
 		size_t operator()(const SV::BasicString<char>* s) const
 		{
-			return std::hash<const char*>()(s->GetStringArray());
+			return std::hash<std::string_view>()(std::string_view(s->GetStringArray(), s->GetLength()));
 		}
 	};
 
@@ -1216,7 +1217,7 @@ namespace std
 	public:
 		[[nodiscard]] size_t operator()(const SV::BasicStringView<wchar_t> s) const noexcept
 		{
-			return std::hash<const wchar_t*>()(s.GetStringArray());
+			return std::hash<std::wstring_view>()(std::wstring_view(s.GetStringArray(), s.GetLength()));
 		}
 	};
 	template<> class hash<SV::BasicString<wchar_t>>
@@ -1224,7 +1225,7 @@ namespace std
 	public:
 		size_t operator()(const SV::BasicString<wchar_t>& s) const
 		{
-			return std::hash<const wchar_t*>()(s.GetStringArray());
+			return std::hash<std::wstring_view>()(std::wstring_view(s.GetStringArray(), s.GetLength()));
 		}
 	};
 	template<> class hash<SV::BasicStringView<wchar_t>*>
@@ -1232,7 +1233,7 @@ namespace std
 	public:
 		[[nodiscard]] size_t operator()(const SV::BasicStringView<wchar_t>* s) const noexcept
 		{
-			return std::hash<const wchar_t*>()(s->GetStringArray());
+			return std::hash<std::wstring_view>()(std::wstring_view(s->GetStringArray(), s->GetLength()));
 		}
 	};
 	template<> class hash<SV::BasicString<wchar_t>*>
@@ -1240,7 +1241,7 @@ namespace std
 	public:
 		size_t operator()(const SV::BasicString<wchar_t>* s) const
 		{
-			return std::hash<const wchar_t*>()(s->GetStringArray());
+			return std::hash<std::wstring_view>()(std::wstring_view(s->GetStringArray(), s->GetLength()));
 		}
 	};
 	template<> class hash<const SV::BasicStringView<wchar_t>*>
@@ -1248,7 +1249,7 @@ namespace std
 	public:
 		[[nodiscard]] size_t operator()(const SV::BasicStringView<wchar_t>* s) const noexcept
 		{
-			return std::hash<const wchar_t*>()(s->GetStringArray());
+			return std::hash<std::wstring_view>()(std::wstring_view(s->GetStringArray(), s->GetLength()));
 		}
 	};
 	template<> class hash<const SV::BasicString<wchar_t>*>
@@ -1256,7 +1257,7 @@ namespace std
 	public:
 		size_t operator()(const SV::BasicString<wchar_t>* s) const
 		{
-			return std::hash<const wchar_t*>()(s->GetStringArray());
+			return std::hash<std::wstring_view>()(std::wstring_view(s->GetStringArray(), s->GetLength()));
 		}
 	};
 

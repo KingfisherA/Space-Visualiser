@@ -163,7 +163,8 @@ namespace SV
 		for (const auto& keyPair : distanceCache)
 		{
 			Star& currentStar = *stars[keyPair.second];
-			glm::mat4 transformationMatrix = glm::translate(currentStar.GetTranslation()) * glm::scale(glm::vec3(1.8f));// *Maths::SphericalBillboard(currentCamera.GetActualPosition(), currentStar.GetTranslation());
+			//Corona is sized relative to the star's scale so it isn't hidden inside larger stars
+			glm::mat4 transformationMatrix = glm::translate(currentStar.GetTranslation()) * glm::scale(1.8f * currentStar.GetScale());// *Maths::SphericalBillboard(currentCamera.GetActualPosition(), currentStar.GetTranslation());
 
 			memcpy(&data[((size_t)i * coronaAttributeSize) + 0], glm::value_ptr(transformationMatrix), sizeof(glm::mat4));
 
@@ -206,7 +207,7 @@ namespace SV
 		coronaAttributeBuffer->UpdateData(ArrayView(starAttributeArray, 0, coronaEleCount));
 
 		glDepthMask(false);
-		glDrawElementsInstanced(GL_TRIANGLES, coronaVAO->GetEleCount(), GL_UNSIGNED_INT, nullptr, 1);//(GLsizei)stars.GetCount());
+		glDrawElementsInstanced(GL_TRIANGLES, coronaVAO->GetEleCount(), GL_UNSIGNED_INT, nullptr, (GLsizei)stars.GetCount());
 		glDepthMask(true);
 
 		coronaVAO->DisableAttributeArray(0, 5);
@@ -242,7 +243,7 @@ namespace SV
 
 		//glDrawElements(GL_TRIANGLES, starVAO->GetEleCount(), GL_UNSIGNED_INT, nullptr);
 
-		glDrawElementsInstanced(GL_TRIANGLES, starVAO->GetEleCount(), GL_UNSIGNED_INT, nullptr, 1);// (GLsizei)stars.GetCount());
+		glDrawElementsInstanced(GL_TRIANGLES, starVAO->GetEleCount(), GL_UNSIGNED_INT, nullptr, (GLsizei)stars.GetCount());
 
 		starVAO->DisableAttributeArray(0, 10);
 

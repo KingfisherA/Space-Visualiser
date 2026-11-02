@@ -29,7 +29,7 @@ namespace SV
 	//
 	ArrayBuffer::ArrayBuffer()
 	{
-		glCreateBuffers(1, &vboID);
+		glGenBuffers(1, &vboID); //glCreateBuffers requires OpenGL 4.5
 	}
 	//
 	ArrayBuffer::ArrayBuffer(GLuint ID)
@@ -39,7 +39,7 @@ namespace SV
 	//
 	ArrayBuffer::ArrayBuffer(const float* data, unsigned int count, BufferUsage usage)
 	{
-		glCreateBuffers(1, &vboID);
+		glGenBuffers(1, &vboID); //glCreateBuffers requires OpenGL 4.5
 		StoreData(data, count, usage);
 	}
 	//
@@ -108,7 +108,7 @@ namespace SV
 	//
 	IndexBuffer::IndexBuffer()
 	{
-		glCreateBuffers(1, &vboID);
+		glGenBuffers(1, &vboID); //glCreateBuffers requires OpenGL 4.5
 	}
 	//
 	IndexBuffer::IndexBuffer(GLuint ID)
@@ -125,6 +125,7 @@ namespace SV
 	//
 	IndexBuffer::IndexBuffer(unsigned int byteSize, BufferUsage usage)
 	{
+		glGenBuffers(1, &vboID);
 		this->Bind();
 		glBufferData(GL_ELEMENT_ARRAY_BUFFER, byteSize, nullptr, (GLenum)usage);
 

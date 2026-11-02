@@ -218,7 +218,13 @@ namespace SV
 		/// <returns>The FBO's status</returns>
 		inline GLenum GetFramebufferStatus() const
 		{
-			return glCheckNamedFramebufferStatus(fboID, GL_FRAMEBUFFER);
+			//glCheckNamedFramebufferStatus requires OpenGL 4.5, so bind, check, then restore the previous binding
+			GLint previousFBO = 0;
+			glGetIntegerv(GL_FRAMEBUFFER_BINDING, &previousFBO);
+			glBindFramebuffer(GL_FRAMEBUFFER, fboID);
+			GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+			glBindFramebuffer(GL_FRAMEBUFFER, (GLuint)previousFBO);
+			return status;
 		}
 		/// <summary>
 		/// Get a boolean showing if the FBO is usable or not

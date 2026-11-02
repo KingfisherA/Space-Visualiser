@@ -10,10 +10,27 @@
 #define TOSTRING(x) STRINGIFY(x)
 
 
+//_ITERATOR_DEBUG_LEVEL is MSVC-only; other compilers use the standard NDEBUG convention
+#if defined(_MSC_VER)
 #if _ITERATOR_DEBUG_LEVEL == 2 || _ITERATOR_DEBUG_LEVEL == 1
 #define SV_DEBUG
 #else
 #define SV_RELEASE
+#endif
+#elif !defined(NDEBUG)
+#define SV_DEBUG
+#else
+#define SV_RELEASE
+#endif
+
+//__debugbreak is an MSVC intrinsic
+#if !defined(_MSC_VER) && !defined(__debugbreak)
+#if defined(__clang__)
+#define __debugbreak() __builtin_debugtrap()
+#else
+#include<csignal>
+#define __debugbreak() raise(SIGTRAP)
+#endif
 #endif
 
 #ifdef SV_DEBUG

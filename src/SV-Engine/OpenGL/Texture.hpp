@@ -626,6 +626,8 @@ namespace SV
 		AsyncTextureData(const SV::StringView filePath, LoadColourChannels forceChannels = LoadColourChannels::Automatic);
 		//
 		bool Loaded() const { return aLoaded; }
+		bool Failed() const { return aFailed; }
+		const SV::String& GetError() const { return asyncError; }
 		const std::future<void>& GetFuture() const { return asyncFuture; }
 		//
 	private:
@@ -636,6 +638,8 @@ namespace SV
 
 		std::future<void> asyncFuture;
 		std::atomic_bool aLoaded = false;
+		std::atomic_bool aFailed = false;
+		SV::String asyncError;
 	};
 
 	//

@@ -24,12 +24,14 @@ set(SV_LIB_DIR ${SV_DIR}/Libraries)
 set(SV_BIN_DIR ${SV_DIR}/bin/${SV_PLATFORM})
 
 if(NOT SV_GENG_DIR)
-    message(NOTICE "-- Graphics Engine directory not set. Setting to default: \"../GraphicsEngine\"")
-    get_filename_component(SV_GENG_DIR "../GraphicsEngine" REALPATH)
-    if(NOT (EXISTS "${SV_GENG_DIR}"))   
-        message(FATAL_ERROR "!! Cannot find GraphicsEngine directory. Please specify with -DSV_GENG_DIR=...")
+    # GraphicsEngine has been ported to the Dahlia engine. Nothing links against it yet,
+    # so a missing directory is only a warning.
+    message(NOTICE "-- Graphics Engine directory not set. Setting to default: \"../Dahlia\"")
+    get_filename_component(SV_GENG_DIR "../Dahlia" REALPATH)
+    if(NOT (EXISTS "${SV_GENG_DIR}"))
+        message(WARNING "!! Cannot find Dahlia directory. Please specify with -DSV_GENG_DIR=...")
     else()
-        message(NOTICE "-- GraphicsEngine directory successfully bound!")
+        message(NOTICE "-- Dahlia directory successfully bound!")
     endif()
 endif()
 
@@ -53,7 +55,9 @@ find_package(glfw3 CONFIG REQUIRED)
 find_package(glm CONFIG REQUIRED)
 find_package(OpenGL REQUIRED)
 
-set(GLEW_USE_STATIC_LIBS true)
+# Don't force GLEW_USE_STATIC_LIBS: newer Homebrew GLEW ships only the shared
+# library, and the config package then errors. The static target is still
+# preferred at link time when it exists (see GLEW::glew_s in Projects/cmake).
 find_package(GLEW CONFIG)
 if(NOT GLEW_FOUND)
     find_package(GLEW REQUIRED)

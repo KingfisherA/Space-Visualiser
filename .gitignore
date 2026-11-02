@@ -5,3 +5,5 @@
 /build/
 *.DS_Store
 desktop.ini
+.cache/
+Libraries/

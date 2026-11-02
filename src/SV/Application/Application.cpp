@@ -232,6 +232,8 @@ void OnWindowResized(SV::Display* const sender, int newWidth, int newHeight)
 	constexpr float nearDist = 0.1f;
 	constexpr float farDist = 1500.0f;
 
+	if (newWidth <= 0 || newHeight <= 0) return;
+
 	float aspect = (float)newWidth / (float)newHeight;
 
 	float ratio_size_per_depth = atan(glm::radians(FOV / 2.0f)) * 2.0f;
@@ -345,7 +347,6 @@ bool InitiliseResources()
 	testTexture->SetTextureWrapping(SV::TextureWrap::Repeat);
 
 	sRenderer = make <SV::StarRenderer>();
-	sRenderer->Add(make <SV::Star>(1.0f, 1.0f, 5800.0f, glm::vec3(1.0f), glm::vec3(0.0f, 0.0f, 0.0f)));
 	//sRenderer->Add(make <SV::Star>(1.0f, 1.0f, 5800.0f, glm::vec3(26.0f, 128.0f, 128.0f) / 255.0f * 2.0f, glm::vec3(5.0f, 0.0f, 0.0f)));
 	//sRenderer->Add(make <SV::Star>(1.0f, 1.0f, 100.0f, glm::vec3(1.0f, 0.2f, 0.2f), glm::vec3(0.0f, 0.0f, -10.0f)));
 
@@ -359,7 +360,7 @@ bool InitiliseResources()
 	// pNewRenderer->Add(make <SV::Titan>(quadVAO));
 
 	solarSystem = make <SV::Universe::PlanetarySystem>(sRenderer, pNewRenderer);
-	Ref<SV::PresetStars::Sun> sunObj = make <SV::PresetStars::Sun>(glm::vec3(10.0f, 0.0f, 0.0f));
+	Ref<SV::PresetStars::Sun> sunObj = make <SV::PresetStars::Sun>(glm::vec3(0.0f, 0.0f, 0.0f));
 	sunObj->Scale(glm::vec3{ 15.0f });
 	solarSystem->Add(sunObj);
 	//solarSystem->Add(make <SV::Mercury>(quadVAO));
@@ -403,7 +404,7 @@ bool InitiliseResources()
 //
 void ExecuteRenderLoop()
 {
-	OnWindowResized(mainWindow.get(), 800, 600);
+	OnWindowResized(mainWindow.get(), (int)mainWindow->GetWidth(), (int)mainWindow->GetHeight());
 
 	while (!mainWindow->IsCloseRequested())
 	{

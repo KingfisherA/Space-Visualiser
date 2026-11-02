@@ -41,7 +41,11 @@ namespace SV
 		std::cout << "GLEW sucessfully initilised. Using GLEW version " << glewGetString(GLEW_VERSION) << std::endl;
 
 
-		if (GLEW_VERSION_4_6) Console::SetConsoleColour(ConsoleColour::Green);	 std::cout << "OpenGL version 4.6 is supported!" << std::endl;
+		if (GLEW_VERSION_4_6)
+		{
+			Console::SetConsoleColour(ConsoleColour::Green);
+			std::cout << "OpenGL version 4.6 is supported!" << std::endl;
+		}
 
 		glEnable(GL_TEXTURE_2D);
 
