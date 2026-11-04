@@ -1,21 +1,18 @@
-#include"SV-Engine/Precompiled Global.hpp"
 #include "AtmospherePrecomputer.hpp"
 
 #include <cassert>
 #include <cmath>
-#include <iostream>
-#include <memory>
-#include<unordered_map>
-#include<string>
+#include <string>
 
-#include"SV-Engine/OpenGL/OpenGL Context.hpp"
-#include"SV-Engine/OpenGL/VAO.hpp"
-#include"SV-Engine/OpenGL/VBO.hpp"
-#include"SV-Engine/OpenGL/ShaderProgram.hpp"
-#include"SV-Engine/Utilities/Geometry.hpp"
-#include"SV-Engine/OpenGL/FBO.hpp"
-#include"SV-Engine/Utilities/String.hpp"
-#include"SV-Engine/OpenGL/Texture.hpp"
+#include "Dahlia/Graphics/BindGroup.h"
+#include "Dahlia/Graphics/Buffer.h"
+#include "Dahlia/Graphics/CommandList.h"
+#include "Dahlia/Graphics/Framebuffer.h"
+#include "Dahlia/Graphics/GraphicsPipeline.h"
+#include "Dahlia/Graphics/Texture.h"
+#include "Dahlia/Platform/GPUContext.h"
+#include "SV/Graphics/SceneContext.hpp"
+#include "SV/Graphics/ShaderSources.hpp"
 
 namespace SV::Atmosphere
 {
@@ -23,11 +20,11 @@ namespace SV::Atmosphere
 	ScatteringData::ScatteringData() noexcept :
 		kLambdaMin(0),
 		kLambdaMax(0),
-		solarIrradiance(nullptr),
+		solarIrradiance(),
 		kBottomRadius(0),
 		kTopRadius(0),
 		kRayleighScatteringCoefficient(0),
-		rayleighExtinction(nullptr),
+		rayleighExtinction(),
 		rayleighDensity(),
 		kMieAngstromAlpha(0),
 		kMieAngstromBeta(0),
@@ -134,27 +131,6 @@ namespace SV::Atmosphere
 	{
 	}
 	//
-#pragma region Atmosphere Precomputer
-	//
-	SV::String AtmospherePrecomputer::textureSizeHeader;
-
-	void AtmospherePrecomputer::DrawQuad(const std::initializer_list<bool>& enable_blend)
-	{
-		unsigned int i = 0;
-		for (; i < enable_blend.size(); ++i) {
-			if (enable_blend.begin()[i]) {
-				glEnablei(GL_BLEND, i);
-			}
-		}
-
-		fullScreenQuad->Bind();
-		glDrawElements(GL_TRIANGLES, fullScreenQuad->GetEleCount(), GL_UNSIGNED_INT, nullptr);
-		fullScreenQuad->Unbind();
-
-		for (i = 0; i < enable_blend.size(); ++i) {
-			glDisablei(GL_BLEND, i);
-		}
-	}
 
 	constexpr unsigned int kLambdaMin = 360;
 	constexpr unsigned int kLambdaMax = 830;
@@ -226,47 +202,6 @@ namespace SV::Atmosphere
 		*k_b *= MAX_LUMINOUS_EFFICACY * dlambda;
 	}
 
-	AtmospherePrecomputer::AtmospherePrecomputer(const ScatteringData& atmoData, double lengthUnitInMeters, Ref<SV::VAO> fullScreenQuadIn, unsigned int numPrecomputedWavelengths)
-		: AtmospherePrecomputer(ProcessAtmosphericData(atmoData, lengthUnitInMeters, numPrecomputedWavelengths > 3), lengthUnitInMeters, fullScreenQuadIn, numPrecomputedWavelengths)
-	{
-	}
-
-	AtmospherePrecomputer::AtmospherePrecomputer(const ProcessedAtmoData& atmoData, double lengthUnitInMetres, Ref<SV::VAO> fullScreenQuadIn, unsigned int numPrecomputedWavelengths) :
-		fullScreenQuad(fullScreenQuadIn),
-		processedData(atmoData),
-		lengthUnitInMetres(lengthUnitInMetres),
-		precomputedWavelengths(numPrecomputedWavelengths)
-	{
-		if (textureSizeHeader == "")
-		{
-			RecompileTextureHeader();
-		}
-
-		atmosphericDataString = AtmospherePrecomputer::CompileAtmosphereDataToString(processedData);
-		// Allocate the precomputed textures, but don't precompute them yet.
-		transmittanceTexture = create <SV::Texture2D>(
-			TRANSMITTANCE_TEXTURE_WIDTH, TRANSMITTANCE_TEXTURE_HEIGHT, SV::TexFormat::RGBA32F);
-		scatteringTexture = create <SV::Texture3D>(
-			SCATTERING_TEXTURE_WIDTH,
-			SCATTERING_TEXTURE_HEIGHT,
-			SCATTERING_TEXTURE_DEPTH,
-			COMBINE_SCATTERING_TEXTURES ? SV::TexFormat::RGBA32F : SV::TexFormat::RGB32F);
-		if (COMBINE_SCATTERING_TEXTURES)
-		{
-			singleMieScatteringTexture = nullptr;
-		}
-		else
-		{
-			singleMieScatteringTexture = create <SV::Texture3D>(
-				SCATTERING_TEXTURE_WIDTH,
-				SCATTERING_TEXTURE_HEIGHT,
-				SCATTERING_TEXTURE_DEPTH,
-				COMBINE_SCATTERING_TEXTURES ? SV::TexFormat::RGBA32F : SV::TexFormat::RGB32F);
-		}
-		irradianceTexture = create <SV::Texture2D>(
-			IRRADIANCE_TEXTURE_WIDTH, IRRADIANCE_TEXTURE_HEIGHT, SV::TexFormat::RGBA32F);
-	}
-
 	double AtmospherePrecomputer::CalculateRayleighCoefficient(double indexOfRefraction)
 	{
 		double kn2T = (indexOfRefraction * indexOfRefraction) - 1.0; // (n^2 -1)
@@ -297,13 +232,13 @@ namespace SV::Atmosphere
 			double lambda4 = pow(lambdaWavelength, -4);
 			double mie = scatteringData.kMieAngstromBeta / scatteringData.kMieScaleHeight * pow(lambdaWavelength, -scatteringData.kMieAngstromAlpha);
 			wavelengths.push_back(j);
-			solarIrradiance.push_back(scatSolarIrr[size_t(index) + 1 > scatSolarIrr.GetCount() ? scatSolarIrr.GetCount() - 1 : index]);
+			solarIrradiance.push_back(scatSolarIrr[size_t(index) + 1 > scatSolarIrr.size() ? scatSolarIrr.size() - 1 : index]);
 			rayleighScattering.push_back(scatteringData.kRayleighScatteringCoefficient * lambda4);
 			mieScattering.push_back(mie * scatteringData.kMieSingleScatteringAlbedo);
 			mieExtinction.push_back(mie);
 
 			//	const double rayleighExtinction = ;//+ ozoneExtinction;
-			absorptionExtinction.push_back(scatRayExtinct[size_t(index) + 1 > scatRayExtinct.GetCount() ? scatRayExtinct.GetCount() - 1 : index] * lambda4); //Rayleigh Extinction
+			absorptionExtinction.push_back(scatRayExtinct[size_t(index) + 1 > scatRayExtinct.size() ? scatRayExtinct.size() - 1 : index] * lambda4); //Rayleigh Extinction
 			groundAlbedo.push_back(scatteringData.kGroundAlbedo * lambda4);
 		}
 
@@ -369,193 +304,6 @@ namespace SV::Atmosphere
 		return pAtmoData;
 	}
 
-	SV::String AtmospherePrecomputer::CompileAtmosphereHeaderToString(const SV::Dimension2D transmittanceTexDimensions, const glm::uivec4& scatteringTexProperties,
-		const SV::Dimension2D irradianceTexDimensions, const bool texturesCombined)
-	{
-		return SV::String(
-			"const int TRANSMITTANCE_TEXTURE_WIDTH = " +
-			SV::NumberToString(transmittanceTexDimensions.width) + ";\n" +
-			"const int TRANSMITTANCE_TEXTURE_HEIGHT = " +
-			SV::NumberToString(transmittanceTexDimensions.height) + ";\n" +
-			"const int SCATTERING_TEXTURE_R_SIZE = " +
-			SV::NumberToString(scatteringTexProperties.x) + ";\n" +
-			"const int SCATTERING_TEXTURE_MU_SIZE = " +
-			SV::NumberToString(scatteringTexProperties.y) + ";\n" +
-			"const int SCATTERING_TEXTURE_MU_S_SIZE = " +
-			SV::NumberToString(scatteringTexProperties.z) + ";\n" +
-			"const int SCATTERING_TEXTURE_NU_SIZE = " +
-			SV::NumberToString(scatteringTexProperties.w) + ";\n" +
-			"const int IRRADIANCE_TEXTURE_WIDTH = " +
-			SV::NumberToString(irradianceTexDimensions.width) + ";\n" +
-			"const int IRRADIANCE_TEXTURE_HEIGHT = " +
-			SV::NumberToString(irradianceTexDimensions.height) + ";\n" +
-			(texturesCombined ?
-				"#define COMBINED_SCATTERING_TEXTURES\n" : ""));
-	}
-
-	SV::String  AtmospherePrecomputer::CompileAtmosphereDataToString(const ProcessedAtmoData& data)
-	{
-		auto DensityProfileToString = [](const std::array<DensityProfileLayer, MAX_DENSITY_PROFILE_LAYERS>& layers) -> SV::String
-		{
-			SV::String  returnVal = "DensityProfile(DensityProfileLayer[" + SV::NumberToString(MAX_DENSITY_PROFILE_LAYERS) + "](";
-			for (unsigned int i = 0; i < MAX_DENSITY_PROFILE_LAYERS; i++)
-			{
-				returnVal += "DensityProfileLayer(" +
-					SV::NumberToString(layers[i].width) + "," +
-					SV::NumberToString(layers[i].exp_term) + "," +
-					SV::NumberToString(layers[i].exp_scale) + "," +
-					SV::NumberToString(layers[i].linear_term) + "," +
-					SV::NumberToString(layers[i].constant_term) + ")";
-				returnVal += i < MAX_DENSITY_PROFILE_LAYERS - 1 ? "," : "))";
-			}
-			return returnVal;
-		};
-
-		return "\nconst AtmosphereParameters ATMOSPHERE = AtmosphereParameters(\n" +
-			SV::VecToString(data.solarIrradiance) + ",\n" +
-			SV::NumberToString(data.sunAngularRadius) + ",\n" +
-			SV::NumberToString(data.bottomRadius) + ",\n" +
-			SV::NumberToString(data.topRadius) + ",\n" +
-			DensityProfileToString(data.rayleighDensity) + ",\n" +
-			SV::VecToString(data.rayleighScattering) + ",\n" +
-			DensityProfileToString(data.mieDensity) + ",\n" +
-			SV::VecToString(data.mieScattering) + ",\n" +
-			SV::VecToString(data.mieExtinction) + ",\n" +
-			SV::NumberToString(data.miePhaseFunctionG) + ",\n" +
-			DensityProfileToString(data.absorptionDensity) + ",\n" +
-			SV::VecToString(data.absorptionExtinction) + ",\n" +
-			SV::VecToString(data.groundAlbdeo) + ",\n" +
-			SV::NumberToString(data.muSMin) + ");\n" +
-			"const vec3 SKY_SPECTRAL_RADIANCE_TO_LUMINANCE = " + SV::VecToString(data.skySpectralRadianceToLuminance) + ";\n" +
-			"const vec3 SUN_SPECTRAL_RADIANCE_TO_LUMINANCE = " + SV::VecToString(data.skySpectralRadianceToLuminance) + ";\n";
-	}
-
-	void AtmospherePrecomputer::RecompileTextureHeader()
-	{
-		textureSizeHeader = AtmospherePrecomputer::CompileAtmosphereHeaderToString({ TRANSMITTANCE_TEXTURE_WIDTH, TRANSMITTANCE_TEXTURE_HEIGHT },
-			{ SCATTERING_TEXTURE_R_SIZE, SCATTERING_TEXTURE_MU_SIZE, SCATTERING_TEXTURE_MU_S_SIZE, SCATTERING_TEXTURE_NU_SIZE },
-			{ IRRADIANCE_TEXTURE_WIDTH, IRRADIANCE_TEXTURE_HEIGHT }, COMBINE_SCATTERING_TEXTURES);
-	}
-
-	void AtmospherePrecomputer::PrecomputeTextures(unsigned int numScatteringOrders)
-	{
-		bool isBlendEnabled = glIsEnabled(GL_BLEND);
-
-		// The precomputations require temporary textures, in particular to store the
-		// contribution of one scattering order, which is needed to compute the next
-		// order of scattering (the final precomputed textures store the sum of all
-		// the scattering orders). We allocate them here, and destroy them at the end
-		// of this method.
-		SV::Texture2D delta_irradiance_texture(IRRADIANCE_TEXTURE_WIDTH, IRRADIANCE_TEXTURE_HEIGHT, SV::TexFormat::RGBA32F);
-
-		SV::Texture3D deltaRayleighScatteringTexture(SCATTERING_TEXTURE_WIDTH, SCATTERING_TEXTURE_HEIGHT, SCATTERING_TEXTURE_DEPTH, SV::TexFormat::RGBA32F);
-
-		SV::Texture3D deltaMieScatteringTexture(SCATTERING_TEXTURE_WIDTH, SCATTERING_TEXTURE_HEIGHT, SCATTERING_TEXTURE_DEPTH, SV::TexFormat::RGBA32F);
-
-		SV::Texture3D deltaScatteringDensityTexture(SCATTERING_TEXTURE_WIDTH, SCATTERING_TEXTURE_HEIGHT, SCATTERING_TEXTURE_DEPTH, SV::TexFormat::RGBA32F);
-
-		// deltaMultipleScatteringTexture is only needed to compute scattering
-		// order 3 or more, while deltaRayleighScatteringTexture and
-		// deltaMieScatteringTexture are only needed to compute double scattering.
-		// Therefore, to save memory, we can store deltaRayleighScatteringTexture
-		// and deltaMultipleScatteringTexture in the same GPU texture.
-		SV::Texture3D& deltaMultipleScatteringTexture = deltaRayleighScatteringTexture;
-
-		// The precomputations also require a temporary framebuffer object, created
-		// here (and destroyed at the end of this method).
-		SV::FBO fbo;
-
-		// The actual precomputations depend on whether we want to store precomputed
-		// irradiance or illuminance values.
-		if (precomputedWavelengths <= 3)
-		{
-			//glm::vec3 lambdas{ kLambdaR, kLambdaG, kLambdaB };
-			glm::mat3 luminance_from_radiance{ 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0 };
-			Precompute(fbo, delta_irradiance_texture, deltaRayleighScatteringTexture,
-				deltaMieScatteringTexture, deltaScatteringDensityTexture,
-				deltaMultipleScatteringTexture, K_LAMBDA, luminance_from_radiance,
-				false /* blend */, numScatteringOrders);
-		}
-		else
-		{
-			constexpr double kLambdaMin = 360.0;
-			constexpr double kLambdaMax = 830.0;
-			int num_iterations = (precomputedWavelengths + 2) / 3;
-			double dlambda = (kLambdaMax - kLambdaMin) / (3.0 * double(num_iterations));
-			for (int i = 0; i < num_iterations; i++)
-			{
-				glm::vec3 lambdas
-				{
-				  kLambdaMin + (3 * double(i) + 0.5) * dlambda,
-				  kLambdaMin + (3 * double(i) + 1.5) * dlambda,
-				  kLambdaMin + (3 * double(i) + 2.5) * dlambda
-				};
-				auto coeff = [dlambda](double lambda, int component)
-				{
-					// Note that we don't include MAX_LUMINOUS_EFFICACY here, to avoid
-					// artefacts due to too large values when using half precision on GPU.
-					// We add this term back in kAtmosphereShader, via
-					// SKY_SPECTRAL_RADIANCE_TO_LUMINANCE (see also the comments in the
-					// Model constructor).
-					double x = CieColorMatchingFunctionTableValue(lambda, 1);
-					double y = CieColorMatchingFunctionTableValue(lambda, 2);
-					double z = CieColorMatchingFunctionTableValue(lambda, 3);
-					return static_cast<float>((
-						XYZ_TO_SRGB[component * 3] * x +
-						XYZ_TO_SRGB[component * 3 + 1] * y +
-						XYZ_TO_SRGB[component * 3 + 2] * z) * dlambda);
-				};
-
-				glm::mat3 luminance_from_radiance{
-				  coeff(lambdas[0], 0), coeff(lambdas[1], 0), coeff(lambdas[2], 0),
-				  coeff(lambdas[0], 1), coeff(lambdas[1], 1), coeff(lambdas[2], 1),
-				  coeff(lambdas[0], 2), coeff(lambdas[1], 2), coeff(lambdas[2], 2)
-				};
-
-				Precompute(fbo, delta_irradiance_texture,
-					deltaRayleighScatteringTexture, deltaMieScatteringTexture,
-					deltaScatteringDensityTexture, deltaMultipleScatteringTexture,
-					lambdas, luminance_from_radiance, i > 0 /* blend */,
-					numScatteringOrders);
-			}
-
-			// After the above iterations, the transmittance texture contains the
-			// transmittance for the 3 wavelengths used at the last iteration. But we
-			// want the transmittance at kLambdaR, kLambdaG, kLambdaB instead, so we
-			// must recompute it here for these 3 wavelengths:
-
-			SV::ShaderProgram computeTransmittanceShader(SV::VertexShader("./Shaders/Atmosphere/Precompute/PrecomputeVertexShader.v.glsl"), SV::FragmentShader("./Shaders/Atmosphere/Precompute/ComputeTransmittanceShader.f.glsl", true,
-				ShaderKeyMap{
-					{"atmoParameters", (SV::String)GetAtmosphereDataHeader()}
-					}));
-
-			fbo.Bind();
-			fbo.AddColourAttachment(0, transmittanceTexture);
-			fbo.DrawBuffers({ 0 });
-			glViewport(0, 0, TRANSMITTANCE_TEXTURE_WIDTH, TRANSMITTANCE_TEXTURE_HEIGHT);
-
-			computeTransmittanceShader.Bind();
-			DrawQuad({});
-
-			fbo.Unbind();
-		}
-
-		if (isBlendEnabled) glEnable(GL_BLEND);
-		else glDisable(GL_BLEND);
-
-		SV::ShaderProgram::Unbind();
-		fbo.Unbind();
-	}
-
-	void AtmospherePrecomputer::SetProgramUniforms(SV::ShaderProgram& program, const TextureUnits transmittanceUnit, const TextureUnits scatteringUnit, const TextureUnits irradianceUnit,
-		const TextureUnits mieScatteringUnit) const
-	{
-		program.UploadTexture("transmittance_texture", transmittanceUnit, (const SV::ITexture&) * transmittanceTexture);
-		program.UploadTexture("scattering_texture", scatteringUnit, (const SV::ITexture&) * scatteringTexture);
-		program.UploadTexture("irradiance_texture", irradianceUnit, (const SV::ITexture&) * irradianceTexture);
-		if (singleMieScatteringTexture != nullptr) program.UploadTexture("single_mie_scattering_texture", mieScatteringUnit, (const SV::ITexture&) * singleMieScatteringTexture);
-	}
-
 	void AtmospherePrecomputer::ConvertSpectrumToLinearSrgb(const std::vector<double>& wavelengths, const std::vector<double>& spectrum, double* r, double* g, double* b)
 	{
 		double x = 0.0;
@@ -577,169 +325,278 @@ namespace SV::Atmosphere
 			(XYZ_TO_SRGB[6] * x + XYZ_TO_SRGB[7] * y + XYZ_TO_SRGB[8] * z) * dlambda;
 	}
 
-	void AtmospherePrecomputer::Precompute(SV::FBO& fbo, SV::Texture2D& deltaIrradianceTexture, SV::Texture3D& deltaRayleighScatteringTexture, SV::Texture3D& deltaMieScatteringTexture, SV::Texture3D& deltaScatteringDensityTexture,
-		SV::Texture3D& deltaMultipleScatteringTexture, const glm::vec3& lambdas, const  glm::mat3& luminance_from_radiance, bool blend, unsigned int numScatteringOrders)
-	{
-		// The precomputations require specific GLSL programs, for each precomputation
-		// step. We create and compile them here (they are automatically destroyed
-		// when this method returns, via the Program destructor).
+#pragma region Atmosphere Precomputer
 
-		ShaderKeyMap programAtmoParams = {
-			{"maxDensityProfileLayers", SV::NumberToString(MAX_DENSITY_PROFILE_LAYERS)},
-			{"atmoParameters", textureSizeHeader + CompileAtmosphereDataToString(processedData)}
+	namespace
+	{
+		// Half floats are filterable as render targets on every backend and are precise enough
+		// for the precomputed values (Bruneton's reference implementation also uses them)
+		constexpr DH::Format PRECOMPUTE_FORMAT = DH::Format::RGBA16F;
+
+		sRef<DH::Texture2D> CreateTarget2D(int width, int height)
+		{
+			return DH::Texture2D::Create({ (size_t)width, (size_t)height }, nullptr, PRECOMPUTE_FORMAT,
+										 DH::TextureUsage::SampledRenderTarget);
+		}
+
+		sRef<DH::Texture3D> CreateTarget3D(int width, int height, int depth)
+		{
+			return DH::Texture3D::Create({ (size_t)width, (size_t)height, (size_t)depth }, nullptr, PRECOMPUTE_FORMAT,
+										 DH::TextureUsage::SampledRenderTarget);
+		}
+
+		DH::BindGroupLayoutEntry FragmentTexture(uint32_t binding, bool is3D = false)
+		{
+			return { binding,
+					 is3D ? DH::ShaderResourceType::CombinedTextureSampler3D : DH::ShaderResourceType::CombinedTextureSampler,
+					 DH::ShaderStage::Fragment };
+		}
+	}
+
+	// GPU objects only needed while precomputing
+	struct AtmospherePrecomputer::PrecomputeResources
+	{
+		// Temporary textures. deltaMultipleScatteringTexture is only needed for scattering order 3
+		// or more, while deltaRayleighScatteringTexture is only needed for double scattering, so they
+		// share one texture.
+		sRef<DH::Texture2D> deltaIrradianceTexture;
+		sRef<DH::Texture3D> deltaRayleighScatteringTexture;
+		sRef<DH::Texture3D> deltaMieScatteringTexture;
+		sRef<DH::Texture3D> deltaScatteringDensityTexture;
+		sRef<DH::Texture3D>& deltaMultipleScatteringTexture = deltaRayleighScatteringTexture;
+
+		// Render targets. 3D textures are rendered one depth slice (layer) at a time.
+		sRef<DH::Framebuffer> transmittanceTarget;
+		sRef<DH::Framebuffer> irradianceTarget;                  // delta irradiance, irradiance
+		std::vector<sRef<DH::Framebuffer>> singleScatteringTargets;   // delta Rayleigh, delta Mie, scattering
+		std::vector<sRef<DH::Framebuffer>> scatteringDensityTargets;  // delta scattering density
+		std::vector<sRef<DH::Framebuffer>> multipleScatteringTargets; // delta multiple scattering, scattering
+
+		sRef<DH::GraphicsPipeline> transmittancePipeline;
+		sRef<DH::GraphicsPipeline> directIrradiancePipeline;
+		sRef<DH::GraphicsPipeline> singleScatteringPipeline;
+		sRef<DH::GraphicsPipeline> scatteringDensityPipeline;
+		sRef<DH::GraphicsPipeline> indirectIrradiancePipeline;
+		sRef<DH::GraphicsPipeline> multipleScatteringPipeline;
+
+		// Set 0: the atmosphere. Set 1: each pass's input textures.
+		sRef<DH::BindGroup> atmosphereGroup;
+		sRef<DH::BindGroup> transmittanceInputGroup;
+		sRef<DH::BindGroup> scatteringDensityInputGroup;
+		sRef<DH::BindGroup> indirectIrradianceInputGroup;
+		sRef<DH::BindGroup> multipleScatteringInputGroup;
+	};
+
+	AtmospherePrecomputer::AtmospherePrecomputer(const ScatteringData& atmoData, double lengthUnitInMeters)
+		: AtmospherePrecomputer(ProcessAtmosphericData(atmoData, lengthUnitInMeters), lengthUnitInMeters)
+	{
+	}
+
+	AtmospherePrecomputer::AtmospherePrecomputer(const ProcessedAtmoData& atmoData, double lengthUnitInMetresIn) :
+		processedData(atmoData),
+		lengthUnitInMetres(lengthUnitInMetresIn)
+	{
+		const AtmosphereUniforms uniforms = PackUniforms(processedData);
+		uniformBuffer = DH::Buffer::Create({ sizeof(AtmosphereUniforms), DH::BufferUsage::Uniform, DH::BufferMemory::Static }, &uniforms);
+
+		// Allocate the precomputed textures, but don't precompute them yet
+		transmittanceTexture = CreateTarget2D(TRANSMITTANCE_TEXTURE_WIDTH, TRANSMITTANCE_TEXTURE_HEIGHT);
+		scatteringTexture = CreateTarget3D(SCATTERING_TEXTURE_WIDTH, SCATTERING_TEXTURE_HEIGHT, SCATTERING_TEXTURE_DEPTH);
+		irradianceTexture = CreateTarget2D(IRRADIANCE_TEXTURE_WIDTH, IRRADIANCE_TEXTURE_HEIGHT);
+	}
+
+	AtmospherePrecomputer::~AtmospherePrecomputer() = default;
+
+	AtmosphereUniforms AtmospherePrecomputer::PackUniforms(const ProcessedAtmoData& data)
+	{
+		AtmosphereUniforms uniforms{};
+		uniforms.solarIrradiance = glm::vec4(data.solarIrradiance, data.sunAngularRadius);
+		uniforms.rayleighScattering = glm::vec4(data.rayleighScattering, data.bottomRadius);
+		uniforms.mieScattering = glm::vec4(data.mieScattering, data.topRadius);
+		uniforms.mieExtinction = glm::vec4(data.mieExtinction, data.miePhaseFunctionG);
+		uniforms.absorptionExtinction = glm::vec4(data.absorptionExtinction, data.muSMin);
+		uniforms.groundAlbedo = glm::vec4(data.groundAlbdeo, 0.0f);
+
+		float constants[MAX_DENSITY_PROFILE_LAYERS * 3] = {};
+		const std::array<const std::array<DensityProfileLayer, MAX_DENSITY_PROFILE_LAYERS>*, 3> profiles = {
+			&data.rayleighDensity, &data.mieDensity, &data.absorptionDensity
+		};
+		for (unsigned int p = 0; p < 3; p++)
+		{
+			for (unsigned int l = 0; l < MAX_DENSITY_PROFILE_LAYERS; l++)
+			{
+				const DensityProfileLayer& layer = (*profiles[p])[l];
+				const unsigned int index = p * MAX_DENSITY_PROFILE_LAYERS + l;
+				uniforms.densityLayers[index] = glm::vec4(layer.width, layer.exp_term, layer.exp_scale, layer.linear_term);
+				constants[index] = (float)layer.constant_term;
+			}
+		}
+		uniforms.densityConstants[0] = glm::vec4(constants[0], constants[1], constants[2], constants[3]);
+		uniforms.densityConstants[1] = glm::vec4(constants[4], constants[5], 0.0f, 0.0f);
+		return uniforms;
+	}
+
+	void AtmospherePrecomputer::PrecomputeTextures(DH::CommandList& cmd, const SceneContext& context, unsigned int numScatteringOrders)
+	{
+		precomputeResources = umake<PrecomputeResources>();
+		PrecomputeResources& res = *precomputeResources;
+
+		res.deltaIrradianceTexture = CreateTarget2D(IRRADIANCE_TEXTURE_WIDTH, IRRADIANCE_TEXTURE_HEIGHT);
+		res.deltaRayleighScatteringTexture = CreateTarget3D(SCATTERING_TEXTURE_WIDTH, SCATTERING_TEXTURE_HEIGHT, SCATTERING_TEXTURE_DEPTH);
+		res.deltaMieScatteringTexture = CreateTarget3D(SCATTERING_TEXTURE_WIDTH, SCATTERING_TEXTURE_HEIGHT, SCATTERING_TEXTURE_DEPTH);
+		res.deltaScatteringDensityTexture = CreateTarget3D(SCATTERING_TEXTURE_WIDTH, SCATTERING_TEXTURE_HEIGHT, SCATTERING_TEXTURE_DEPTH);
+
+		auto CreateTarget = [](std::vector<DH::FramebufferAttachment> attachments)
+		{
+			DH::FramebufferSpecification spec;
+			spec.attachments = std::move(attachments);
+			return DH::Framebuffer::Create(spec);
 		};
 
-		SV::VertexShader vShader("./Shaders/Atmosphere/Precompute/PrecomputeVertexShader.v.glsl");
-		SV::GeometryShader gShader("./Shaders/Atmosphere/Precompute/PrecomputeGeometryShader.g.glsl");
-
-		SV::ShaderProgram transmittanceProgram(vShader,
-			SV::FragmentShader("./Shaders/Atmosphere/Precompute/ComputeTransmittanceShader.f.glsl", true, programAtmoParams));
-
-		SV::ShaderProgram directIrradianceProgram(vShader,
-			SV::FragmentShader("./Shaders/Atmosphere/Precompute/ComputeDirectIrradianceShader.f.glsl", true, programAtmoParams));
-
-		SV::ShaderProgram singleScatteringProgram(vShader,
-			SV::FragmentShader("./Shaders/Atmosphere/Precompute/ComputeSingleScatteringShader.f.glsl", true, programAtmoParams),
-			gShader);
-
-		SV::ShaderProgram scatteringDensityProgram(
-			vShader,
-			SV::FragmentShader("./Shaders/Atmosphere/Precompute/ComputeScatteringDensityShader.f.glsl", true, programAtmoParams),
-			gShader);
-
-		SV::ShaderProgram indirectIrradianceProgram(
-			vShader,
-			SV::FragmentShader("./Shaders/Atmosphere/Precompute/ComputeIndirectIrradianceShader.f.glsl", true, programAtmoParams));
-
-		SV::ShaderProgram multipleScatteringProgram(
-			vShader,
-			SV::FragmentShader("./Shaders/Atmosphere/Precompute/ComputeMultipleScatteringShader.f.glsl", true, programAtmoParams),
-			gShader);
-
-		glBlendEquationSeparate(GL_FUNC_ADD, GL_FUNC_ADD);
-		glBlendFuncSeparate(GL_ONE, GL_ONE, GL_ONE, GL_ONE);
-
-		// Compute the transmittance, and store it in transmittance_texture_.
-		fbo.AddColourAttachment(0, transmittanceTexture);
-		fbo.DrawBuffer(0);
-		fbo.Bind();
-
-		fbo.SetViewport({ 0,0, TRANSMITTANCE_TEXTURE_WIDTH, TRANSMITTANCE_TEXTURE_HEIGHT });
-
-		transmittanceProgram.Bind();
-		DrawQuad({});
-
-		// Compute the direct irradiance, store it in delta_irradiance_texture and,
-		// depending on 'blend', either initialize irradianceTexture with zeros or
-		// leave it unchanged (we don't want the direct irradiance in
-		// irradianceTexture, but only the irradiance from the sky).
-		fbo.Reset();
-		fbo.AddColourAttachment(0, WeakRef(deltaIrradianceTexture));
-		fbo.AddColourAttachment(1, irradianceTexture);
-		fbo.DrawBuffers({ 0,1 });
-
-		fbo.SetViewport({ 0,0, IRRADIANCE_TEXTURE_WIDTH, IRRADIANCE_TEXTURE_HEIGHT });
-		directIrradianceProgram.Bind();
-		directIrradianceProgram.UploadTexture("transmittance_texture", 0, *transmittanceTexture);
-
-		DrawQuad({ false, blend });
-
-		// Compute the rayleigh and mie single scattering, store them in
-		// deltaRayleighScatteringTexture and deltaMieScatteringTexture, and
-		// either store them or accumulate them in scatteringTexture and
-		// singleMieScatteringTexture.
-
-		fbo.Reset();
-		fbo.AddColourAttachment(0, WeakRef(deltaRayleighScatteringTexture));
-		fbo.AddColourAttachment(1, WeakRef(deltaMieScatteringTexture));
-		fbo.AddColourAttachment(2, scatteringTexture);
-
-		if (singleMieScatteringTexture != 0)
+		res.transmittanceTarget = CreateTarget({ transmittanceTexture });
+		res.irradianceTarget = CreateTarget({ res.deltaIrradianceTexture, irradianceTexture });
+		for (uint32_t layer = 0; layer < (uint32_t)SCATTERING_TEXTURE_DEPTH; layer++)
 		{
-			fbo.AddColourAttachment(3, singleMieScatteringTexture);
-			fbo.DrawBuffers({ 0,1 ,2, 3 });
-		}
-		else
-		{
-			fbo.DrawBuffers({ 0,1 ,2 });
+			res.singleScatteringTargets.push_back(CreateTarget({
+				{ res.deltaRayleighScatteringTexture, 0, layer },
+				{ res.deltaMieScatteringTexture, 0, layer },
+				{ scatteringTexture, 0, layer } }));
+			res.scatteringDensityTargets.push_back(CreateTarget({ { res.deltaScatteringDensityTexture, 0, layer } }));
+			res.multipleScatteringTargets.push_back(CreateTarget({
+				{ res.deltaMultipleScatteringTexture, 0, layer },
+				{ scatteringTexture, 0, layer } }));
 		}
 
-		fbo.SetViewport({ 0,0,SCATTERING_TEXTURE_WIDTH, SCATTERING_TEXTURE_HEIGHT });
-		singleScatteringProgram.Bind();
-		singleScatteringProgram.UploadMatrixF("luminance_from_radiance", luminance_from_radiance);
-		singleScatteringProgram.UploadTexture("transmittance_texture", 0, *transmittanceTexture);
+		// Bind groups
+		const sRef<DH::BindGroupLayout> atmosphereLayout = DH::BindGroupLayout::Create(
+			{ { 0, DH::ShaderResourceType::UniformBuffer, DH::ShaderStage::Fragment } });
+		const sRef<DH::BindGroupLayout> transmittanceInputLayout = DH::BindGroupLayout::Create({ FragmentTexture(0) });
+		const sRef<DH::BindGroupLayout> scatteringDensityInputLayout = DH::BindGroupLayout::Create({
+			FragmentTexture(0), FragmentTexture(1, true), FragmentTexture(2, true), FragmentTexture(3, true), FragmentTexture(4) });
+		const sRef<DH::BindGroupLayout> indirectIrradianceInputLayout = DH::BindGroupLayout::Create({
+			FragmentTexture(0, true), FragmentTexture(1, true), FragmentTexture(2, true) });
+		const sRef<DH::BindGroupLayout> multipleScatteringInputLayout = DH::BindGroupLayout::Create({
+			FragmentTexture(0), FragmentTexture(1, true) });
 
-		for (unsigned int layer = 0; layer < SCATTERING_TEXTURE_DEPTH; ++layer)
+		const sRef<DH::Sampler>& sampler = context.clampSampler;
+		using Entry = DH::BindGroupEntry;
+		res.atmosphereGroup = DH::BindGroup::Create(atmosphereLayout, { Entry::UniformBuffer(0, uniformBuffer) });
+		res.transmittanceInputGroup = DH::BindGroup::Create(transmittanceInputLayout,
+			{ Entry::TextureSampler(0, transmittanceTexture, sampler) });
+		res.scatteringDensityInputGroup = DH::BindGroup::Create(scatteringDensityInputLayout, {
+			Entry::TextureSampler(0, transmittanceTexture, sampler),
+			Entry::TextureSampler(1, res.deltaRayleighScatteringTexture, sampler),
+			Entry::TextureSampler(2, res.deltaMieScatteringTexture, sampler),
+			Entry::TextureSampler(3, res.deltaMultipleScatteringTexture, sampler),
+			Entry::TextureSampler(4, res.deltaIrradianceTexture, sampler) });
+		res.indirectIrradianceInputGroup = DH::BindGroup::Create(indirectIrradianceInputLayout, {
+			Entry::TextureSampler(0, res.deltaRayleighScatteringTexture, sampler),
+			Entry::TextureSampler(1, res.deltaMieScatteringTexture, sampler),
+			Entry::TextureSampler(2, res.deltaMultipleScatteringTexture, sampler) });
+		res.multipleScatteringInputGroup = DH::BindGroup::Create(multipleScatteringInputLayout, {
+			Entry::TextureSampler(0, transmittanceTexture, sampler),
+			Entry::TextureSampler(1, res.deltaScatteringDensityTexture, sampler) });
+
+		// Pipelines: full screen triangles, no depth. Attachments that accumulate the sum of every
+		// scattering order use additive (One + One) blending.
+		const sRef<DH::ShaderModule> fullscreenShader = Shaders::Create("Fullscreen.vert");
+		auto CreatePipeline = [&](const char* fragmentShader, const sRef<DH::Framebuffer>& target,
+								  const sRef<DH::BindGroupLayout>& inputLayout, DH::BlendDesc blend = {})
 		{
-			singleScatteringProgram.UploadInt("layer", (int)layer);
-			DrawQuad({ false, false, blend, blend });
+			DH::GraphicsPipelineDesc desc;
+			desc.vertexShader = fullscreenShader;
+			desc.fragmentShader = Shaders::Create(fragmentShader);
+			desc.depth = { false, false, DH::CompareOp::Always };
+			desc.blend = std::move(blend);
+			desc.targetLayout = target->GetLayout();
+			desc.bindGroupLayouts = { atmosphereLayout };
+			if (inputLayout != nullptr)
+				desc.bindGroupLayouts.push_back(inputLayout);
+			desc.pushConstantSize = sizeof(PrecomputePushConstants);
+			return DH::GraphicsPipeline::Create(desc);
+		};
+		using DH::BlendPreset;
+		res.transmittancePipeline = CreatePipeline("Transmittance.frag", res.transmittanceTarget, nullptr);
+		res.directIrradiancePipeline = CreatePipeline("DirectIrradiance.frag", res.irradianceTarget, transmittanceInputLayout);
+		res.singleScatteringPipeline = CreatePipeline("SingleScattering.frag", res.singleScatteringTargets[0], transmittanceInputLayout);
+		res.scatteringDensityPipeline = CreatePipeline("ScatteringDensity.frag", res.scatteringDensityTargets[0], scatteringDensityInputLayout);
+		res.indirectIrradiancePipeline = CreatePipeline("IndirectIrradiance.frag", res.irradianceTarget, indirectIrradianceInputLayout,
+			{ BlendPreset::None, BlendPreset::AdditiveOne });
+		res.multipleScatteringPipeline = CreatePipeline("MultipleScattering.frag", res.multipleScatteringTargets[0], multipleScatteringInputLayout,
+			{ BlendPreset::None, BlendPreset::AdditiveOne });
+
+		// Precomputing 3 wavelengths stores radiance directly, so no conversion to luminance
+		PrecomputePushConstants pushConstants;
+		pushConstants.luminanceFromRadiance = glm::mat4(1.0f);
+
+		auto Draw = [&](const sRef<DH::Framebuffer>& target, DH::LoadOp loadOp, const sRef<DH::GraphicsPipeline>& pipeline,
+						const sRef<DH::BindGroup>& inputs)
+		{
+			DH::RenderPassDesc pass;
+			pass.target = target.get();
+			pass.colourLoadOp = loadOp;
+			pass.clearColour = glm::vec4(0.0f);
+			pass.depthLoadOp = DH::LoadOp::DontCare;
+			cmd.BeginRenderPass(pass);
+			cmd.BindPipeline(*pipeline);
+			cmd.BindGroup(0, *res.atmosphereGroup);
+			if (inputs != nullptr)
+				cmd.BindGroup(1, *inputs);
+			cmd.PushConstants(pushConstants);
+			cmd.Draw(3);
+			cmd.EndRenderPass();
+		};
+
+		// Compute the transmittance, and store it in transmittanceTexture
+		Draw(res.transmittanceTarget, DH::LoadOp::Clear, res.transmittancePipeline, nullptr);
+
+		// Compute the direct irradiance, store it in deltaIrradianceTexture and initialise
+		// irradianceTexture with zeros (it only stores the irradiance from the sky)
+		Draw(res.irradianceTarget, DH::LoadOp::Clear, res.directIrradiancePipeline, res.transmittanceInputGroup);
+
+		// Compute the Rayleigh and Mie single scattering, store them in deltaRayleighScatteringTexture
+		// and deltaMieScatteringTexture, and store them combined in scatteringTexture
+		for (uint32_t layer = 0; layer < (uint32_t)SCATTERING_TEXTURE_DEPTH; layer++)
+		{
+			pushConstants.layer = (int32_t)layer;
+			Draw(res.singleScatteringTargets[layer], DH::LoadOp::Clear, res.singleScatteringPipeline, res.transmittanceInputGroup);
 		}
 
-		// Compute the 2nd, 3rd and 4th order of scattering, in sequence.
+		// Compute the 2nd, 3rd and 4th order of scattering, in sequence
 		for (unsigned int scatteringOrder = 2; scatteringOrder <= numScatteringOrders; ++scatteringOrder)
 		{
-			// Compute the scattering density, and store it in deltaScatteringDensityTexture.
-			fbo.Reset();
-			fbo.AddColourAttachment(0, WeakRef(deltaScatteringDensityTexture));
-			fbo.DrawBuffer(0);
-			fbo.SetViewport({ 0,0, SCATTERING_TEXTURE_WIDTH, SCATTERING_TEXTURE_HEIGHT });
-			scatteringDensityProgram.Bind();
-
-			scatteringDensityProgram.UploadTexture("transmittance_texture", 0, *transmittanceTexture);
-			scatteringDensityProgram.UploadTexture("single_rayleigh_scattering_texture", 1, deltaRayleighScatteringTexture);
-			scatteringDensityProgram.UploadTexture("single_mie_scattering_texture", 2, deltaMieScatteringTexture);
-			scatteringDensityProgram.UploadTexture("multiple_scattering_texture", 3, deltaMultipleScatteringTexture);
-			scatteringDensityProgram.UploadTexture("irradiance_texture", 4, deltaIrradianceTexture);
-
-			scatteringDensityProgram.UploadInt("scattering_order", (int)scatteringOrder);
-			for (unsigned int layer = 0; layer < SCATTERING_TEXTURE_DEPTH; ++layer)
+			// Compute the scattering density, and store it in deltaScatteringDensityTexture
+			pushConstants.scatteringOrder = (int32_t)scatteringOrder;
+			for (uint32_t layer = 0; layer < (uint32_t)SCATTERING_TEXTURE_DEPTH; layer++)
 			{
-				scatteringDensityProgram.UploadInt("layer", (int)layer);
-				DrawQuad({});
+				pushConstants.layer = (int32_t)layer;
+				Draw(res.scatteringDensityTargets[layer], DH::LoadOp::Clear, res.scatteringDensityPipeline, res.scatteringDensityInputGroup);
 			}
 
-			// Compute the indirect irradiance, store it in delta_irradiance_texture and
-			// accumulate it in irradianceTexture.
-			fbo.Reset();
-			fbo.AddColourAttachment(0, WeakRef(deltaIrradianceTexture));
-			fbo.AddColourAttachment(1, irradianceTexture);
-			fbo.DrawBuffers({ 0, 1 });
-			fbo.SetViewport({ 0,0, IRRADIANCE_TEXTURE_WIDTH, IRRADIANCE_TEXTURE_HEIGHT });
-			indirectIrradianceProgram.Bind();
-			indirectIrradianceProgram.UploadMatrixF("luminance_from_radiance", luminance_from_radiance);
-			indirectIrradianceProgram.UploadTexture("single_rayleigh_scattering_texture", 0, deltaRayleighScatteringTexture);
-			indirectIrradianceProgram.UploadTexture("single_mie_scattering_texture", 1, deltaMieScatteringTexture);
-			indirectIrradianceProgram.UploadTexture("multiple_scattering_texture", 2, deltaMultipleScatteringTexture);
+			// Compute the indirect irradiance, store it in deltaIrradianceTexture and accumulate it
+			// in irradianceTexture
+			pushConstants.scatteringOrder = (int32_t)scatteringOrder - 1;
+			Draw(res.irradianceTarget, DH::LoadOp::Load, res.indirectIrradiancePipeline, res.indirectIrradianceInputGroup);
 
-			indirectIrradianceProgram.UploadInt("scattering_order", (int)scatteringOrder - 1);
-			DrawQuad({ false, true });
-
-			// Compute the multiple scattering, store it in
-			// deltaMultipleScatteringTexture, and accumulate it in
-			// scatteringTexture.
-			fbo.Reset();
-			fbo.AddColourAttachment(0, WeakRef(deltaMultipleScatteringTexture));
-			fbo.AddColourAttachment(1, scatteringTexture);
-			fbo.DrawBuffers({ 0, 1 });
-			fbo.SetViewport({ 0,0, SCATTERING_TEXTURE_WIDTH, SCATTERING_TEXTURE_HEIGHT });
-
-			multipleScatteringProgram.Bind();
-			multipleScatteringProgram.UploadMatrixF("luminance_from_radiance", luminance_from_radiance);
-			multipleScatteringProgram.UploadTexture("transmittance_texture", 0, *transmittanceTexture);
-			multipleScatteringProgram.UploadTexture("scattering_density_texture", 1, deltaScatteringDensityTexture);
-
-			for (unsigned int layer = 0; layer < SCATTERING_TEXTURE_DEPTH; ++layer)
+			// Compute the multiple scattering, store it in deltaMultipleScatteringTexture, and
+			// accumulate it in scatteringTexture
+			for (uint32_t layer = 0; layer < (uint32_t)SCATTERING_TEXTURE_DEPTH; layer++)
 			{
-				multipleScatteringProgram.UploadInt("layer", (int)layer);
-				DrawQuad({ false, true });
+				pushConstants.layer = (int32_t)layer;
+				Draw(res.multipleScatteringTargets[layer], DH::LoadOp::Load, res.multipleScatteringPipeline, res.multipleScatteringInputGroup);
 			}
 		}
 
-		fbo.Reset();
-		fbo.Unbind();
+		precomputed = true;
+	}
+
+	void AtmospherePrecomputer::ReleasePrecomputeResources()
+	{
+		if (precomputeResources == nullptr)
+			return;
+		DH::GPUContext::Get()->WaitIdle();
+		precomputeResources.reset();
 	}
 
 #pragma endregion
-
-	//
 }

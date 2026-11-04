@@ -1,214 +1,143 @@
 #pragma once
-#include"SV-Engine/OpenGL/OpenGL Context.hpp"
-#include"SV-Engine/OpenGL/ShaderProgram.hpp"
-#include"SV-Engine/Utilities/SVMemory.hpp"
-#include"SV-Engine/Scene/Transformation.hpp"
-#include"SV/Atmosphere/Atmosphere.hpp"
-#include"SV-Engine/OpenGL/Texture.hpp"
-#include"SV-Engine/Scene/Camera.hpp"
-#include"CelestrialBody.hpp"
+#include <unordered_map>
+#include <vector>
 
-#include<type_traits>
-#include<typeinfo>
+#include <glm/glm.hpp>
+
+#include "Dahlia/Graphics/GPUMesh.h"
+#include "Dahlia/Utilities/Memory.h"
+#include "SV/Atmosphere/Atmosphere.hpp"
+#include "SV/Graphics/AsyncTexture.hpp"
+#include "SV/Graphics/ModalPipeline.hpp"
+#include "CelestrialBody.hpp"
+
+namespace DH
+{
+	class BindGroup;
+	class BindGroupLayout;
+	class CommandList;
+}
 
 namespace SV
 {
-	template<typename A>
-	class Array;
-	class ITexture;
-	class Texture2D;
+	struct SceneContext;
 
 #pragma region Planets
 
-	//
-	class PlanetNew : public CelestrialBody 
+	class PlanetNew : public CelestrialBody
 	{
 	public:
-		PlanetNew(const double massIn, const Ref<SV::ITexture>& diffuseTexIn, const Ref<SV::Atmosphere::IAtmosphere>& atmoIn = nullptr, const Ref<SV::ITexture>& specularTexIn = nullptr,
-			const Ref<SV::ITexture>& cloudsMapIn = nullptr, const Ref<SV::ITexture>& nightMapIn = nullptr, const Ref<SV::ITexture>& ringsShadowMapIn = nullptr) :
-			CelestrialBody(CelestrialBodyType::Planet, massIn),
-			diffuseMap(diffuseTexIn),
-			specularMap(specularTexIn),
-			cloudsMap(cloudsMapIn),
-			nightMap(nightMapIn),
-			ringShadowMap(ringsShadowMapIn),
-			planetAtmo(atmoIn) {}
-		virtual ~PlanetNew() {}
-		//
-		inline const Ref<SV::ITexture>& GetDiffuseMap() const noexcept { return diffuseMap; }
-		inline const Ref<SV::ITexture>& GetSpecularMap() const noexcept { return specularMap; }
-		inline const Ref<SV::ITexture>& GetCloudsMap() const noexcept { return cloudsMap; }
-		inline const Ref<SV::ITexture>& GetNightMap() const noexcept { return nightMap; }
-		inline const Ref<SV::ITexture>& GetRingsShadowMap() const noexcept { return ringShadowMap; }
-		//
-		inline const Ref<SV::Atmosphere::IAtmosphere>& GetAtmosphere() const noexcept { return planetAtmo; }
-		inline const SV::Atmosphere::ProcessedAtmoData& GetAtmosphericData() const noexcept
-		{
-			SV_ASSERT_T(planetAtmo == nullptr, SV::PlanetNew::GetAtmosphericData, "Cannot retrieve atmospheric data as planet's atmosphere is nullptr");
-			return planetAtmo->GetAtmosphericData();
-		}
-		inline const Ref<SV::Atmosphere::AtmospherePrecomputer>& GetPrecomputer() const noexcept
-		{
-			SV_ASSERT_T(planetAtmo == nullptr, SV::PlanetNew::GetPrecomputer, "Cannot retrieve atmospheric precomputer as planet's atmosphere is nullptr");
-			return planetAtmo->GetPrecomputer();
-		}
-		//
+		PlanetNew(const double massIn, const sRef<SV::Atmosphere::IAtmosphere>& atmoIn) :
+			CelestrialBody(CelestrialBodyType::Planet, massIn), planetAtmo(atmoIn) {}
+
+		// Any map may be nullptr: a planet without a diffuse map is drawn black
+		[[nodiscard]] const sRef<AsyncTexture>& GetDiffuseMap() const noexcept { return diffuseMap; }
+		[[nodiscard]] const sRef<AsyncTexture>& GetSpecularMap() const noexcept { return specularMap; }
+		[[nodiscard]] const sRef<AsyncTexture>& GetCloudsMap() const noexcept { return cloudsMap; }
+		[[nodiscard]] const sRef<AsyncTexture>& GetNightMap() const noexcept { return nightMap; }
+		// Planets with a ring map are drawn with rings, which also shadow the surface
+		[[nodiscard]] const sRef<AsyncTexture>& GetRingsShadowMap() const noexcept { return ringShadowMap; }
+
+		[[nodiscard]] const sRef<SV::Atmosphere::IAtmosphere>& GetAtmosphere() const noexcept { return planetAtmo; }
+
 	protected:
-		//
-		PlanetNew(const double massIn) : CelestrialBody(CelestrialBodyType::Planet, massIn) {}
-		PlanetNew(const double massIn, const Ref<SV::Atmosphere::IAtmosphere>& atomIn) :  CelestrialBody(CelestrialBodyType::Planet, massIn), planetAtmo(atomIn) {}
-		//
-		Ref<SV::ITexture> diffuseMap;
-		Ref<SV::ITexture> specularMap;
-		Ref<SV::ITexture> cloudsMap;
-		Ref<SV::ITexture> nightMap;
-		Ref<SV::ITexture> ringShadowMap;
-		//
-		Ref<SV::Atmosphere::IAtmosphere> planetAtmo;
-		//
+		sRef<AsyncTexture> diffuseMap;
+		sRef<AsyncTexture> specularMap;
+		sRef<AsyncTexture> cloudsMap;
+		sRef<AsyncTexture> nightMap;
+		sRef<AsyncTexture> ringShadowMap;
+
+		sRef<SV::Atmosphere::IAtmosphere> planetAtmo;
 	};
 
-	//
 	class Mercury : public PlanetNew
 	{
 	public:
-		Mercury(const Ref<SV::VAO>& quadVAO);
-
-	private:
-		//
-		static Ref<SV::Texture2D> mercuryDiffuseMap;
-		//
-		static Ref<SV::Atmosphere::IAtmosphere> mercuryAtmosphere;
+		Mercury();
 	};
 
-	//
 	class Venus : public PlanetNew
 	{
 	public:
-		Venus(const Ref<SV::VAO>& quadVAO);
-
-	private:
-		//
-		static Ref<SV::AsyncTexture2D> venusDiffuseMap;
-		static Ref<SV::AsyncTexture2D> venusCloudsMap;
-		//
-		static Ref<SV::Atmosphere::IAtmosphere> venusAtmosphere;
+		Venus();
 	};
 
-	//
 	class Earth : public PlanetNew
 	{
 	public:
-		Earth(const Ref<SV::VAO>& quadVAO);
-
-	private:
-		//
-		static Ref<SV::AsyncTexture2D> earthDiffuseMap;
-		static Ref<SV::AsyncTexture2D> earthSpecularMap;
-		static Ref<SV::AsyncTexture2D> earthCloudsMap;
-		static Ref<SV::AsyncTexture2D> earthNightMap;
-		//
-		static Ref<SV::Atmosphere::EarthAtmosphere> earthAtmosphere;
+		Earth();
 	};
 
-	//
 	class Mars : public PlanetNew
 	{
 	public:
-		Mars(const Ref<SV::VAO>& quadVAO);
-
-	private:
-		//
-		static Ref<SV::Texture2D> marsDiffuseMap;
-		//
-		static Ref<SV::Atmosphere::IAtmosphere> marsAtmosphere;
+		Mars();
 	};
 
-	//
 	class Jupiter : public PlanetNew
 	{
 	public:
-		Jupiter(const Ref<SV::VAO>& quadVAO);
-
-	private:
-		//
-		static Ref<SV::AsyncTexture2D> jupiterDiffuseMap;
-		static Ref<SV::AsyncTexture2D> jupiterRingsMap;
-		//
-		static Ref<SV::Atmosphere::JupiterAtmosphere> jupiterAtmosphere;
+		Jupiter();
 	};
 
-	//
 	class Saturn : public PlanetNew
 	{
 	public:
-		Saturn(const Ref<SV::VAO>& quadVAO);
-
-	private:
-		//
-		static Ref<SV::AsyncTexture2D> saturnDiffuseMap;
-		static Ref<SV::AsyncTexture2D> saturnRingMap;
-		static Ref<SV::Atmosphere::SaturnAtmosphere> saturnAtmosphere;
-		//
+		Saturn();
 	};
 
-	//
 	class Titan : public PlanetNew
 	{
 	public:
-		Titan(const Ref<SV::VAO>& quadVAO);
-
-	private:
-		static Ref<SV::Atmosphere::TitanAtmosphere> titanAtmosphere;
+		Titan();
 	};
 
 #pragma endregion
 
-	//
-	class PlanetRingShader : public ShaderProgram
-	{
-	public:
-		PlanetRingShader();
-		//
-		inline void UploadTransformationMat(const glm::mat4& value) const noexcept { this->UploadMatrixF("uTransformMatrix", value); }
-		inline void UploadViewProjectionMat(const glm::mat4& value) const noexcept { this->UploadMatrixF("uViewProjMatrix", value); }
-		//
-		inline void UploadSunPos(const glm::vec3& pos) const noexcept { this->UploadFloat("uLightPosition", pos); }
-		inline void UploadExposure(const float value) const noexcept { this->UploadFloat("uExposure", value); }
-		//
-		inline void UploadRingMapUnit(const TextureUnits unit) const noexcept { this->UploadInt("uRingMap", unit); }
-		inline void UploadRingMap(const TextureUnits unit, const ITexture& tex) const noexcept { this->UploadTexture("uRingMap", unit, tex); }
-		inline void UploadRingWidth(const float value) const noexcept { this->UploadFloat("uRingWidth", value); }
-		//
-		inline void UploadPlanetPos(const glm::vec3& pos) const noexcept { this->UploadFloat("uPlanetPosition", pos); }
-		inline void UploadPlanetRad(const float value) const noexcept { this->UploadFloat("uPlanetRadius", value); }
-		inline void UploadInvShadowSoftness(const float value) const noexcept { this->UploadFloat("uInvShadowSoftness", value); }
-		//
-	};
-
-	//
+	// Draws planets: the surface with its atmosphere in one pass over a sphere, and rings as two
+	// camera facing halves (back half before the planet, front half after).
 	class PlanetNewRenderer final : public CelestrialRenderer<SV::PlanetNew>
 	{
 	public:
-		//
-		PlanetNewRenderer();
-		//
-		void Render(const glm::mat4& projectionMatrix, const SV::Camera& cam, const glm::vec3& sunPosition, const float exposure, const float frameTime);
-		//
-		const static glm::mat4 RING_ROTATION_CORRECTION;
-		//
-	private:
-		//
-		SV::Array<Ref<SV::PlanetNew>>& planets = CelestrialRenderer<SV::PlanetNew>::celestrialBodies;
-		//
-		SV::Atmosphere::AtmosphereShader surfaceProgram;
-		SV::Atmosphere::AtmosphereShader skyProgram;
-		SV::VAO planetVAO;
-		//
-		SV::VAO ringsVAO;
-		SV::PlanetRingShader ringsProgram;
-		//
-		SV::Camera skyCamera;
-	};
+		explicit PlanetNewRenderer(const SceneContext& context);
+		~PlanetNewRenderer();
 
+		// Call each frame before the scene render pass: precomputes new atmospheres and picks up
+		// textures that have finished loading
+		void Prepare(DH::CommandList& cmd);
+
+		// Must be inside the scene render pass with the frame bind group bound at set 0
+		void Render(DH::CommandList& cmd, DH::PolygonMode polygonMode, float cameraYaw);
+
+	private:
+		// GPU state of one planet
+		struct PlanetBindings
+		{
+			sRef<DH::BindGroup> atmosphereGroup; // Set 1 of the surface pipeline
+			sRef<DH::BindGroup> mapsGroup;       // Set 2 of the surface pipeline
+			sRef<DH::BindGroup> ringGroup;       // Set 1 of the rings pipeline, if the planet has rings
+			int mapFlags = 0;                    // PLANET_HAS_* in Shaders/Include/PlanetPushConstants.glsl
+		};
+
+		void UpdateMapBindings(const PlanetNew& planet, PlanetBindings& bindings);
+		void RenderRings(DH::CommandList& cmd, DH::PolygonMode polygonMode, float cameraYaw, bool isBack);
+
+		std::vector<sRef<SV::PlanetNew>>& planets = CelestrialRenderer<SV::PlanetNew>::celestrialBodies;
+
+		const SceneContext& context;
+
+		sRef<DH::GPUMesh> planetMesh;
+		sRef<DH::GPUMesh> ringsMesh;
+
+		sRef<DH::BindGroupLayout> atmosphereLayout;
+		sRef<DH::BindGroupLayout> mapsLayout;
+		sRef<DH::BindGroupLayout> ringLayout;
+
+		ModalPipeline surfacePipeline;
+		ModalPipeline ringsPipeline;
+
+		std::unordered_map<const PlanetNew*, PlanetBindings> planetBindings;
+		// Precomputers whose temporary resources can be freed once their commands have run
+		std::vector<sRef<SV::Atmosphere::AtmospherePrecomputer>> finishedPrecomputers;
+	};
 }

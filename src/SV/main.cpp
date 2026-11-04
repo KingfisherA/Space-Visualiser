@@ -1,90 +1,78 @@
-﻿//Vital utilities
-//#include<Windows.h>
-#include<utility>
-#include<unordered_map>
-#include<type_traits>
-#include<string>
-#include<filesystem>
-#include<future>
+﻿#include <cstdlib>
+#include <exception>
+#include <iostream>
+#include <string_view>
 
-#include"SV-Engine/Precompiled Global.hpp"
-#include"Application/Application.hpp"
-#include"SV-Engine/Utilities/SVUtilities.hpp"
-#include"SV-Engine/OpenGL/VAO.hpp"
-#include"SV-Engine/Utilities/Array.hpp"
-#include"SV-Engine/Utilities/SVMemory.hpp"
-#include"SV-Engine/Utilities/String.hpp"
-#include"SV-Engine/OpenGL/ShaderProgram.hpp"
-#include"SV-Engine/Utilities/Geometry.hpp"
-#include"SV-Engine/Utilities/Chrono.hpp"
-#include"SV-Engine/Utilities/Maths.hpp"
-#include"SV-Engine/Utilities/Console.hpp"
-#include"SV-Engine/Utilities/Tree.h"
+#include "Dahlia/Platform/GPUContext.h"
+#include "SV/Application/Application.hpp"
+#include "SV/Graphics/AsyncTexture.hpp"
 
-
-
-using SV::Console;
-using SV::ConsoleColour;
-
-#define UpdateShaderFiles
-
-/// <summary>
-/// Entry point to space visuliser
-/// </summary>
-int main(int argc, const char* argv[])
+namespace
 {
-	//Console::SetConsole(GetStdHandle(STD_OUTPUT_HANDLE));
+	void PrintUsage(const char* program)
+	{
+		std::cout << "Usage: " << program << " [--opengl | --metal | --vulkan] [--data <texture directory>]\n";
+	}
+}
 
-	Console::SetConsoleColour(ConsoleColour::White);
-	Console::Write("Space Visuliser Refreshed V");
-	Console::SetConsoleColour(ConsoleColour::BrightAqua);
-	Console::Write("1");
-	Console::SetConsoleColour(ConsoleColour::White);
-	Console::Write(".");
-	Console::SetConsoleColour(ConsoleColour::BrightBlue);
-	Console::WriteLine("0");
-	Console::SetConsoleColour(ConsoleColour::White);
-	Console::Write("Architecture: ");
-	Console::SetConsoleColour(ConsoleColour::BrightRed);
-#ifdef _WIN64
-	Console::WriteLine("x64");
+// Entry point to Space Visualiser
+int main(int argc, char** argv)
+{
+	std::cout << "Space Visualiser 1.0\n";
+
+	// Metal by default on macOS, OpenGL 4.1 elsewhere; every Dahlia backend renders the same scene
+#ifdef __APPLE__
+	DH::GraphicsAPI api = DH::GraphicsAPI::Metal;
+	uint32_t major = 0, minor = 0;
 #else
-	Console::WriteLine("x86");
-#endif // _WIN64
+	DH::GraphicsAPI api = DH::GraphicsAPI::OpenGL;
+	uint32_t major = 4, minor = 1;
+#endif
+	for (int i = 1; i < argc; i++)
+	{
+		const std::string_view arg = argv[i];
+		if (arg == "--opengl")
+		{
+			api = DH::GraphicsAPI::OpenGL;
+			major = 4;
+			minor = 1;
+		}
+		else if (arg == "--vulkan")
+		{
+			api = DH::GraphicsAPI::Vulkan;
+			major = 1;
+			minor = 3;
+		}
+		else if (arg == "--metal")
+		{
+			api = DH::GraphicsAPI::Metal;
+		}
+		else if (arg == "--data" && i + 1 < argc)
+		{
+			SV::SetTextureDirectory(argv[++i]);
+		}
+		else
+		{
+			PrintUsage(argv[0]);
+			return arg == "--help" || arg == "-h" ? EXIT_SUCCESS : EXIT_FAILURE;
+		}
+	}
 
-// #ifdef UpdateShaderFiles
-// 	Console::SetConsoleColour(ConsoleColour::BrightBlue);
-// 	Console::NewLine();
-// 	Console::WriteLine("Updating Shader Files...");
-// 	SV::String command("call xcopy.exe \""_str + SOLUTION_DIR + "Space Visualiser/Shaders\" \"" + OUTPUT_DIR + "Shaders\" /s /y /i /d");
-// 	system(command.GetStringArray());
-// 	Console::NewLines(2);
-// #endif // UpdateShaderFiles
+	try
+	{
+		SV::Application app;
+		if (!app.Init(api, major, minor))
+		{
+			std::cerr << "Failed to initialise Space Visualiser\n";
+			return EXIT_FAILURE;
+		}
+		app.Run();
+	}
+	catch (const std::exception& e)
+	{
+		std::cerr << "Space Visualiser stopped with an error: " << e.what() << '\n';
+		return EXIT_FAILURE;
+	}
 
-	Console::SetConsoleColour(ConsoleColour::Yellow);
-	Console::WriteLine("Yellow = WARNING; A event that displays a warning.");
-	Console::SetConsoleColour(ConsoleColour::Red);
-	Console::WriteLine("Red = ERROR; A event that displays a fatal error.If this occurs, the program will automatically exit and create a log.");
-	Console::SetConsoleColour(ConsoleColour::Aqua);
-	Console::WriteLine("Aqua = INITIALIZING; A event that displays a the program is initializing resources.");
-	Console::SetConsoleColour(ConsoleColour::BrightBlue);
-	Console::WriteLine("Blue = INFORMATION; A event that displaying important or useful information.");
-	Console::SetConsoleColour(ConsoleColour::Green);
-	Console::WriteLine("Green = SUCCESS; A event that displaying that an action has executed successfully.");
-	Console::SetConsoleColour(ConsoleColour::Purple);
-	Console::WriteLine("Purple = CLEARING; A event that displays a the program is clearing and removing resources.\r\n\r\n");
-
-	// SYSTEM_INFO systemInfo;
-	// GetSystemInfo(&systemInfo);
-	// Console::SetConsoleColour(ConsoleColour::BrightBlue);
-	// Console::WriteLine("CPU Information: ");
-	// Console::SetConsoleColour(ConsoleColour::BrightAqua);
-	// std::cout << "Processor Type: " << systemInfo.dwProcessorType << "\n";
-	// std::cout << "Processor Cores: " << systemInfo.dwNumberOfProcessors << "\n";
-	// std::cout << "Page Size: " << systemInfo.dwPageSize << "\n";
-	// Console::NewLines(2);
-
-	if (!Application::Initilise(argc >= 1 ? argv[0] : nullptr)) return EXIT_FAILURE;
-
-	return Application::Run();
+	return EXIT_SUCCESS;
 }

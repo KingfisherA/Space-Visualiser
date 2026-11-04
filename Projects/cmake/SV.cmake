@@ -1,48 +1,80 @@
 add_executable("SV"
-  "${SV_SRC_DIR}/SV/main.cpp" 
-  "${SV_SRC_DIR}/SV/Atmosphere/Atmosphere.hpp" 
-  "${SV_SRC_DIR}/SV/Atmosphere/AtmospherePrecomputer.hpp" 
-  "${SV_SRC_DIR}/SV/Atmosphere/AtmospherePrecomputer.cpp" 
-  "${SV_SRC_DIR}/SV/Atmosphere/Atmosphere.cpp" 
-  "${SV_SRC_DIR}/SV/Application/Application.hpp" 
-  "${SV_SRC_DIR}/SV/Application/Application.cpp" 
-  "${SV_SRC_DIR}/SV/Universe/Planetary System.h" 
-  "${SV_SRC_DIR}/SV/Universe/Star.cpp" 
-  "${SV_SRC_DIR}/SV/Universe/Planet.hpp" 
-  "${SV_SRC_DIR}/SV/Universe/Planetary System.cpp" 
-  "${SV_SRC_DIR}/SV/Universe/PlanetNew.cpp" 
-  "${SV_SRC_DIR}/SV/Universe/PlanetNew.hpp" 
-  "${SV_SRC_DIR}/SV/Universe/Star.hpp" 
-  "${SV_SRC_DIR}/SV/Universe/Planet.cpp" 
-  "${SV_SRC_DIR}/SV/Universe/CelestrialBody.hpp" 
+  "${SV_SRC_DIR}/SV/main.cpp"
+  "${SV_SRC_DIR}/SV/Application/Application.hpp"
+  "${SV_SRC_DIR}/SV/Application/Application.cpp"
+  "${SV_SRC_DIR}/SV/Atmosphere/Atmosphere.hpp"
+  "${SV_SRC_DIR}/SV/Atmosphere/Atmosphere.cpp"
+  "${SV_SRC_DIR}/SV/Atmosphere/AtmospherePrecomputer.hpp"
+  "${SV_SRC_DIR}/SV/Atmosphere/AtmospherePrecomputer.cpp"
+  "${SV_SRC_DIR}/SV/Graphics/AsyncTexture.hpp"
+  "${SV_SRC_DIR}/SV/Graphics/AsyncTexture.cpp"
+  "${SV_SRC_DIR}/SV/Graphics/ModalPipeline.hpp"
+  "${SV_SRC_DIR}/SV/Graphics/ModalPipeline.cpp"
+  "${SV_SRC_DIR}/SV/Graphics/SceneContext.hpp"
+  "${SV_SRC_DIR}/SV/Graphics/ShaderSources.hpp"
+  "${SV_SRC_DIR}/SV/Graphics/ShaderSources.cpp"
+  "${SV_SRC_DIR}/SV/Scene/Transformation.hpp"
+  "${SV_SRC_DIR}/SV/Universe/CelestrialBody.hpp"
+  "${SV_SRC_DIR}/SV/Universe/Planetary System.h"
+  "${SV_SRC_DIR}/SV/Universe/Planetary System.cpp"
+  "${SV_SRC_DIR}/SV/Universe/PlanetNew.hpp"
+  "${SV_SRC_DIR}/SV/Universe/PlanetNew.cpp"
+  "${SV_SRC_DIR}/SV/Universe/Star.hpp"
+  "${SV_SRC_DIR}/SV/Universe/Star.cpp"
+  "${SV_SRC_DIR}/SV/Platform/Trackpad.hpp"
 )
 
-add_dependencies("SV"
-    "SV-Engine"
+# Trackpad scrolling and pinch gestures (AppKit)
+if(APPLE)
+  target_sources("SV" PRIVATE "${SV_SRC_DIR}/SV/Platform/Trackpad.mm")
+  set_source_files_properties("${SV_SRC_DIR}/SV/Platform/Trackpad.mm" PROPERTIES COMPILE_OPTIONS "-fobjc-arc")
+  target_link_libraries("SV" PRIVATE $<LINK_LIBRARY:FRAMEWORK,AppKit>)
+endif()
+
+# Shaders are compiled to SPIR-V at build time and embedded (see src/SV/Graphics/ShaderSources.cpp)
+dahlia_compile_shaders("SV"
+  INCLUDE_DIRS "${SV_SHADER_DIR}/Include"
+  SOURCES
+    "${SV_SHADER_DIR}/Grid.vert"
+    "${SV_SHADER_DIR}/Grid.frag"
+    "${SV_SHADER_DIR}/Marker.vert"
+    "${SV_SHADER_DIR}/Marker.frag"
+    "${SV_SHADER_DIR}/Star.vert"
+    "${SV_SHADER_DIR}/Star.frag"
+    "${SV_SHADER_DIR}/Corona.vert"
+    "${SV_SHADER_DIR}/Corona.frag"
+    "${SV_SHADER_DIR}/Rings.vert"
+    "${SV_SHADER_DIR}/Rings.frag"
+    "${SV_SHADER_DIR}/Planet.vert"
+    "${SV_SHADER_DIR}/Planet.frag"
+    "${SV_SHADER_DIR}/Precompute/Fullscreen.vert"
+    "${SV_SHADER_DIR}/Precompute/Transmittance.frag"
+    "${SV_SHADER_DIR}/Precompute/DirectIrradiance.frag"
+    "${SV_SHADER_DIR}/Precompute/SingleScattering.frag"
+    "${SV_SHADER_DIR}/Precompute/ScatteringDensity.frag"
+    "${SV_SHADER_DIR}/Precompute/IndirectIrradiance.frag"
+    "${SV_SHADER_DIR}/Precompute/MultipleScattering.frag"
 )
 
-target_include_directories(SV PRIVATE
+target_include_directories("SV" PRIVATE
   ${SV_SRC_DIR}
-  ${GLM_INCLUDE_DIRS}
-  ${GLEW_INCLUDE_DIRS}
-  ${SOIL2_INCLUDE_DIRS}
 )
 
 target_compile_definitions("SV" PRIVATE
-  GLM_ENABLE_EXPERIMENTAL
+  SV_DEFAULT_DATA_DIR="${SV_DATA_DIR}"
+  $<$<CONFIG:Debug>:CONFIG_DEBUG>
+  $<$<CONFIG:Release>:CONFIG_RELEASE>
 )
 
-target_link_libraries(SV PRIVATE
-  SV-Engine
-  glfw
-  ${SOIL2_LIBRARIES}
-  OpenGL::GL
-  $<IF:$<TARGET_EXISTS:GLEW::glew_s>,GLEW::glew_s,GLEW::GLEW>
-  #Add check for MacOS here
-  $<LINK_LIBRARY:FRAMEWORK,AppKit,Quartz>
+# Dahlia's public headers bring in glm and ImGui. ImGui is linked here too as the app calls it
+# directly (the context is shared with Dahlia, see GRAPHICS_APP_INIT_IMGUI_CTX).
+target_link_libraries("SV" PRIVATE
+  Dahlia
+  ImGui
+  DahliaTools
 )
 
-set_target_properties(SV PROPERTIES
+set_target_properties("SV" PROPERTIES
     CXX_STANDARD 20
     CXX_STANDARD_REQUIRED YES
     CXX_EXTENSIONS NO
@@ -53,12 +85,10 @@ set_target_properties(SV PROPERTIES
 
 set(COMPILE_OPTIONS)
 
-if((CMAKE_CXX_COMPILER_ID STREQUAL Clang) OR 
+if((CMAKE_CXX_COMPILER_ID MATCHES "Clang") OR
    (CMAKE_CXX_COMPILER_ID STREQUAL GNU))
     list(APPEND COMPILE_OPTIONS
       -fPIC
-      -std=c++20
-      -arch arm64
     )
 
     if(CMAKE_BUILD_TYPE STREQUAL Debug)
@@ -72,9 +102,6 @@ if((CMAKE_CXX_COMPILER_ID STREQUAL Clang) OR
       )
     endif()
 elseif(CMAKE_CXX_COMPILER_ID STREQUAL MSVC)
-  list(APPEND COMPILE_OPTIONS
-      /std:c++20
-    )
     if(CMAKE_BUILD_TYPE STREQUAL Debug)
       list(APPEND COMPILE_OPTIONS
         /Zi
@@ -85,8 +112,7 @@ elseif(CMAKE_CXX_COMPILER_ID STREQUAL MSVC)
     endif()
 endif()
 
-target_compile_options(SV PRIVATE ${COMPILE_OPTIONS})
-
+target_compile_options("SV" PRIVATE ${COMPILE_OPTIONS})
 
 if(CMAKE_CONFIGURATION_TYPES)
   set(DEBUG_BIN_DIR "${SV_BIN_DIR}")
@@ -97,13 +123,13 @@ else()
 endif()
 
 if(CMAKE_BUILD_TYPE STREQUAL Debug)
-  set_target_properties(SV PROPERTIES
+  set_target_properties("SV" PROPERTIES
     ARCHIVE_OUTPUT_DIRECTORY "${DEBUG_BIN_DIR}"
     LIBRARY_OUTPUT_DIRECTORY "${DEBUG_BIN_DIR}"
     RUNTIME_OUTPUT_DIRECTORY "${DEBUG_BIN_DIR}"
   )
 elseif(CMAKE_BUILD_TYPE STREQUAL Release)
-  set_target_properties(SV PROPERTIES
+  set_target_properties("SV" PROPERTIES
     ARCHIVE_OUTPUT_DIRECTORY "${RELEASE_BIN_DIR}"
     LIBRARY_OUTPUT_DIRECTORY "${RELEASE_BIN_DIR}"
     RUNTIME_OUTPUT_DIRECTORY "${RELEASE_BIN_DIR}"

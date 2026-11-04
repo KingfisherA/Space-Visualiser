@@ -1,420 +1,288 @@
-#include"PlanetNew.hpp"
+#include "PlanetNew.hpp"
 
-#include"SV-Engine/OpenGL/Texture.hpp"
-#include"SV/Atmosphere/Atmosphere.hpp"
-#include"SV-Engine/Utilities/Geometry.hpp"
+#include <glm/gtx/transform.hpp>
 
-#include"SV-Engine/Utilities/Array.hpp"
+#include "Dahlia/Graphics/BindGroup.h"
+#include "Dahlia/Graphics/CommandList.h"
+#include "Dahlia/Maths/Geometry.h"
+#include "Dahlia/Maths/Maths.h"
+#include "SV/Graphics/SceneContext.hpp"
+#include "SV/Graphics/ShaderSources.hpp"
 
-//
-//
 namespace SV
 {
+#pragma region Planets
 
-#pragma region Mercury Class
-	//
-	constexpr static const char MERCURY_DIFFUSE_MAP[] = "Solar System/Mercury/Mercury Diffuse.png";
-	//
-	Ref<SV::Texture2D> Mercury::mercuryDiffuseMap = nullptr;
-	Ref<SV::Atmosphere::IAtmosphere> Mercury::mercuryAtmosphere = nullptr;
-	//
-	Mercury::Mercury(const Ref<SV::VAO>& quadVAO) : PlanetNew(3.285E23)
+	Mercury::Mercury() : PlanetNew(3.285E23, make<SV::Atmosphere::JupiterAtmosphere>())
 	{
-		if (mercuryDiffuseMap == nullptr)
+		diffuseMap = make<AsyncTexture>("Solar System/Mercury/Mercury Diffuse.png");
+	}
+
+	Venus::Venus() : PlanetNew(4.867E24, make<SV::Atmosphere::JupiterAtmosphere>())
+	{
+		diffuseMap = make<AsyncTexture>("Solar System/Venus/Venus Surface 1080p.jpg");
+		cloudsMap = make<AsyncTexture>("Solar System/Venus/Venus Clouds 1080p.png");
+	}
+
+	Earth::Earth() : PlanetNew(5.972E24, make<SV::Atmosphere::EarthAtmosphere>())
+	{
+		diffuseMap = make<AsyncTexture>("Solar System/Earth/NASA/Earth.jpg");
+		specularMap = make<AsyncTexture>("Solar System/Earth/NASA/Earth Specular Map.jpg");
+		cloudsMap = make<AsyncTexture>("Solar System/Earth/NASA/Earth Clouds.jpg");
+		nightMap = make<AsyncTexture>("Solar System/Earth/NASA/Earth Night.jpg");
+	}
+
+	Mars::Mars() : PlanetNew(6.39E23, make<SV::Atmosphere::JupiterAtmosphere>())
+	{
+		diffuseMap = make<AsyncTexture>("Solar System/Mars/Mars Surface.png");
+	}
+
+	Jupiter::Jupiter() : PlanetNew(1.898E27, make<SV::Atmosphere::JupiterAtmosphere>())
+	{
+		diffuseMap = make<AsyncTexture>("Solar System/Jupiter/Jupiter Cassini Med Resolution Map.jpg");
+		ringShadowMap = make<AsyncTexture>("Solar System/Jupiter/Jupiter Rings.png");
+	}
+
+	Saturn::Saturn() : PlanetNew(5.683E26, make<SV::Atmosphere::SaturnAtmosphere>())
+	{
+		diffuseMap = make<AsyncTexture>("Solar System/Saturn/8K Saturn Map.jpg");
+		ringShadowMap = make<AsyncTexture>("Solar System/Saturn/8K Saturn Ring Map.png");
+	}
+
+	// Titan has no surface map: its thick atmosphere is drawn over a black surface
+	Titan::Titan() : PlanetNew(1.3452E23, make<SV::Atmosphere::TitanAtmosphere>())
+	{
+	}
+
+#pragma endregion
+
+#pragma region Planet New Renderer
+
+	namespace
+	{
+		// Mirrors Shaders/Include/PlanetPushConstants.glsl
+		struct PlanetPushConstants
 		{
-			mercuryDiffuseMap = make <SV::Texture2D>(TextureData(TEXTURE_FILE_PATH + MERCURY_DIFFUSE_MAP, SV::LoadColourChannels::RGB));
-			mercuryDiffuseMap->SetTextureWrapping(SV::TextureWrap::Repeat);
+			glm::mat4 transform;
+			glm::vec4 normalMatrix[3];
+		};
 
-			mercuryAtmosphere = make <SV::Atmosphere::JupiterAtmosphere>(quadVAO);
-		}
-
-		this->diffuseMap = mercuryDiffuseMap;
-		this->planetAtmo = mercuryAtmosphere;
-	}
-	//
-#pragma endregion
-
-#pragma region Venus Class
-	//
-	constexpr static const char VENUS_DIFFUSE_MAP[] = "Solar System/Venus/Venus Surface 1080p.jpg";
-	constexpr static const char VENUS_CLOUDS_MAP[] = "Solar System/Venus/Venus Clouds 1080p.png";
-	//
-	Ref<SV::AsyncTexture2D> Venus::venusDiffuseMap = nullptr;
-	Ref<SV::AsyncTexture2D> Venus::venusCloudsMap = nullptr;
-	Ref<SV::Atmosphere::IAtmosphere> Venus::venusAtmosphere = nullptr;
-	//
-	Venus::Venus(const Ref<SV::VAO>& quadVAO) : PlanetNew(4.867E24)
-	{
-		if (venusDiffuseMap == nullptr)
+		// Mirrors Shaders/Include/RingsPushConstants.glsl
+		struct RingPushConstants
 		{
-			venusDiffuseMap = make <SV::AsyncTexture2D>(make <SV::AsyncTextureData>(TEXTURE_FILE_PATH + VENUS_DIFFUSE_MAP, SV::LoadColourChannels::RGB));
-			venusDiffuseMap->SetTextureWrapping(SV::TextureWrap::Repeat);
+			glm::mat4 transform;
+			glm::vec4 properties; // ring width, planet radius, inverse shadow softness
+		};
 
-			venusCloudsMap = make <SV::AsyncTexture2D>(make <SV::AsyncTextureData>(TEXTURE_FILE_PATH + VENUS_CLOUDS_MAP, SV::LoadColourChannels::RGBA));
-			venusCloudsMap->SetTextureWrapping(SV::TextureWrap::Repeat);
+		constexpr int PLANET_HAS_SPECULAR = 1;
+		constexpr int PLANET_HAS_CLOUDS = 2;
+		constexpr int PLANET_HAS_RING_SHADOW = 4;
+		constexpr int PLANET_HAS_NIGHT = 8;
 
-			venusAtmosphere = make <SV::Atmosphere::JupiterAtmosphere>(quadVAO);
-		}
-
-		this->planetAtmo = venusAtmosphere;
-		this->diffuseMap = venusDiffuseMap;
-		this->cloudsMap = venusCloudsMap;
-	}
-	//
-#pragma endregion
-
-#pragma region Earth Class
-	//
-	constexpr static const char EARTH_DIFFUSE_MAP[] = "Solar System/Earth/NASA/Earth.jpg";
-	constexpr static const char EARTH_SPECULAR_MAP[] = "Solar System/Earth/NASA/Earth Specular Map.jpg";
-	constexpr static const char EARTH_CLOUDS_MAP[] = "Solar System/Earth/NASA/Earth Clouds.jpg";
-	constexpr static const char EARTH_NIGHT_MAP[] = "Solar System/Earth/NASA/Earth Night.jpg";
-	//
-	Ref<SV::AsyncTexture2D> Earth::earthDiffuseMap = nullptr;
-	Ref<SV::AsyncTexture2D> Earth::earthSpecularMap = nullptr;
-	Ref<SV::AsyncTexture2D> Earth::earthCloudsMap = nullptr;
-	Ref<SV::AsyncTexture2D> Earth::earthNightMap = nullptr;
-
-	Ref<SV::Atmosphere::EarthAtmosphere> Earth::earthAtmosphere = nullptr;
-	//
-	Earth::Earth(const Ref<SV::VAO>& quadVAO) : PlanetNew(5.972E24)
-	{
-		if (earthDiffuseMap == nullptr)
-		{
-			earthDiffuseMap = make <SV::AsyncTexture2D>(make <AsyncTextureData>(SV::TEXTURE_FILE_PATH + EARTH_DIFFUSE_MAP, SV::LoadColourChannels::RGB));
-			earthDiffuseMap->SetTextureWrapping(SV::TextureWrap::Repeat);
-			earthDiffuseMap->AddMipMapping();
-
-			earthSpecularMap = make <SV::AsyncTexture2D>(make <AsyncTextureData>(SV::TEXTURE_FILE_PATH + EARTH_SPECULAR_MAP, SV::LoadColourChannels::RGB));
-			earthSpecularMap->SetTextureWrapping(SV::TextureWrap::Repeat);
-			earthSpecularMap->AddMipMapping();
-
-			earthCloudsMap = make <SV::AsyncTexture2D>(make <AsyncTextureData>(SV::TEXTURE_FILE_PATH + EARTH_CLOUDS_MAP, SV::LoadColourChannels::RGBA));
-			earthCloudsMap->SetTextureWrapping(SV::TextureWrap::Repeat);
-			earthCloudsMap->AddMipMapping();
-
-			earthNightMap = make <SV::AsyncTexture2D>(make <AsyncTextureData>(SV::TEXTURE_FILE_PATH + EARTH_NIGHT_MAP, SV::LoadColourChannels::RGB));
-			earthNightMap->SetTextureWrapping(SV::TextureWrap::Repeat);
-			earthNightMap->AddMipMapping();
-
-			earthAtmosphere = make <SV::Atmosphere::EarthAtmosphere>(quadVAO, SV::Atmosphere::Luminance::None);
-		}
-
-		this->planetAtmo = earthAtmosphere;
-		this->diffuseMap = earthDiffuseMap;
-		this->specularMap = earthSpecularMap;
-		this->cloudsMap = earthCloudsMap;
-		this->nightMap = earthNightMap;
-		this->ringShadowMap = nullptr;
-	}
-	//
-#pragma endregion
-
-#pragma region Mars Class
-	//
-	constexpr static const char MARS_DIFFUSE_TEXTURE[] = "Solar System/Mars/Mars Surface.png";
-	//
-	Ref<SV::Texture2D> Mars::marsDiffuseMap = nullptr;
-	Ref<SV::Atmosphere::IAtmosphere> Mars::marsAtmosphere = nullptr;
-	//
-	Mars::Mars(const Ref<SV::VAO>& quadVAO) : PlanetNew(6.39E23)
-	{
-		if (marsDiffuseMap == nullptr)
-		{
-			marsDiffuseMap = make <SV::Texture2D>(TextureData(TEXTURE_FILE_PATH + MARS_DIFFUSE_TEXTURE, SV::LoadColourChannels::RGB));
-			marsDiffuseMap->SetTextureWrapping(SV::TextureWrap::Repeat);
-
-			marsAtmosphere = make <SV::Atmosphere::JupiterAtmosphere>(quadVAO);
-		}
-
-		this->diffuseMap = marsDiffuseMap;
-		this->planetAtmo = marsAtmosphere;
-	}
-	//
-#pragma endregion
-
-#pragma region Jupiter Class
-	//
-	constexpr static const char JUPITER_DIFFUSE_MAP[] = "Solar System/Jupiter/Jupiter Cassini Med Resolution Map.jpg";
-	constexpr static const char JUPITER_RING_MAP[] = "Solar System/Jupiter/Jupiter Rings.png";
-	//
-	Ref<SV::AsyncTexture2D> Jupiter::jupiterDiffuseMap = nullptr;
-	Ref<SV::AsyncTexture2D> Jupiter::jupiterRingsMap = nullptr;
-	Ref<SV::Atmosphere::JupiterAtmosphere> Jupiter::jupiterAtmosphere = nullptr;
-	//
-	Jupiter::Jupiter(const Ref<SV::VAO>& quadVAO) : PlanetNew(1.898E27)
-	{
-		if (jupiterDiffuseMap == nullptr)
-		{
-			jupiterDiffuseMap = make <SV::AsyncTexture2D>(make <SV::AsyncTextureData>(SV::TEXTURE_FILE_PATH + JUPITER_DIFFUSE_MAP, SV::LoadColourChannels::RGB));
-			jupiterDiffuseMap->SetTextureWrapping(TextureWrap::Repeat);
-			jupiterDiffuseMap->AddMipMapping();
-
-			jupiterRingsMap = make <SV::AsyncTexture2D>(make <SV::AsyncTextureData>(SV::TEXTURE_FILE_PATH + JUPITER_RING_MAP, SV::LoadColourChannels::RGBA));
-			jupiterRingsMap->SetTextureWrapping(TextureWrap::ClampToBorder);
-			jupiterRingsMap->AddMipMapping();
-
-			jupiterAtmosphere = make <SV::Atmosphere::JupiterAtmosphere>(quadVAO, SV::Atmosphere::Luminance::None);
-		}
-
-		this->diffuseMap = jupiterDiffuseMap;
-		this->planetAtmo = jupiterAtmosphere;
-		this->ringShadowMap = jupiterRingsMap;
-	}
-	//
-#pragma endregion
-
-#pragma region Saturn Class
-//
-	constexpr static const char SATURN_DIFFUSE_MAP[] = "Solar System/Saturn/8K Saturn Map.jpg";
-	constexpr static const char SATURN_RING_MAP[] = "Solar System/Saturn/8K Saturn Ring Map.png";
-	Ref<SV::AsyncTexture2D> Saturn::saturnRingMap = nullptr;
-	Ref<SV::AsyncTexture2D> Saturn::saturnDiffuseMap = nullptr;
-	Ref<SV::Atmosphere::SaturnAtmosphere> Saturn::saturnAtmosphere = nullptr;
-	//
-	Saturn::Saturn(const Ref<SV::VAO>& quadVAO) : PlanetNew(5.683E26)
-	{
-		if (saturnDiffuseMap == nullptr)
-		{
-			saturnDiffuseMap = make <SV::AsyncTexture2D>(make <AsyncTextureData>(SV::TEXTURE_FILE_PATH + SATURN_DIFFUSE_MAP, SV::LoadColourChannels::RGB));
-			saturnDiffuseMap->SetTextureWrapping(SV::TextureWrap::Repeat);
-			saturnDiffuseMap->AddMipMapping();
-
-			saturnAtmosphere = make <SV::Atmosphere::SaturnAtmosphere>(quadVAO);
-
-			saturnRingMap = make <SV::AsyncTexture2D>(make <AsyncTextureData>(SV::TEXTURE_FILE_PATH + SATURN_RING_MAP, SV::LoadColourChannels::RGBA));
-			saturnRingMap->AddMipMapping();
-			saturnRingMap->SetBorderColour(glm::vec4(0.0f));
-			saturnRingMap->SetTextureWrapping(SV::TextureWrap::ClampToBorder);
-		}
-
-		this->planetAtmo = saturnAtmosphere;
-		this->diffuseMap = saturnDiffuseMap;
-		this->ringShadowMap = saturnRingMap;
-	}
-	//
-#pragma endregion
-
-#pragma region Titan Class
-	//
-	Ref<SV::Atmosphere::TitanAtmosphere> Titan::titanAtmosphere = nullptr;
-	//
-	Titan::Titan(const Ref<SV::VAO>& quadVAO) : PlanetNew(1.3452E23)
-	{
-		if (titanAtmosphere == nullptr)
-		{
-			titanAtmosphere = make <SV::Atmosphere::TitanAtmosphere>(quadVAO);
-		}
-
-		this->diffuseMap = WeakRef((ITexture*)SV::Texture2D::GetBlackTex());
-		this->planetAtmo = titanAtmosphere;
-	}
-	//
-#pragma endregion
-
-#pragma region Planet Ring Shader Class
-	//
-	constexpr const char PLANET_RING_VERTEX[] = "Shaders/Atmosphere/Rings/Rings.v.glsl";
-	constexpr const char PLANET_RING_FRAGMENT[] = "Shaders/Atmosphere/Rings/Rings.f.glsl";
-	//
-	PlanetRingShader::PlanetRingShader() : ShaderProgram(SV::VertexShader(PLANET_RING_VERTEX), SV::FragmentShader(PLANET_RING_FRAGMENT))
-	{
-
-	}
-	//
-#pragma endregion
-
-#pragma region Planet New Renderer Class
-	//
-	const  glm::mat4 PlanetNewRenderer::RING_ROTATION_CORRECTION = glm::rotate(glm::radians(90.0f), glm::vec3(1.0f, 0.0f, 0.0f));;
-	//
-	PlanetNewRenderer::PlanetNewRenderer() :
-		surfaceProgram(SV::Atmosphere::AtmoShaderType::SurfaceShader, Atmosphere::AtmospherePrecomputer::GetTextureHeaderString(), SV::Atmosphere::Luminance::None),
-		skyProgram(SV::Atmosphere::AtmoShaderType::SkyShader, SV::Atmosphere::AtmospherePrecomputer::GetTextureHeaderString(), SV::Atmosphere::Luminance::None),
-		planetVAO(),
-		ringsVAO(),
-		ringsProgram(),
-		skyCamera()
-	{
 		constexpr unsigned int SPHERE_SUBDIVISIONS = 50;
-
-		Ref<Mesh> sphereMesh = Geometry::CreateQuadsphere(1.0f, SPHERE_SUBDIVISIONS);
-		planetVAO.Bind();
-		planetVAO.AddAttributeArray(0, make <SV::ArrayBuffer>(sphereMesh->GetVertexArray()), SV::AttributeLayout(3));
-		planetVAO.AddAttributeArray(1, make <SV::ArrayBuffer>(sphereMesh->GetNormalsArray()), SV::AttributeLayout(3));
-		planetVAO.AddAttributeArray(2, make <SV::ArrayBuffer>(sphereMesh->GetTexCoordsArray()), SV::AttributeLayout(2));
-		planetVAO.AddIndexBuffer(make <SV::IndexBuffer>(sphereMesh->GetIndiciesArray()));
-
-		planetVAO.EnableAttributeArray(0, 2);
-		planetVAO.Unbind();
-		resetref(sphereMesh);
 
 		constexpr float RINGS_INNER_RAD = 1.5f;
 		constexpr float RINGS_OUTER_RAD = 3.2f;
 		constexpr unsigned int RINGS_SEGMENTS = 60;
-		Ref<Mesh> ringsMesh = Geometry::CreateHalfRings(RINGS_INNER_RAD, RINGS_OUTER_RAD, RINGS_SEGMENTS);
-		ringsVAO.Bind();
-		ringsVAO.AddAttributeArray(0, make <SV::ArrayBuffer>(ringsMesh->GetVertexArray()), SV::AttributeLayout(2));
-		ringsVAO.AddIndexBuffer(make <SV::IndexBuffer>(ringsMesh->GetIndiciesArray()));
-		ringsVAO.EnableAttributeArray(0);
-		ringsVAO.Unbind();
+		constexpr float RINGS_PLANET_RADIUS = 0.95f;
+		constexpr float RINGS_INV_SHADOW_SOFTNESS = 10.0f;
 
-		ringsProgram.Bind();
-		ringsProgram.UploadRingWidth(RINGS_OUTER_RAD - RINGS_INNER_RAD);
-		ringsProgram.Unbind();
+		const glm::mat4 RING_ROTATION_CORRECTION = glm::rotate(glm::radians(90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
 
-		surfaceProgram.Bind();
-		surfaceProgram.UploadPlanetCentre(glm::vec3(0.0f));
-		surfaceProgram.UploadWhitePoint(glm::vec3(1.0f));
-
-		skyProgram.Bind();
-		skyProgram.UploadPlanetCentre(glm::vec3(0.0f));
-		skyProgram.UploadWhitePoint(glm::vec3(1.0f));
-		skyProgram.Unbind();
-
-		PopulateDistanceCache(glm::vec3(0.0f));
-	}
-	//
-	void PlanetNewRenderer::Render(const glm::mat4& projectionMatrix, const SV::Camera& cam, const glm::vec3& sunPosition, const float exposure, const float frameTime)
-	{
-		if (planets.IsEmpty()) return;
-
-		const glm::mat4 viewProjMatrix = projectionMatrix * cam.GetViewMatrix();
-
-		auto RenderRings = [&viewProjMatrix, &cam, &sunPosition, exposure, frameTime, this](const bool isBack) -> void
+		DH::BindGroupLayoutEntry FragmentTexture(uint32_t binding, bool is3D = false)
 		{
-			ringsProgram.Bind();
-			ringsVAO.Bind();
+			return { binding,
+					 is3D ? DH::ShaderResourceType::CombinedTextureSampler3D : DH::ShaderResourceType::CombinedTextureSampler,
+					 DH::ShaderStage::Fragment };
+		}
+	}
 
-			float yaw = isBack ? -cam.GetYaw() - 180.0f : -cam.GetYaw();
-			const glm::mat4& rotMatrix = glm::rotate(glm::radians(yaw), glm::vec3(0.0f, 1.0f, 0.0f));
+	PlanetNewRenderer::PlanetNewRenderer(const SceneContext& contextIn) : context(contextIn)
+	{
+		planetMesh = DH::GPUMesh::Create(DH::Geometry::CreateQuadsphere(1.0f, SPHERE_SUBDIVISIONS));
+		ringsMesh = DH::GPUMesh::Create(DH::Geometry::CreateHalfRings(RINGS_INNER_RAD, RINGS_OUTER_RAD, RINGS_SEGMENTS));
 
-			glDisable(GL_CULL_FACE);
-			for (const auto& keyPair : distanceCache)
-			{
-				const Ref<PlanetNew>& currentPlanet = planets[keyPair.second];
-				if (currentPlanet->GetRingsShadowMap() == nullptr) continue;
+		atmosphereLayout = DH::BindGroupLayout::Create({
+			{ 0, DH::ShaderResourceType::UniformBuffer, DH::ShaderStage::Fragment },
+			FragmentTexture(1),
+			FragmentTexture(2, true) });
+		mapsLayout = DH::BindGroupLayout::Create({
+			FragmentTexture(0), FragmentTexture(1), FragmentTexture(2), FragmentTexture(3), FragmentTexture(4) });
+		ringLayout = DH::BindGroupLayout::Create({ FragmentTexture(0) });
 
-				ringsProgram.UploadRingMap(0, *currentPlanet->GetRingsShadowMap());
-				ringsProgram.UploadTransformationMat(currentPlanet->transformationMatrix * rotMatrix * RING_ROTATION_CORRECTION);
-				ringsProgram.UploadViewProjectionMat(viewProjMatrix);
-				ringsProgram.UploadSunPos(sunPosition);
-				ringsProgram.UploadExposure(exposure);
-				ringsProgram.UploadFloat("uPlanetPosition", currentPlanet->GetTranslation());
+		DH::GraphicsPipelineDesc surfaceDesc;
+		surfaceDesc.vertexShader = Shaders::Create("Planet.vert");
+		surfaceDesc.fragmentShader = Shaders::Create("Planet.frag");
+		surfaceDesc.vertexBindings = planetMesh->GetVertexBindings();
+		surfaceDesc.vertexAttributes = planetMesh->GetVertexAttributes();
+		surfaceDesc.raster.cullMode = DH::CullMode::Back;
+		surfaceDesc.depth = { true, true, DH::CompareOp::Less };
+		// The atmosphere's limb is translucent
+		surfaceDesc.blend = DH::BlendPreset::Alpha;
+		surfaceDesc.targetLayout = context.targetLayout;
+		surfaceDesc.bindGroupLayouts = { context.frameLayout, atmosphereLayout, mapsLayout };
+		surfaceDesc.pushConstantSize = sizeof(PlanetPushConstants);
+		surfacePipeline = ModalPipeline(surfaceDesc);
 
-				glDrawElements(GL_TRIANGLES, ringsVAO.GetEleCount(), GL_UNSIGNED_INT, nullptr);
-			}
-			glEnable(GL_CULL_FACE);
+		DH::GraphicsPipelineDesc ringsDesc;
+		ringsDesc.vertexShader = Shaders::Create("Rings.vert");
+		ringsDesc.fragmentShader = Shaders::Create("Rings.frag");
+		ringsDesc.vertexBindings = ringsMesh->GetVertexBindings();
+		ringsDesc.vertexAttributes = ringsMesh->GetVertexAttributes();
+		// Both faces are lit (the shader picks the normal from gl_FrontFacing)
+		ringsDesc.raster.cullMode = DH::CullMode::None;
+		ringsDesc.depth = { true, true, DH::CompareOp::Less };
+		ringsDesc.blend = DH::BlendPreset::Alpha;
+		ringsDesc.targetLayout = context.targetLayout;
+		ringsDesc.bindGroupLayouts = { context.frameLayout, ringLayout };
+		ringsDesc.pushConstantSize = sizeof(RingPushConstants);
+		ringsPipeline = ModalPipeline(ringsDesc);
+	}
 
+	PlanetNewRenderer::~PlanetNewRenderer()
+	{
+		for (const auto& precomputer : finishedPrecomputers)
+			precomputer->ReleasePrecomputeResources();
+	}
+
+	void PlanetNewRenderer::UpdateMapBindings(const PlanetNew& planet, PlanetBindings& bindings)
+	{
+		bindings.mapFlags = 0;
+		auto TextureOrBlack = [this, &bindings](const sRef<AsyncTexture>& map, int flag) -> sRef<DH::Texture>
+		{
+			if (map == nullptr || !map->IsReady())
+				return context.blackTexture;
+			bindings.mapFlags |= flag;
+			return map->GetTexture();
 		};
 
-		RenderRings(true);
+		using Entry = DH::BindGroupEntry;
+		const sRef<DH::Texture> ringMap = TextureOrBlack(planet.GetRingsShadowMap(), PLANET_HAS_RING_SHADOW);
+		bindings.mapsGroup = DH::BindGroup::Create(mapsLayout, {
+			Entry::TextureSampler(0, TextureOrBlack(planet.GetDiffuseMap(), 0), context.mapSampler),
+			Entry::TextureSampler(1, TextureOrBlack(planet.GetSpecularMap(), PLANET_HAS_SPECULAR), context.mapSampler),
+			Entry::TextureSampler(2, TextureOrBlack(planet.GetCloudsMap(), PLANET_HAS_CLOUDS), context.mapSampler),
+			Entry::TextureSampler(3, ringMap, context.ringSampler),
+			Entry::TextureSampler(4, TextureOrBlack(planet.GetNightMap(), PLANET_HAS_NIGHT), context.mapSampler) });
 
-		planetVAO.Bind();
+		bindings.ringGroup = (bindings.mapFlags & PLANET_HAS_RING_SHADOW) != 0
+			? DH::BindGroup::Create(ringLayout, { Entry::TextureSampler(0, ringMap, context.ringSampler) })
+			: nullptr;
+	}
 
-		for (const auto& keyPair : distanceCache)
+	void PlanetNewRenderer::Prepare(DH::CommandList& cmd)
+	{
+		// Precomputations recorded in an earlier frame have been submitted, so their temporary
+		// resources can go once the GPU is idle
+		for (const auto& precomputer : finishedPrecomputers)
+			precomputer->ReleasePrecomputeResources();
+		finishedPrecomputers.clear();
+
+		for (const sRef<PlanetNew>& planet : planets)
 		{
-			Ref<PlanetNew>& currentPlanet = planets[keyPair.second];
-			const SV::Atmosphere::ProcessedAtmoData& currentAtmoData = currentPlanet->GetAtmosphericData();
-			currentPlanet->RecalculateTransformation();
+			const sRef<SV::Atmosphere::IAtmosphere>& atmosphere = planet->GetAtmosphere();
+			if (atmosphere == nullptr)
+				continue;
 
-			const Ref<ITexture>& diffuseMap = currentPlanet->GetDiffuseMap();
-			const Ref<ITexture>& specularMap = currentPlanet->GetSpecularMap();
-			const Ref<ITexture>& cloudsMap = currentPlanet->GetCloudsMap();
-			const Ref<ITexture>& nightMap = currentPlanet->GetNightMap();
-			const Ref<ITexture>& ringShadowMap = currentPlanet->GetRingsShadowMap();
+			auto [it, isNew] = planetBindings.try_emplace(planet.get());
+			PlanetBindings& bindings = it->second;
 
-			if (diffuseMap != nullptr && diffuseMap->GetClass() == ITexture::TextureClass::AsyncTexture2D) ((AsyncTexture2D*)diffuseMap refptr)->TryLoadData();
-			if (specularMap != nullptr && specularMap->GetClass() == ITexture::TextureClass::AsyncTexture2D) ((AsyncTexture2D*)specularMap refptr)->TryLoadData();
-			if (cloudsMap != nullptr && cloudsMap->GetClass() == ITexture::TextureClass::AsyncTexture2D) ((AsyncTexture2D*)cloudsMap refptr)->TryLoadData();
-			if (nightMap != nullptr && nightMap->GetClass() == ITexture::TextureClass::AsyncTexture2D) ((AsyncTexture2D*)nightMap refptr)->TryLoadData();
-			if (ringShadowMap != nullptr && ringShadowMap->GetClass() == ITexture::TextureClass::AsyncTexture2D) ((AsyncTexture2D*)ringShadowMap refptr)->TryLoadData();
+			const sRef<SV::Atmosphere::AtmospherePrecomputer>& precomputer = atmosphere->GetPrecomputer();
+			if (!precomputer->IsPrecomputed())
+			{
+				precomputer->PrecomputeTextures(cmd, context);
+				finishedPrecomputers.push_back(precomputer);
+			}
 
-#pragma region Surface Shader Rendering
+			if (isNew)
+			{
+				bindings.atmosphereGroup = DH::BindGroup::Create(atmosphereLayout, {
+					DH::BindGroupEntry::UniformBuffer(0, precomputer->GetUniformBuffer()),
+					DH::BindGroupEntry::TextureSampler(1, precomputer->GetTransmittanceTex(), context.clampSampler),
+					DH::BindGroupEntry::TextureSampler(2, precomputer->GetScatteringTex(), context.clampSampler) });
+			}
 
-			surfaceProgram.Bind();
-			//Upload Matricies
-			const glm::mat4 skyTransfomation = currentPlanet->transformationMatrix * glm::scale(glm::vec3((currentAtmoData.topRadius / currentAtmoData.bottomRadius)));
-			surfaceProgram.UploadTransformationMat(skyTransfomation);
-			surfaceProgram.UploadViewProjMat(viewProjMatrix);
-			surfaceProgram.UploadNormalMat(Maths::CalculateNormalMatrix(currentPlanet->transformationMatrix));
-			surfaceProgram.UploadInverseViewMat(cam.GetInverseViewMatrix());
+			// Poll every map (each upload happens on the call that sees it finish loading)
+			bool mapsChanged = isNew;
+			for (const sRef<AsyncTexture>* map : { &planet->GetDiffuseMap(), &planet->GetSpecularMap(), &planet->GetCloudsMap(),
+												   &planet->GetNightMap(), &planet->GetRingsShadowMap() })
+			{
+				if (*map != nullptr && (*map)->Poll())
+					mapsChanged = true;
+			}
+			if (mapsChanged)
+				UpdateMapBindings(*planet, bindings);
+		}
+	}
 
-			//Upload Scene Properties
-			constexpr float planetRadius = 6360.0f;
-			surfaceProgram.UploadCamPos(cam.GetActualPosition());
-			surfaceProgram.UploadAtmoExposure(/*currentAtmo->GetLuminance() != Luminance::NONE ? (float)exposure * (float)1e-5 :*/ (float)exposure);
-			surfaceProgram.UploadSunPos(sunPosition);
-			surfaceProgram.UploadFrameTime(frameTime);
-			surfaceProgram.UploadPlanetCentre(currentPlanet->GetTranslation());
+	void PlanetNewRenderer::RenderRings(DH::CommandList& cmd, const DH::PolygonMode polygonMode, const float cameraYaw, const bool isBack)
+	{
+		// The half ring is turned to face the camera, so the back half is behind the planet
+		const float yaw = isBack ? -cameraYaw - 180.0f : -cameraYaw;
+		const glm::mat4 rotMatrix = glm::rotate(glm::radians(yaw), glm::vec3(0.0f, 1.0f, 0.0f));
 
-			//Upload Atmosphere paramaters
-			surfaceProgram.UploadAtmosphereParameters(currentAtmoData);
-			//surfaceProgram.UploadSunSize(currentPlanet->GetAtmosphericData().sunAngularRadius);
-			const Atmosphere::AtmospherePrecomputer& precomp = *currentPlanet->GetPrecomputer();
-			surfaceProgram.UploadAtmoTextures(0, *precomp.GetTransmittanceTex(),
-				1, *precomp.GetScatteringTex(),
-				2, *precomp.GetIrradianceTex(),
-				3, precomp.GetMieScatteringTex() refptr);
+		bool pipelineBound = false;
+		for (const auto& [distance, index] : distanceCache)
+		{
+			const PlanetNew& planet = *planets[index];
+			const auto it = planetBindings.find(&planet);
+			if (it == planetBindings.end() || it->second.ringGroup == nullptr)
+				continue;
 
-			surfaceProgram.UploadFloat("uExternalAtmoIntensity", currentAtmoData.surfaceAtmoIntensity);
+			if (!pipelineBound)
+			{
+				cmd.BindPipeline(ringsPipeline.Get(polygonMode));
+				pipelineBound = true;
+			}
 
-			//Upload surface textures
-			surfaceProgram.UploadDiffuseMap(4, *diffuseMap);
-			surfaceProgram.UploadSpecularMap(5, specularMap refptr);
-			surfaceProgram.UploadCloudsMap(6, cloudsMap refptr);
-			surfaceProgram.UploadNightMap(7, nightMap refptr);
-			surfaceProgram.UploadRingShadowMap(8, ringShadowMap refptr);
+			const RingPushConstants pushConstants{
+				planet.transformationMatrix * rotMatrix * RING_ROTATION_CORRECTION,
+				glm::vec4(RINGS_OUTER_RAD - RINGS_INNER_RAD, RINGS_PLANET_RADIUS, RINGS_INV_SHADOW_SOFTNESS, 0.0f)
+			};
+			cmd.BindGroup(1, *it->second.ringGroup);
+			cmd.PushConstants(pushConstants);
+			ringsMesh->Draw(cmd);
+		}
+	}
 
-			glDrawElements(GL_TRIANGLES, planetVAO.GetEleCount(), GL_UNSIGNED_INT, nullptr);
+	void PlanetNewRenderer::Render(DH::CommandList& cmd, const DH::PolygonMode polygonMode, const float cameraYaw)
+	{
+		if (planets.empty()) return;
 
-#pragma endregion
+		for (const sRef<PlanetNew>& planet : planets)
+			planet->RecalculateTransformation();
 
-#pragma region Sky Shader Rendering
-			//skyProgram.Bind();
+		RenderRings(cmd, polygonMode, cameraYaw, true);
 
-			////Set sky camera properties
-			//skyCamera.Imitate(cam);
-			//constexpr float defaultZoomAmount = 8200.0f;
-			//skyCamera.SetZoom(defaultZoomAmount * cam.GetZoom());
-			//skyCamera.SetCentrePosition(glm::vec3(0.0f));
-			//skyCamera.RecalculateViewMatrix();
+		cmd.BindPipeline(surfacePipeline.Get(polygonMode));
+		for (const auto& [distance, index] : distanceCache)
+		{
+			const PlanetNew& planet = *planets[index];
+			const auto it = planetBindings.find(&planet);
+			if (it == planetBindings.end())
+				continue;
+			const PlanetBindings& bindings = it->second;
+			const SV::Atmosphere::ProcessedAtmoData& atmoData = planet.GetAtmosphere()->GetAtmosphericData();
 
+			// The sphere is drawn at the top of the atmosphere; the surface is found in the shader
+			const glm::mat4 skyTransformation = planet.transformationMatrix * glm::scale(glm::vec3(atmoData.topRadius / atmoData.bottomRadius));
+			const glm::mat3 normalMatrix = DH::Maths::CalculateNormalMatrix(planet.transformationMatrix);
 
-			////Upload Matricies
-			//skyProgram.UploadTransformationMat(skyTransfomation);
-			//skyProgram.UploadViewProjMat(viewProjMatrix);
-			//skyProgram.UploadNormalMat(Maths::CalculateNormalMatrix(skyTransfomation));
+			const PlanetPushConstants pushConstants{
+				skyTransformation,
+				{ glm::vec4(normalMatrix[0], planet.GetAtmosphere()->GetSurfaceAtmoIntensity()),
+				  glm::vec4(normalMatrix[1], (float)bindings.mapFlags),
+				  glm::vec4(normalMatrix[2], 0.0f) }
+			};
 
-			////Upload scene uniforms
-			//skyProgram.UploadCamPos(cam.GetActualPosition() - currentPlanet->GetTranslation());
-			//skyProgram.UploadAtmoExposure((float)exposure);
-			//skyProgram.UploadSunPos(sunPosition);
-			//skyProgram.UploadPlanetCentre(currentPlanet->GetTranslation());
-
-			//float k = 1.0f / Atmosphere::kLengthUnitInMeters;
-			//skyProgram.UploadFloat("uAlphaRad", 2.0f);
-			//skyProgram.UploadFloat("uTime", frameTime);
-
-			////Upload Atmospheric Parameters
-			//skyProgram.UploadAtmosphereParameters(currentAtmoData);
-			////skyProgram.UploadSunSize(currentPlanet->GetAtmosphericData().sunAngularRadius);
-			//precomp.GetScatteringTex()->Bind(1);
-			//skyProgram.UploadScatteringTexture(1);
-
-			//glDrawElements(GL_TRIANGLES, planetVAO.GetEleCount(), GL_UNSIGNED_INT, nullptr);
-#pragma endregion
-
+			cmd.BindGroup(1, *bindings.atmosphereGroup);
+			cmd.BindGroup(2, *bindings.mapsGroup);
+			cmd.PushConstants(pushConstants);
+			planetMesh->Draw(cmd);
 		}
 
-		RenderRings(false);
-
-		ITexture::Unbind(TextureType::Texture2D, 0);
-		ShaderProgram::Unbind();
-		VAO::Unbind();
+		RenderRings(cmd, polygonMode, cameraYaw, false);
 	}
-	//
-#pragma endregion
 
+#pragma endregion
 }
-//

@@ -1,445 +1,339 @@
-#include"SV-Engine/Precompiled Global.hpp"
-#include"Application.hpp"
-// #include<Windows.h>
-// #include"..\Resource Files\resource.h"
+#include "Application.hpp"
 
-//Vital utilities
-#include"SV-Engine/Utilities/GlobalItems.hpp"
-#include"SV-Engine/Utilities/Array.hpp"
-#include"SV-Engine/Utilities/Geometry.hpp"
-#include"SV-Engine/Utilities/SVUtilities.hpp"
-#include<memory>
-#include"SV-Engine/Utilities/SVMemory.hpp"
+#include <algorithm>
+#include <cmath>
+#include <iostream>
 
-//OpenGL objects
-#include"SV-Engine/OpenGL/OpenGL Context.hpp"
-#include"SV-Engine/GUI/Display.hpp"
-#include"SV-Engine/OpenGL/VAO.hpp"
-#include"SV-Engine/OpenGL/ShaderProgram.hpp"
-#include"SV-Engine/OpenGL/FBO.hpp"
-#include"SV-Engine/OpenGL/Texture.hpp"
-#include"SV-Engine/Scene/Shadows.hpp"
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtx/norm.hpp>
+#include <glm/gtx/transform.hpp>
+#include <imgui.h>
 
-//Space Visuliser Objects
-#include"SV-Engine/OpenGL/Post Processing.hpp"
-#include"SV-Engine/Scene/Camera.hpp"
-#include"SV/Universe/Star.hpp"
-#include"SV/Universe/Planet.hpp"
-#include"SV/Atmosphere/Atmosphere.hpp"
-#include"SV/Universe/PlanetNew.hpp"
-#include"SV/Universe/Planetary System.h"
-#include<glm/glm.hpp>
+#include "Dahlia/Events/KeyEvents.h"
+#include "Dahlia/Events/MouseEvents.h"
+#include "Dahlia/Graphics/BindGroup.h"
+#include "Dahlia/Graphics/Buffer.h"
+#include "Dahlia/Graphics/CommandList.h"
+#include "Dahlia/Graphics/Framebuffer.h"
+#include "Dahlia/Graphics/GraphicsPipeline.h"
+#include "Dahlia/Graphics/Texture.h"
+#include "Dahlia/Maths/Geometry.h"
+#include "Dahlia/Platform/GPUContext.h"
+#include "SV/Graphics/AsyncTexture.hpp"
+#include "SV/Graphics/ShaderSources.hpp"
+#include "SV/Platform/Trackpad.hpp"
+#include "SV/Universe/Planetary System.h"
 
-using SV::Console;
-using SV::ConsoleColour;
-
-//Function Declarations
-static void OnWindowResized(SV::Display* const sender, int newWidth, int newHeight);
-static void OnKeyboard(SV::Display* const sender, int key, int scancode, int action, int mods);
-static void OnMouseMotion(SV::Display* const sender, double xPos, double deltaX, double yPos, double deltaY);
-static void OnMouseClick(SV::Display* const sender, int button, int action, int mods);
-static void OnScroll(SV::Display* const sender, double xOffset, double detaXOffset);
-static void DrawGrid();
-static void DrawAxis();
-//Grid Mesh
-static Ref<SV::VAO> gridVAO = nullptr;
-static Ref<SV::GridShader> gridShader = nullptr;
-//
-static bool InitiliseResources();
-//
-static void ExecuteRenderLoop();
-static void RenderCentreCube();
-static void MoveToObject();
-
-//
-static glm::mat4 projectionMatrix;
-static glm::mat4 orthagonalMatrix;
-
-//Stars
-static Ref<SV::StarRenderer> sRenderer = nullptr;
-
-//Planets
-static Ref<SV::PlanetRenderer> pRenderer = nullptr;
-
-//Planet New Test
-static Ref<SV::PlanetNewRenderer> pNewRenderer = nullptr;
-
-//Solar System
-static Ref<SV::Universe::PlanetarySystem> solarSystem = nullptr;
-
-//Shadow test
-static glm::vec3 lightPosition(-10.0f, 0.0f, 0.0f);
-
-//Camera variables
-static SV::Camera mainCamera;
-static Ref<SV::Display> mainWindow = nullptr;
-
-//Current frame time 
-static double aniCounter = 0.0;
-
-static Ref<SV::DiffuseShader> diffuseColShader = nullptr;
-static Ref<SV::TexturedDiffuseShader> diffuseTexShader = nullptr;
-static Ref<SV::VAO> testSphereVAO = nullptr;
-static Ref<SV::AsyncTexture2D> testTexture = nullptr;
-
-static Ref<SV::VAO> centreCube = nullptr;
-static SV::Transformation cubeTransformation;
-
-//Atmosphere Test
-static bool isCtrlPressed = false;
-static float gExposure = 10.0f;
-static int currentKey = -1;
-
-static bool gWireframe = false;
-static float gPointSize = 4.0f;
-
-//Things to do
-//Corona and star brightness/intensity calculations
-//Complete planet renderer
-//Fix corona depth issue
-//Allow multiple shader attachments
-//Shine damper/reflectivity settings
-
-static std::unordered_map<SV::StringView, SV::CelestrialBody*> nameIndexMap; /* = {
-					{ "sun"_view, {0.0f, 0.0f, 0.0f} },
-					{"mercury"_view, { -10.0f, 0.0f, 0.0f }},
-					{ "venus"_view, {5.0f, 0.0f, 0.0f} },
-					{ "earth"_view, {147.11, 0.0f, 0.0f} },
-					{ "mars"_view, {12.5f, 0.0f, 0.0f} },
-					{ "jupiter"_view, {15.0f, 0.0f, 0.0f} },
-					{ "saturn"_view,{22.0f, 0.0f, 0.0f} },
-					{ "titan"_view, {30.0f, 0.0f, 0.0f} }
-};*/
-
-//
-bool Application::Initilise(const char* assemblyName)
+namespace SV
 {
-	SV::Display::Initilise(SV::OpenGLContext::OPENGL_MAJOR_VERSION, SV::OpenGLContext::OPENGL_MINOR_VERSION);
-
-	//HANDLE smallIcon = LoadImage(GetModuleHandleA((LPCSTR)assemblyName), MAKEINTRESOURCE(IDI_ICON1), IMAGE_ICON, 16, 16, LR_COLOR);
-	//HANDLE largeIcon = LoadImage(GetModuleHandleA((LPCSTR)assemblyName), MAKEINTRESOURCE(IDI_ICON2), IMAGE_ICON, 32, 32, LR_COLOR);
-	mainWindow = make <SV::Display>(800, 600, "Space Visualiser");//, smallIcon, largeIcon);
-
-	if (!SV::OpenGLContext::InitiliseOpenGL()) return false;
-	glEnable(GL_MULTISAMPLE);
-	return true;
-}
-int Application::Run()
-{
-	//Ref<SV::VAO> quadTest = make <SV::VAO>();
-	//Ref<SV::Mesh> quadMesh = SV::Geometry::CreateQuad();
-	//quadTest->Bind();
-	//quadTest->AddAttributeArray(0, make <SV::ArrayBuffer>(quadMesh->GetVertexArray()));
-	//quadTest->AddIndexBuffer(make <SV::IndexBuffer>(quadMesh->GetIndiciesArray()));
-	//quadTest->Unbind();
-
-	//std::cout << 'a';
-
-	//make <SV::Atmosphere::EarthAtmosphere>(quadTest);
-
-	//std::cout << 'a';
-
-	//return EXIT_SUCCESS;
-	if (!InitiliseResources()) return EXIT_FAILURE;
-
-	//Window Bindings
-	mainWindow->AddWindowResizeEvent(&OnWindowResized);
-
-	//Keyboard Bindings
-	mainWindow->AddKeyboardEvent(&OnKeyboard);
-
-	//Mouse Bindings
-	mainWindow->AddMouseMotionEvent(&OnMouseMotion);
-	mainWindow->AddScrollEvent(&OnScroll);
-	mainWindow->AddMouseClickEvent(&OnMouseClick);
-
-	ExecuteRenderLoop();
-
-	mainWindow.reset();
-
-	return EXIT_SUCCESS;
-}
-//
-void OnKeyboard(SV::Display* const sender, int key, int scancode, int action, int mods)
-{
-	currentKey = key;
-	
-	if (action == GLFW_RELEASE)
+	namespace
 	{
-		isCtrlPressed = false;
-		currentKey = -1;
-		return;
-	}
+		// Mirrors the push constants in Shaders/Grid.vert
+		struct GridPushConstants
+		{
+			glm::mat4 transform;
+		};
 
-	isCtrlPressed = (mods & GLFW_MOD_CONTROL) != 0;
+		// Mirrors the push constants in Shaders/Marker.vert and Marker.frag
+		struct MarkerPushConstants
+		{
+			glm::mat4 transform;
+			glm::vec4 colour;
+		};
 
-	switch (key)
-	{
-	case GLFW_KEY_MINUS:
-		gExposure -= 0.5f;
-		break;
-	case GLFW_KEY_EQUAL:
-		gExposure += 0.5f;
-		break;
+		constexpr float FOV = 45.0f;
+		constexpr float NEAR_PLANE = 0.1f;
+		constexpr float FAR_PLANE = 1500.0f;
 
-	case GLFW_KEY_1:
-		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-		glEnable(GL_CULL_FACE);
-		break;
-	case GLFW_KEY_2:
-		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-		glDisable(GL_CULL_FACE);
-		break;
-	case GLFW_KEY_3:
-		glPolygonMode(GL_FRONT_AND_BACK, GL_POINT);
-		glDisable(GL_CULL_FACE);
-		break;
+		constexpr float GRID_SIZE = 1000.0f;
+		constexpr unsigned int GRID_LINES = 1000;
 
-	case GLFW_KEY_X:
-		gPointSize += 0.5f;
-		glPointSize(gPointSize);
-		glLineWidth(gPointSize);
-		break;
-	case GLFW_KEY_Z:
-		gPointSize -= 0.5f;
-		glPointSize(gPointSize);
-		glLineWidth(gPointSize);
-		break;
+		constexpr float DEFAULT_ZOOM = 60.0f;
+		constexpr float MIN_ZOOM = 0.2f;
+		constexpr float MAX_ZOOM = FAR_PLANE * 0.5f;
 
-	case GLFW_KEY_P:
-		if (isCtrlPressed) MoveToObject();
-		break;
-	}
+		// Camera input
+		constexpr float WHEEL_ZOOM_STEP = 0.1f;      // Fraction of the distance per wheel notch
+		constexpr float TRACKPAD_ZOOM_STEP = 0.02f;  // Per point of two finger scrolling
+		constexpr float PINCH_ZOOM_SCALE = 2.0f;     // Per unit of pinch magnification
+		constexpr float TRACKPAD_ORBIT_SCALE = 1.0f; // Relative to dragging the same distance
+		// Pan speed per unit of zoom distance, so panning moves the view by a similar amount at
+		// any distance
+		constexpr float PAN_ACCELERATION_PER_ZOOM = 6.0f;
+		constexpr float GO_TO_ZOOM = 6.0f;
+		// Fraction of the remaining distance covered each 1/60 s when travelling to a body
+		constexpr float TRAVEL_RATE = 0.11f;
 
-}
-void OnMouseClick(SV::Display* const sender, int button, int action, int mods)
-{
-
-}
-void OnMouseMotion(SV::Display* const sender, double xPos, double deltaX, double yPos, double deltaY)
-{
-	if (mainWindow->GetMouseAction() != GLFW_PRESS) return;
-
-	mainCamera.UpdateMouse(deltaX, deltaY, mainWindow->GetMouseButton());
-}
-void OnScroll(SV::Display* const sender, double xOffset, double detaXOffset)
-{
-	mainCamera.UpdateZoom(detaXOffset);
-}
-void OnWindowResized(SV::Display* const sender, int newWidth, int newHeight)
-{
-	constexpr float FOV = 45.0f;
-	constexpr float nearDist = 0.1f;
-	constexpr float farDist = 1500.0f;
-
-	if (newWidth <= 0 || newHeight <= 0) return;
-
-	float aspect = (float)newWidth / (float)newHeight;
-
-	float ratio_size_per_depth = atan(glm::radians(FOV / 2.0f)) * 2.0f;
-	float size_y = ratio_size_per_depth;
-	float size_x = ratio_size_per_depth * aspect;
-
-	projectionMatrix = glm::perspective(glm::radians(FOV), aspect, nearDist, farDist);
-	orthagonalMatrix = glm::ortho(-size_x, size_x, -size_y, size_y, nearDist, farDist);
-	glViewport(0, 0, newWidth, newHeight);
-}
-//
-bool InitiliseResources()
-{
-	SV::Texture2D::InitiliseStaticTextures();
-
-	{
-		Ref<SV::Mesh> gridMesh = SV::Geometry::CreateGrid(1000.0f, 1000, 1000);
-
-		gridVAO = make <SV::VAO>();
-
-		auto vertexBuf = make<SV::ArrayBuffer>(gridMesh->GetVertexArray());
-		gridVAO->AddAttributeArray(0, vertexBuf, SV::AttributeLayout(3));
-		gridVAO->AddAttributeArray(1, vertexBuf, SV::AttributeLayout(3));
-		gridVAO->AddIndexBuffer(make <SV::IndexBuffer>(gridMesh->GetIndiciesArray()));
-	}
-
-	gridShader = make<SV::GridShader>();
-	gridShader->Bind();
-	gridShader->BindTransMat(glm::translate(glm::vec3(-500.0f, 0.0f, -500.0f)));
-	gridShader->Unbind();
-
-	//for (unsigned int i = 0; i < 5; i++)
-	//{
-	//	glm::vec3 colour(SV::Utilities::GetRandomFloat(), SV::Utilities::GetRandomFloat(), SV::Utilities::GetRandomFloat());
-	//	glm::vec3 transformA(SV::Utilities::GetRandomFloat() * 10.0f, SV::Utilities::GetRandomFloat() * 10.0f, SV::Utilities::GetRandomFloat() * 10.0f);
-	//	sRenderer->Add(make <SV::Star>(1.0f, 5800.0f, colour, transformA));
-	//}
-
-	//glActiveTexture(GL_TEXTURE3);
-	//glBindTexture(GL_TEXTURE_2D, 0);
-
-	Ref<SV::Mesh> cubeMesh = SV::Geometry::CreateQuadsphere(0.1f, 20);//SV::Geometry::CreateCube(0.05f);
-	Ref<SV::ArrayBuffer> cubeVertsVBO = create <SV::ArrayBuffer>(cubeMesh->GetVertexArray());
-	Ref<SV::ArrayBuffer> cubeNormalsVBO = create<SV::ArrayBuffer>(cubeMesh->GetNormalsArray());
-	centreCube = create <SV::VAO>();
-	centreCube->Bind();
-	centreCube->AddIndexBuffer(create <SV::IndexBuffer>(cubeMesh->GetIndiciesArray()));
-	centreCube->AddAttributeArray(0, cubeVertsVBO);
-	centreCube->AddAttributeArray(1, cubeNormalsVBO);
-	centreCube->Unbind();
-
-	cubeMesh.reset();
-
-	diffuseColShader = create <SV::DiffuseShader>();
-	diffuseColShader->Bind();
-	diffuseColShader->BindDiffuseColour(vec4(1.0f, 1.0f, 1.0f, 0.85f));
-	diffuseColShader->BindLightCol(vec3(1.0f));
-	diffuseColShader->Unbind();
-
-	//earthSurfaceTexture = create <SV::Texture2D>(SV::TextureData(SV::TEXTURE_FILE_PATH + "Solar System/Earth/NASA/Earth.jpg", SV::LoadColourChannels::RGB));
-	//earthSurfaceTexture->SetTextureWrapping(SV::TextureWrap::Repeat);
-
-	//Ref<SV::TerrestrialPlanet> earth = create <SV::TerrestrialPlanet>(earthSurfaceTexture, earthCloudsTexture, earthSpecularMap, earthNightMap);
-	//SV::AtmosphericData defaultData = SV::AtmosphericData::DefaultValuesCalculated;
-	//defaultData.ESun = 18.0f;
-	//earth->AddAtmosphere(defaultData)->AddRings(ringTexture);
-	//pRenderer->AddPlanet(earth);
-
-	//Ref<SV::Texture2D> venusDiffuse = create<SV::Texture2D>(SV::TextureData(SV::TEXTURE_FILE_PATH + "Solar System/Venus/Venus_Map.png", SV::LoadColourChannels::RGB));
-	//Ref<SV::Texture2D> venusAtmo = create<SV::Texture2D>(SV::TextureData(SV::TEXTURE_FILE_PATH + "Solar System/Venus/Venus_Atmosphere.png", SV::LoadColourChannels::RGBA));
-
-	//Ref<SV::TerrestrialPlanet> venus = create<SV::TerrestrialPlanet>(venusDiffuse, venusAtmo, nullptr, nullptr);
-	//venus->AddAtmosphere();
-	//venus->IncreaseTranslation(glm::vec3(10.0f, 0.0f, 0.0f));
-	//pRenderer->AddPlanet(venus);
-
-	projectionMatrix = glm::perspective(glm::radians(45.0f), (float)mainWindow->GetWidth() / (float)mainWindow->GetHeight(), 0.01f, 1500.0f);
-
-	Ref<SV::VAO> quadVAO = create <SV::VAO>();
-	Ref<SV::Mesh> quadMesh = SV::Geometry::CreateQuad();
-	quadVAO->Bind();
-	quadVAO->AddAttributeArray(0, create<SV::ArrayBuffer>(quadMesh->GetVertexArray()), SV::AttributeLayout(2));
-	quadVAO->AddIndexBuffer(create <SV::IndexBuffer>(quadMesh->GetIndiciesArray()));
-	quadVAO->EnableAttributeArray(0);
-	quadVAO->Unbind();
-
-	testSphereVAO = make <SV::VAO>();
-#define SphereMode 0
-#if SphereMode == 0
-	const Ref<SV::Mesh>& sphereMesh = SV::Geometry::CreateQuadsphere(1.0f, 50);
-#elif SphereMode == 1
-	const Ref<SV::Mesh>& sphereMesh = SV::Geometry::CreateIcosphere(1.0f, 6);
-#elif SphereMode == 2
-	const Ref<SV::Mesh>& sphereMesh = SV::Geometry::CreateUVSphere(1.0f, 50, 50);
-#endif // SphereMode
-
-	testSphereVAO->Bind();
-	testSphereVAO->AddAttributeArray(0, make <SV::ArrayBuffer>(sphereMesh->GetVertexArray()), SV::AttributeLayout(3));
-	testSphereVAO->AddAttributeArray(1, make <SV::ArrayBuffer>(sphereMesh->GetNormalsArray()), SV::AttributeLayout(3));
-	testSphereVAO->AddAttributeArray(2, make <SV::ArrayBuffer>(sphereMesh->GetTexCoordsArray()), SV::AttributeLayout(2));
-	testSphereVAO->AddIndexBuffer(make <SV::IndexBuffer>(sphereMesh->GetIndiciesArray()));
-	testSphereVAO->EnableAttributeArray(0, 2);
-	testSphereVAO->Unbind();
-
-	diffuseTexShader = make <SV::TexturedDiffuseShader>();
-	diffuseTexShader->Bind();
-	diffuseTexShader->BindDiffuseMapUnit(1);
-	diffuseTexShader->Unbind();
-
-	testTexture = make <SV::AsyncTexture2D>(make <SV::AsyncTextureData>(SV::TEXTURE_FILE_PATH + "Test/Test.png"));
-	testTexture->SetTextureWrapping(SV::TextureWrap::Repeat);
-
-	sRenderer = make <SV::StarRenderer>();
-	//sRenderer->Add(make <SV::Star>(1.0f, 1.0f, 5800.0f, glm::vec3(26.0f, 128.0f, 128.0f) / 255.0f * 2.0f, glm::vec3(5.0f, 0.0f, 0.0f)));
-	//sRenderer->Add(make <SV::Star>(1.0f, 1.0f, 100.0f, glm::vec3(1.0f, 0.2f, 0.2f), glm::vec3(0.0f, 0.0f, -10.0f)));
-
-	pNewRenderer = make <SV::PlanetNewRenderer>();
-	// pNewRenderer->Add(make <SV::Mercury>(quadVAO));
-	// pNewRenderer->Add(make <SV::Venus>(quadVAO));
-	// pNewRenderer->Add(make <SV::Earth>(quadVAO));
-	// pNewRenderer->Add(make <SV::Mars>(quadVAO));
-	// pNewRenderer->Add(make <SV::Jupiter>(quadVAO));
-	// pNewRenderer->Add(make <SV::Saturn>(quadVAO));
-	// pNewRenderer->Add(make <SV::Titan>(quadVAO));
-
-	solarSystem = make <SV::Universe::PlanetarySystem>(sRenderer, pNewRenderer);
-	Ref<SV::PresetStars::Sun> sunObj = make <SV::PresetStars::Sun>(glm::vec3(0.0f, 0.0f, 0.0f));
-	sunObj->Scale(glm::vec3{ 15.0f });
-	solarSystem->Add(sunObj);
-	//solarSystem->Add(make <SV::Mercury>(quadVAO));
-	//solarSystem->Add(make <SV::Venus>(quadVAO));
-	solarSystem->Add(make <SV::Earth>(quadVAO));
-	//solarSystem->Add(make <SV::Mars>(quadVAO));
-	//solarSystem->Add(make <SV::Jupiter>(quadVAO));
-	//solarSystem->Add(make <SV::Saturn>(quadVAO));
-	//solarSystem->Add(make <SV::Titan>(quadVAO));
-
-	//const Ref<SV::Mercury>& mercuryObj = pNewRenderer->GetInstance<SV::Mercury>();
-	//mercuryObj->Translate({ -10.0f, 0.0f, 0.0f });
-	//mercuryObj->Scale(glm::vec3{ 0.5f });
-
-	//const Ref<SV::Venus>& venusObj = pNewRenderer->GetInstance<SV::Venus>();
-	//venusObj->Translate({ 5.0f, 0.0f, 0.0f });
-
-	const Ref<SV::Earth>& earthObj = pNewRenderer->GetInstance<SV::Earth>();
-	//earthObj->Translate(glm::vec3(147.11, 0.0f, 0.0f));
-	earthObj->Translate(glm::vec3(20.0, 0.0f, 0.0f));
-	earthObj->SetVelocity({ 0.0, 24000, 0.0 });
-
-	//const Ref<SV::Mars>& marsObj = pNewRenderer->GetInstance<SV::Mars>();
-	//marsObj->Translate({ 12.5f, 0.0f, 0.0f });
-	//marsObj->Scale(glm::vec3{ 0.75f });
-
-	//const Ref<SV::Jupiter>& jupiterObj = pNewRenderer->GetInstance<SV::Jupiter>();
-	//jupiterObj->Translate(glm::vec3(15.0f, 0.0f, 0.0f));
-
-	//const Ref<SV::Saturn>& saturnObj = pNewRenderer->GetInstance<SV::Saturn>();
-	//saturnObj->Translate(glm::vec3(22.0f, 0.0f, 0.0f));
-
-	//const Ref<SV::Titan>& titanObj = pNewRenderer->GetInstance<SV::Titan>();
-	//titanObj->Translate(glm::vec3(30.0f, 0.0f, 0.0f));
-
-	nameIndexMap.insert({ "sun"_view, (SV::CelestrialBody*)sunObj refptr });
-	nameIndexMap.insert({ "earth"_view, (SV::CelestrialBody*)earthObj refptr });
-
-	return true;
-}
-//
-void ExecuteRenderLoop()
-{
-	OnWindowResized(mainWindow.get(), (int)mainWindow->GetWidth(), (int)mainWindow->GetHeight());
-
-	while (!mainWindow->IsCloseRequested())
-	{
 		constexpr double ANIMATION_SPEED = 0.2;
+		constexpr double MAX_FRAME_TIME = 0.1;
+		// Simulated seconds per real second for the gravity simulation
+		constexpr double SIMULATION_SPEED = 500.0;
 
-		mainCamera.UpdateCamera(mainWindow->GetDeltaFrameTime(), currentKey);
-		aniCounter += ANIMATION_SPEED * mainWindow->GetDeltaFrameTime();
-		//lightPosition.y = sin((float)aniCounter) * 5.0f;
+		// A line list grid on the XZ plane, from (0, 0, 0) to (scale, 0, scale)
+		DH::Mesh_F32 CreateGridLines(float scale, unsigned int lines)
+		{
+			const uint32_t rowSize = lines + 1;
+			DH::Mesh_F32 mesh(3, (size_t)rowSize * rowSize * 3, 0, 0, (size_t)lines * lines * 8);
+			std::vector<float>& vertices = mesh.GetVertexArray();
+			std::vector<uint32_t>& indices = mesh.GetIndicesArray();
 
-		//
-		glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-		//
-		//pRenderer->RenderPlanets(lightPosition, mainCamera, projectionMatrix, aniCounter * 0.002f);
-		//
-		/*atmoRenderer->Render(projectionMatrix, mainCamera, 10.0f, lightPosition, *earthSurfaceTexture, *earthSpecularMap, earthCloudsTexture.operator->(), *ringTexture);*/
+			size_t v = 0;
+			for (uint32_t j = 0; j <= lines; ++j)
+			{
+				for (uint32_t i = 0; i <= lines; ++i)
+				{
+					vertices[v++] = ((float)i / (float)lines) * scale;
+					vertices[v++] = 0.0f;
+					vertices[v++] = ((float)j / (float)lines) * scale;
+				}
+			}
 
-		DrawGrid();
+			size_t k = 0;
+			for (uint32_t j = 0; j < lines; ++j)
+			{
+				for (uint32_t i = 0; i < lines; ++i)
+				{
+					const uint32_t row1 = j * rowSize;
+					const uint32_t row2 = (j + 1) * rowSize;
+					for (uint32_t index : { row1 + i, row1 + i + 1, row1 + i + 1, row2 + i + 1,
+											row2 + i + 1, row2 + i, row2 + i, row1 + i })
+						indices[k++] = index;
+				}
+			}
+			return mesh;
+		}
+	}
 
-		solarSystem->Update(mainWindow->GetDeltaFrameTime() * 500.0);
+	Application::Application() :
+		DH::GraphicsApp("Space Visualiser", 1280, 800,
+						DH::FramebufferSpecification{ 800, 600, 1,
+													  { DH::FramebufferAttachment(DH::Format::RGBA8),
+														DH::FramebufferAttachment(DH::Format::D24S8) } })
+	{
+	}
 
-		auto RenderPlanets = []() { pNewRenderer->Render(projectionMatrix,
-			mainCamera,
-			lightPosition,
-			gExposure,
-			aniCounter); };
-		auto RenderStars = []() {sRenderer->Render(aniCounter * 0.05, mainCamera, projectionMatrix); };
+	Application::~Application() = default;
 
-		pNewRenderer->PopulateDistanceCache(mainCamera.GetActualPosition());
-		sRenderer->PopulateDistanceCache(mainCamera.GetActualPosition());
+	bool Application::OnInit()
+	{
+		GRAPHICS_APP_INIT_IMGUI_CTX
 
-		float closestPlanetDis = pNewRenderer->GetClosestDistance();
-		float closestStarDis = sRenderer->GetClosestDistance();
+		mRenderViewport = true;
+		mViewportName = "Viewport";
 
-		if (closestPlanetDis <= closestStarDis)
+		std::cout << "Space Visualiser running on " << mVersionStr << " (" << mVendorStr << ")\n";
+		std::cout << "Textures are loaded from \"" << GetTextureDirectory().string() << "\"\n";
+
+		camera.SetCentrePosition(glm::vec3(0.0f));
+		camera.SetZoom(DEFAULT_ZOOM);
+		Trackpad::Install();
+		UpdateProjectionMatrix();
+
+		// Shared scene resources
+		sceneContext.targetLayout = mViewportFramebuffer->GetLayout();
+
+		const FrameUniforms frameUniforms{};
+		frameUniformBuffer = DH::Buffer::Create({ sizeof(FrameUniforms), DH::BufferUsage::Uniform, DH::BufferMemory::Dynamic }, &frameUniforms);
+		sceneContext.frameLayout = DH::BindGroupLayout::Create(
+			{ { 0, DH::ShaderResourceType::UniformBuffer, DH::ShaderStage::AllGraphics } });
+		sceneContext.frameGroup = DH::BindGroup::Create(sceneContext.frameLayout,
+			{ DH::BindGroupEntry::UniformBuffer(0, frameUniformBuffer) });
+
+		DH::SamplerDesc mapSampler;
+		mapSampler.mipmapMode = DH::MipmapMode::Linear;
+		mapSampler.addressU = DH::AddressMode::Repeat;
+		mapSampler.addressV = DH::AddressMode::Repeat;
+		sceneContext.mapSampler = DH::Sampler::Create(mapSampler);
+
+		DH::SamplerDesc ringSampler;
+		ringSampler.mipmapMode = DH::MipmapMode::Linear;
+		ringSampler.addressU = DH::AddressMode::ClampToBorder;
+		ringSampler.addressV = DH::AddressMode::ClampToBorder;
+		ringSampler.borderColour = DH::BorderColour::TransparentBlack;
+		sceneContext.ringSampler = DH::Sampler::Create(ringSampler);
+
+		sceneContext.clampSampler = DH::Sampler::Create(DH::SamplerDesc{});
+
+		const unsigned char black[4] = { 0, 0, 0, 255 };
+		sceneContext.blackTexture = DH::Texture2D::Create({ 1, 1 }, black, DH::Format::RGBA8);
+
+		// Grid
+		gridMesh = DH::GPUMesh::Create(CreateGridLines(GRID_SIZE, GRID_LINES));
+		DH::GraphicsPipelineDesc gridDesc;
+		gridDesc.vertexShader = Shaders::Create("Grid.vert");
+		gridDesc.fragmentShader = Shaders::Create("Grid.frag");
+		gridDesc.vertexBindings = gridMesh->GetVertexBindings();
+		gridDesc.vertexAttributes = gridMesh->GetVertexAttributes();
+		gridDesc.topology = DH::PrimitiveTopology::Lines;
+		// Faded transparent lines that never hide what is behind them
+		gridDesc.depth = { true, false, DH::CompareOp::Less };
+		gridDesc.blend = DH::BlendPreset::Alpha;
+		gridDesc.targetLayout = sceneContext.targetLayout;
+		gridDesc.bindGroupLayouts = { sceneContext.frameLayout };
+		gridDesc.pushConstantSize = sizeof(GridPushConstants);
+		gridPipeline = DH::GraphicsPipeline::Create(gridDesc);
+
+		// Marker at the camera's orbit centre
+		const DH::Mesh_F32 markerMeshData = DH::Geometry::CreateQuadsphere(0.1f, 20);
+		markerMesh = DH::GPUMesh::Create(markerMeshData);
+		DH::GraphicsPipelineDesc markerDesc;
+		markerDesc.vertexShader = Shaders::Create("Marker.vert");
+		markerDesc.fragmentShader = Shaders::Create("Marker.frag");
+		markerDesc.vertexBindings = { markerMesh->GetVertexBindings()[0], markerMesh->GetVertexBindings()[1] };
+		markerDesc.vertexAttributes = { markerMesh->GetVertexAttributes()[0], markerMesh->GetVertexAttributes()[1] };
+		markerDesc.raster.cullMode = DH::CullMode::Back;
+		markerDesc.depth = { true, true, DH::CompareOp::Less };
+		markerDesc.blend = DH::BlendPreset::Alpha;
+		markerDesc.targetLayout = sceneContext.targetLayout;
+		markerDesc.bindGroupLayouts = { sceneContext.frameLayout };
+		markerDesc.pushConstantSize = sizeof(MarkerPushConstants);
+		markerPipeline = ModalPipeline(markerDesc);
+
+		// The solar system
+		starRenderer = make<StarRenderer>(sceneContext);
+		planetRenderer = make<PlanetNewRenderer>(sceneContext);
+		solarSystem = umake<Universe::PlanetarySystem>(starRenderer, planetRenderer);
+
+		const sRef<PresetStars::Sun> sun = make<PresetStars::Sun>(glm::vec3(0.0f, 0.0f, 0.0f));
+		sun->Scale(glm::vec3{ 15.0f });
+		solarSystem->Add(sun);
+
+		const sRef<Earth> earth = make<Earth>();
+		earth->Translate(glm::vec3(20.0f, 0.0f, 0.0f));
+		earth->SetVelocity({ 0.0, 24000, 0.0 });
+		solarSystem->Add(earth);
+
+		namedBodies = { { "Sun", sun }, { "Earth", earth } };
+
+		return true;
+	}
+
+	void Application::OnDestroy()
+	{
+		Trackpad::Uninstall();
+
+		// GPU resources must be released before Dahlia destroys the device
+		DH::GPUContext::Get()->WaitIdle();
+		namedBodies.clear();
+		solarSystem.reset();
+		planetRenderer.reset();
+		starRenderer.reset();
+		markerPipeline = ModalPipeline();
+		markerMesh.reset();
+		gridPipeline.reset();
+		gridMesh.reset();
+		sceneContext = SceneContext{};
+		frameUniformBuffer.reset();
+
+		DH::GraphicsApp::OnDestroy();
+	}
+
+	void Application::UpdateProjectionMatrix()
+	{
+		const float width = (float)mViewportFramebuffer->GetWidth();
+		const float height = (float)mViewportFramebuffer->GetHeight();
+		if (width <= 0.0f || height <= 0.0f)
+			return;
+		projectionMatrix = glm::perspective(glm::radians(FOV), width / height, NEAR_PLANE, FAR_PLANE);
+	}
+
+	void Application::OnViewportResize()
+	{
+		GraphicsApp::OnViewportResize();
+		UpdateProjectionMatrix();
+	}
+
+	void Application::MoveTo(const CelestrialBody& body, const float zoom)
+	{
+		travelTarget = body.GetTranslation();
+		travelZoom = zoom;
+		isTravelling = true;
+	}
+
+	void Application::UpdateCamera(const float deltaTime)
+	{
+		// W/A/S/D move the camera's centre while the viewport has focus
+		if (mIsViewportFocused && !ImGui::GetIO().WantCaptureKeyboard &&
+			(mKeyDown == DH::KeyCode::K_W || mKeyDown == DH::KeyCode::K_A ||
+			 mKeyDown == DH::KeyCode::K_S || mKeyDown == DH::KeyCode::K_D))
+		{
+			isTravelling = false;
+			camera.UpdateMovement(glm::vec2(0.0f), DH::MouseButton::None, mKeyDown, mKeyMods);
+		}
+
+		// Pinch to zoom (consumed even when not over the viewport so it doesn't build up)
+		const float magnification = Trackpad::ConsumeMagnification();
+		if (magnification != 0.0f && isViewportHovered)
+			ZoomBy(magnification * PINCH_ZOOM_SCALE);
+
+		camera.SetPosAcc(PAN_ACCELERATION_PER_ZOOM * std::max(camera.GetZoom(), MIN_ZOOM));
+
+		if (isTravelling)
+		{
+			const float t = 1.0f - std::pow(1.0f - TRAVEL_RATE, deltaTime * 60.0f);
+			const glm::vec3 centre = glm::mix(camera.GetCentrePosition(), travelTarget, t);
+			const float zoom = glm::mix(camera.GetZoom(), travelZoom, t);
+
+			constexpr float THRESHOLD = 0.001f;
+			if (glm::distance2(centre, travelTarget) < THRESHOLD * THRESHOLD && std::abs(travelZoom - zoom) < THRESHOLD)
+			{
+				isTravelling = false;
+				camera.SetCentrePosition(travelTarget);
+				camera.SetZoom(travelZoom);
+			}
+			else
+			{
+				camera.SetCentrePosition(centre);
+				camera.SetZoom(zoom);
+			}
+		}
+
+		camera.UpdateCamera(deltaTime);
+	}
+
+	void Application::OnRender(DH::CommandList& cmd)
+	{
+		// The first frame's delta covers start up, and the atmosphere precompute makes a long frame;
+		// clamp so the camera and simulation don't jump
+		const double frameTime = std::min(mDeltaTime, MAX_FRAME_TIME);
+		const float deltaTime = (float)frameTime;
+		UpdateCamera(deltaTime);
+		animationTime += ANIMATION_SPEED * frameTime;
+
+		if (simulateGravity)
+			solarSystem->Update(frameTime * SIMULATION_SPEED);
+
+		const glm::mat4& view = camera.GetViewMatrix();
+		FrameUniforms frame;
+		frame.viewProjection = projectionMatrix * view;
+		frame.view = view;
+		frame.projection = projectionMatrix;
+		frame.cameraPosition = glm::vec4(camera.GetActualPosition(), 1.0f);
+		frame.cameraCentre = glm::vec4(camera.GetCentrePosition(), 1.0f);
+		frame.sun = glm::vec4(lightPosition, exposure);
+		frame.times = glm::vec4((float)animationTime, (float)animationTime * 0.05f, 0.0f, 0.0f);
+		frameUniformBuffer->Update(&frame, sizeof(frame));
+
+		// Atmosphere precomputation and texture uploads happen outside the scene pass
+		planetRenderer->Prepare(cmd);
+
+		const glm::vec3& cameraPosition = camera.GetActualPosition();
+		planetRenderer->PopulateDistanceCache(cameraPosition);
+		starRenderer->PopulateDistanceCache(cameraPosition);
+
+		DH::RenderPassDesc pass;
+		pass.target = mViewportFramebuffer.get();
+		pass.clearColour = { 0.0f, 0.0f, 0.0f, 1.0f };
+		cmd.BeginRenderPass(pass);
+
+		cmd.BindGroup(0, *sceneContext.frameGroup);
+
+		RenderGrid(cmd);
+
+		// Draw the furthest kind of body first so blending (coronas, atmospheres) composites correctly
+		auto RenderPlanets = [&]() { planetRenderer->Render(cmd, polygonMode, camera.GetYaw()); };
+		auto RenderStars = [&]() { starRenderer->Render(cmd, polygonMode); };
+		if (planetRenderer->GetClosestDistance() <= starRenderer->GetClosestDistance())
 		{
 			RenderStars();
 			RenderPlanets();
@@ -450,101 +344,182 @@ void ExecuteRenderLoop()
 			RenderStars();
 		}
 
-		/*glm::mat4 transformMat = glm::rotate(aniCounter, glm::vec3(0.0f, 1.0f, 0.0f));
-		diffuseTexShader->Bind();
-		diffuseTexShader->BindProjMat(projectionMatrix);
-		diffuseTexShader->BindViewMat(mainCamera.GetViewMatrix());
-		diffuseTexShader->BindTransMat(transformMat);
-		diffuseTexShader->BindNormalMat(SV::Maths::CalculateNormalMatrix(transformMat));
-		diffuseTexShader->BindLightPos(lightPosition);
+		RenderCentreMarker(cmd);
 
-		testTexture->Bind(1);
-
-		testSphereVAO->Bind();
-
-		glDrawElements(GL_TRIANGLES, testSphereVAO->GetEleCount(), GL_UNSIGNED_INT, nullptr);
-
-		testSphereVAO->Unbind();
-		testTexture->Unbind();
-		diffuseTexShader->Unbind();*/
-
-
-		//atmoRenderer->Render(projectionMatrix, mainCamera, aniCounter * 0.1f, exposure, lightPosition, *earthSurfaceTexture, *earthSpecularMap, earthCloudsTexture.operator->(), ringTexture.operator->(), earthNightMap.operator->());
-		
-		RenderCentreCube();
-		
-
-		mainWindow->PollEvents();
-		mainWindow->FlushScreen();
+		cmd.EndRenderPass();
 	}
-}
-//
-void RenderCentreCube()
-{
-	SV::OpenGLContext::EnableAlphaBlending();
 
-	diffuseColShader->Bind();
-	diffuseColShader->BindProjMat(projectionMatrix);
-	diffuseColShader->BindViewMat(mainCamera.GetViewMatrix());
-
-	cubeTransformation.Translate(mainCamera.GetCentrePosition());
-	cubeTransformation.RecalculateTransformation();
-	diffuseColShader->BindTransMat(cubeTransformation);
-	diffuseColShader->BindNormalMat(SV::Maths::CalculateNormalMatrix(cubeTransformation));
-
-	diffuseColShader->BindLightPos(lightPosition);
-
-	centreCube->Bind();
-	centreCube->EnableAttributeArray(0, 1);
-
-	glDrawElements(GL_TRIANGLES, centreCube->GetEleCount(), GL_UNSIGNED_INT, nullptr);
-
-	centreCube->DisableAttributeArray(0, 1);
-	centreCube->Unbind();
-
-	diffuseColShader->Unbind();
-}
-//
-void DrawGrid()
-{
-	glDepthMask(GL_FALSE);
-	gridShader->Bind();
-
-	gridShader->BindVPMatrix(projectionMatrix * mainCamera.GetViewMatrix());
-	const glm::vec3& camPos = mainCamera.GetCentrePosition();
-	gridShader->BindCamPos(camPos);
-
-	gridVAO->Bind();
-	gridVAO->EnableAttributeArray({ 0,1 });
-
-	glDrawElements(GL_LINES, gridVAO->GetEleCount(), GL_UNSIGNED_INT, nullptr);
-
-	gridVAO->DisableAttributeArray({ 0,1 });
-
-	gridVAO->Unbind();
-
-	gridShader->Unbind();
-	glDepthMask(GL_TRUE);
- }
-//
-void MoveToObject()
-{
-	Console::Focus();
-
-	SV::String name;
-	std::cout << "Please input the name of the planet you wish to teleport to: ";
-	std::cin >> name;
-	name.ToLowerAssign();
-
-	auto nameIt = nameIndexMap.find(name);
-
-	if (nameIt == nameIndexMap.end())
+	void Application::RenderGrid(DH::CommandList& cmd)
 	{
-		std::cout << "Name inputted invalid\n";
-		return;
+		cmd.BindPipeline(*gridPipeline);
+		cmd.PushConstants(GridPushConstants{ glm::translate(glm::vec3(-GRID_SIZE * 0.5f, 0.0f, -GRID_SIZE * 0.5f)) });
+		gridMesh->Draw(cmd);
 	}
 
-	mainWindow->Focus();
-	mainCamera.MoveTo(nameIt->second->GetTranslation(), 6.0f);
+	void Application::RenderCentreMarker(DH::CommandList& cmd)
+	{
+		cmd.BindPipeline(markerPipeline.Get(polygonMode));
+		cmd.PushConstants(MarkerPushConstants{ glm::translate(camera.GetCentrePosition()), glm::vec4(1.0f, 1.0f, 1.0f, 0.85f) });
+		markerMesh->Draw(cmd);
+	}
+
+	void Application::OnImGuiRender()
+	{
+		// GraphicsApp drew the viewport window this frame; reopen it to ask whether the cursor is
+		// over it, so scrolling and pinching work without clicking the viewport first
+		if (ImGui::Begin(mViewportName.c_str()))
+			isViewportHovered = ImGui::IsWindowHovered(ImGuiHoveredFlags_ChildWindows);
+		else
+			isViewportHovered = false;
+		ImGui::End();
+
+		RenderControlsPanel();
+	}
+
+	void Application::RenderControlsPanel()
+	{
+		if (!ImGui::Begin("Space Visualiser"))
+		{
+			ImGui::End();
+			return;
+		}
+
+		if (ImGui::CollapsingHeader("Scene", ImGuiTreeNodeFlags_DefaultOpen))
+		{
+			ImGui::DragFloat("Exposure (-/=)", &exposure, 0.1f, 0.0f, 100.0f);
+
+			int mode = (int)polygonMode;
+			const char* modes[] = { "Solid (1)", "Wireframe (2)", "Points (3)" };
+			if (ImGui::Combo("Render style", &mode, modes, 3))
+				polygonMode = (DH::PolygonMode)mode;
+
+			ImGui::Checkbox("Simulate gravity", &simulateGravity);
+			ImGui::DragFloat3("Light position", &lightPosition[0], 0.1f);
+		}
+
+		if (ImGui::CollapsingHeader("Bodies", ImGuiTreeNodeFlags_DefaultOpen))
+		{
+			for (const NamedBody& namedBody : namedBodies)
+			{
+				const glm::vec3& position = namedBody.body->GetTranslation();
+				ImGui::PushID(namedBody.name.c_str());
+				if (ImGui::Button("Go to"))
+					MoveTo(*namedBody.body, GO_TO_ZOOM);
+				ImGui::SameLine();
+				ImGui::Text("%s (%.1f, %.1f, %.1f)", namedBody.name.c_str(), position.x, position.y, position.z);
+				ImGui::PopID();
+			}
+		}
+
+		if (ImGui::CollapsingHeader("Camera", ImGuiTreeNodeFlags_DefaultOpen))
+		{
+			const glm::vec3& centre = camera.GetCentrePosition();
+			ImGui::Text("Centre: X=%.2f, Y=%.2f, Z=%.2f", centre.x, centre.y, centre.z);
+			ImGui::Text("Zoom: %.2f, Pitch: %.1f, Yaw: %.1f", camera.GetZoom(), camera.GetPitch(), camera.GetYaw());
+			if (ImGui::Button("Reset camera"))
+			{
+				travelTarget = glm::vec3(0.0f);
+				travelZoom = DEFAULT_ZOOM;
+				isTravelling = true;
+			}
+			ImGui::TextWrapped("Trackpad: two finger scroll to orbit, pinch or Cmd + scroll to zoom, Shift + scroll to pan.");
+			ImGui::TextWrapped("Mouse: drag to orbit, right drag or Option + drag to pan, wheel or Shift + drag to zoom.");
+			ImGui::TextWrapped("W/A/S/D: move.");
+		}
+
+		if (ImGui::CollapsingHeader("Renderer"))
+		{
+			ImGui::Text("API: %s", mVersionStr.c_str());
+			ImGui::Text("Vendor: %s", mVendorStr.c_str());
+			ImGui::Text("Frame rate: %.0f fps (%.1f ms)", ImGui::GetIO().Framerate, ImGui::GetIO().DeltaTime * 1000.0f);
+		}
+
+		ImGui::End();
+	}
+
+	bool Application::OnKeyPressed(DH::KeyPressedEvent& e)
+	{
+		GraphicsApp::OnKeyPressed(e);
+		if (ImGui::GetIO().WantCaptureKeyboard)
+			return false;
+
+		switch (e.GetKeyCode())
+		{
+		case DH::KeyCode::K_MINUS:
+			exposure = std::max(exposure - 0.5f, 0.0f);
+			break;
+		case DH::KeyCode::K_EQUAL:
+			exposure += 0.5f;
+			break;
+		case DH::KeyCode::K_1:
+			polygonMode = DH::PolygonMode::Solid;
+			break;
+		case DH::KeyCode::K_2:
+			polygonMode = DH::PolygonMode::Lines;
+			break;
+		case DH::KeyCode::K_3:
+			polygonMode = DH::PolygonMode::Points;
+			break;
+		default:
+			break;
+		}
+		return false;
+	}
+
+	bool Application::OnMouseMove(DH::MouseMoveEvent& e)
+	{
+		GraphicsApp::OnMouseMove(e);
+
+		if (mIsViewportFocused && mMouseButtonDown != DH::MouseButton::None)
+		{
+			isTravelling = false;
+			const ImGuiIO& io = ImGui::GetIO();
+			const glm::vec2 delta = mDeltaMousePos / glm::vec2((float)mWindow->GetWidth(), (float)mWindow->GetHeight());
+
+			// Option + drag pans, for trackpads where a right drag is awkward
+			DH::MouseButton button = mMouseButtonDown;
+			if (button == DH::MouseButton::Left && io.KeyAlt)
+				button = DH::MouseButton::Right;
+
+			camera.UpdateMovement(delta, button, mKeyDown, io.KeyShift ? DH::MOD_BIT_SHIFT : 0);
+		}
+		return true;
+	}
+
+	void Application::ZoomBy(const float amount)
+	{
+		// Exponential, so each step covers the same fraction of the distance at any zoom
+		isTravelling = false;
+		camera.SetZoom(std::clamp(camera.GetZoom() * std::exp(-amount), MIN_ZOOM, MAX_ZOOM));
+	}
+
+	bool Application::OnMouseScroll(DH::MouseScrollEvent& e)
+	{
+		// GraphicsApp's scroll speed is derived from the time between events, which explodes with
+		// the rapid stream of small events a trackpad sends, so the raw offsets are used instead
+		if (!isViewportHovered)
+			return false;
+
+		const ImGuiIO& io = ImGui::GetIO();
+		const glm::vec2 offset(e.GetXOffset(), e.GetYOffset());
+
+		if (!Trackpad::LastScrollWasPrecise())
+		{
+			// Mouse wheel: zoom a fixed fraction per notch
+			ZoomBy(offset.y * WHEEL_ZOOM_STEP);
+			return true;
+		}
+
+		// Trackpad. GLFW reports precise deltas at a tenth of a point; convert back to points and
+		// normalise by the window size like mouse drags
+		isTravelling = false;
+		const glm::vec2 delta = offset * 10.0f / glm::vec2((float)mWindow->GetWidth(), (float)mWindow->GetHeight());
+		if (io.KeySuper || io.KeyCtrl)
+			ZoomBy(offset.y * TRACKPAD_ZOOM_STEP);
+		else if (io.KeyShift)
+			camera.UpdateMovement(delta, DH::MouseButton::Right);
+		else
+			camera.UpdateMovement(delta * TRACKPAD_ORBIT_SCALE, DH::MouseButton::Left);
+		return true;
+	}
 }
-//
