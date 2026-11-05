@@ -1,9 +1,13 @@
-
-*.ipch
-/Data Files/
-/bin/
+# Build output (always configured in ./build)
 /build/
+/cmake-build-*/
+
+# Planet textures (see the README)
+/Data Files/
+
+# Editor and OS files
+.cache/
+.vs/
+.idea/
 *.DS_Store
 desktop.ini
-.cache/
-Libraries/

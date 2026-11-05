@@ -1,257 +1,268 @@
-#include"SV-Engine/Precompiled Global.hpp"
-#include"Star.hpp"
-#include"SV-Engine/Utilities/GlobalItems.hpp"
-#include"SV-Engine/Utilities/Geometry.hpp"
-#include"SV-Engine/OpenGL/VAO.hpp"
-#include"SV-Engine/Utilities/Array.hpp"
-#include"SV-Engine/Scene/Camera.hpp"
-#include"SV-Engine/Utilities/Array.hpp"
-#include"SV-Engine/Utilities/SVMemory.hpp"
-#include<algorithm>
+#include "Star.hpp"
+
+#include <algorithm>
+#include <cmath>
+
+#include <glm/gtx/transform.hpp>
+
+#include "Dahlia/Graphics/CommandList.h"
+#include "Dahlia/Maths/Geometry.h"
+#include "SV/Graphics/SceneContext.hpp"
+#include "SV/Graphics/ShaderSources.hpp"
+#include "SolarSystem.hpp"
 
 namespace SV
 {
-	//
-	//
-#pragma region Star Shader Program
-//
-	const StringView STAR_VERTEX_SHADER = "./Shaders/Universe/Star/Star.v.glsl";
-	const StringView STAR_FRAGMENT_SHADER = "./Shaders/Universe/Star/Star.f.glsl";
-	//
-	StarShader::StarShader() : ShaderProgram(VertexShader(STAR_VERTEX_SHADER), FragmentShader(STAR_FRAGMENT_SHADER))
+	namespace
 	{
-		viewMatLocation = GetUniformLocation("u_viewMatrix");
-		projMatLocation = GetUniformLocation("u_projectionMatrix");
-		//
-		timeLocation = GetUniformLocation("u_time");
-		cameraPositionLocation = GetUniformLocation("u_cameraPosition");
-	}
-	//
-#pragma endregion
-//
-//
-#pragma region Corona Shader Program
-//
-	const StringView CORONA_VERTEX_SHADER = "./Shaders/Universe/Star/Corona.v.glsl";
-	const StringView CORONA_FRAGMENT_SHADER = "./Shaders/Universe/Star/Corona.f.glsl";
-	//
-	CoronaShader::CoronaShader() : ShaderProgram(VertexShader(CORONA_VERTEX_SHADER), FragmentShader(CORONA_FRAGMENT_SHADER), AttributeList{ {0, "vertex"} })
-	{
-		viewMatLocation = GetUniformLocation("u_viewMatrix");
-		projMatLocation = GetUniformLocation("u_projectionMatrix");
-		//
-		timeLocation = GetUniformLocation("time");
-		noiseOctavesLocation = GetUniformLocation("noiseOctaves");
-	}
-	//
-#pragma endregion
-//
-//
-#pragma region Star Renderer
-	//
-	StarRenderer::StarRenderer()
-	{
-		//
-#pragma region Sphere and quad initilisation
-		SV::Array<Ref<SV::VAO>> vaos = SV::VAO::GenerateArrays(2);
-		starVAO = vaos[0];
-		coronaVAO = vaos[1];
-		vaos.Clear();
+		// Mirrors the push constants in Shaders/Star.vert and Star.frag
+		struct StarPushConstants
+		{
+			glm::mat4 transform;
+			glm::vec4 properties; // radius, temperature, noise octaves
+			glm::vec4 colour;
+		};
 
-		SV::Array<Ref<SV::ArrayBuffer>> arrayBuffers = move(SV::ArrayBuffer::GenerateBuffers(3));
-		SV::Array<Ref<SV::IndexBuffer>> indexBuffers = move(SV::IndexBuffer::GenerateBuffers(2));
+		// Mirrors Shaders/Include/CoronaPushConstants.glsl
+		struct CoronaPushConstants
+		{
+			glm::mat4 transform; // Translation, and scale to the billboard's half size
+			glm::vec4 colour;    // rgb = photosphere colour, w = the star's radius
+			glm::vec4 axis;      // xyz = the star's rotation axis, w = hydrogen emission intensity
+		};
+
+		// Mirrors Shaders/Include/FlarePushConstants.glsl
+		struct FlarePushConstants
+		{
+			glm::vec4 star;   // xy = centre (view units), z = disc radius (view units), w = aspect ratio
+			glm::vec4 params; // x = strength, y = size scale, z = a pixel (view units), w = ghost strength
+			glm::vec4 colour; // rgb = photosphere colour
+		};
+
+		static_assert(sizeof(StarPushConstants) <= 128 && sizeof(CoronaPushConstants) <= 128 &&
+					  sizeof(FlarePushConstants) <= 128);
 
 		constexpr unsigned int SPHERE_SUBDIVISIONS = 20;
-		Ref<Mesh> sphereMesh = Geometry::CreateQuadsphere(1.0f, SPHERE_SUBDIVISIONS);
-		starVAO->Bind();
+		constexpr float STAR_NOISE_OCTAVES = 3.0f;
+		// Half size of the corona billboard in stellar radii (CORONA_EXTENT in CoronaPushConstants.glsl)
+		constexpr float CORONA_EXTENT = 4.0f;
 
-		arrayBuffers[0]->StoreData(sphereMesh->GetVertexArray());
-		arrayBuffers[1]->StoreData(sphereMesh->GetNormalsArray());
-		indexBuffers[0]->StoreData(sphereMesh->GetIndiciesArray());
+		// The flare fades in as the star's disc shrinks on screen from FLARE_START_RADIUS to
+		// FLARE_FULL_RADIUS pixels (the corona is barely visible by then). From Earth the Sun's disc
+		// is a few pixels across.
+		constexpr float FLARE_START_RADIUS = 30.0f;
+		constexpr float FLARE_FULL_RADIUS = 6.0f;
+		// The glare's size follows the star's brightness, as the planets' sunlight does
+		// (DisplaySolarIrradiance: distance^-0.7), to this power, within these limits
+		constexpr float FLARE_SIZE_POWER = 0.5f;
+		constexpr float FLARE_MIN_SIZE = 0.35f, FLARE_MAX_SIZE = 1.6f;
+		// The ghosts fade out as the star leaves the view (in NDC), and the glare further out
+		constexpr float GHOST_FADE_START = 0.8f, GHOST_FADE_END = 1.1f;
+		constexpr float GLARE_FADE_START = 1.2f, GLARE_FADE_END = 2.0f;
 
-		starVAO->AddAttributeArray(0, arrayBuffers[0]);
-		starVAO->AddAttributeArray(1, arrayBuffers[1]);
-		starVAO->AddIndexBuffer(indexBuffers[0]);
+		float SmoothStep(const float edge0, const float edge1, const float x)
+		{
+			const float t = std::clamp((x - edge0) / (edge1 - edge0), 0.0f, 1.0f);
+			return t * t * (3.0f - 2.0f * t);
+		}
 
-		resetref(sphereMesh);
+		// Area of the intersection of two discs with radii r1 and r2, centres d apart
+		float DiscOverlap(const float r1, const float r2, const float d)
+		{
+			constexpr float PI = 3.14159265358979f;
+			if (d >= r1 + r2)
+				return 0.0f;
+			if (d <= std::abs(r1 - r2))
+				return PI * std::min(r1, r2) * std::min(r1, r2);
+			const float a1 = std::acos(std::clamp((d * d + r1 * r1 - r2 * r2) / (2.0f * d * r1), -1.0f, 1.0f));
+			const float a2 = std::acos(std::clamp((d * d + r2 * r2 - r1 * r1) / (2.0f * d * r2), -1.0f, 1.0f));
+			const float kite = std::sqrt(std::max((-d + r1 + r2) * (d + r1 - r2) * (d - r1 + r2) * (d + r1 + r2), 0.0f));
+			return r1 * r1 * a1 + r2 * r2 * a2 - 0.5f * kite;
+		}
 
-		starAttributeBuffer = create <ArrayBuffer>(starAttributeSize * (unsigned int)sizeof(float) * 3U, GLType::Float, BufferUsage::DynamicDraw);
-
-		//Tranformation Matrix
-		starVAO->AddAttributeArray(2, starAttributeBuffer, AttributeLayout(4, starAttributeSize, 0, 1));
-		starVAO->AddAttributeArray(3, starAttributeBuffer, AttributeLayout(4, starAttributeSize, 4, 1));
-		starVAO->AddAttributeArray(4, starAttributeBuffer, AttributeLayout(4, starAttributeSize, 8, 1));
-		starVAO->AddAttributeArray(5, starAttributeBuffer, AttributeLayout(4, starAttributeSize, 12, 1));
-
-		//Normal matrix
-		starVAO->AddAttributeArray(6, starAttributeBuffer, AttributeLayout(3, starAttributeSize, 16, 1));
-		starVAO->AddAttributeArray(7, starAttributeBuffer, AttributeLayout(3, starAttributeSize, 19, 1));
-		starVAO->AddAttributeArray(8, starAttributeBuffer, AttributeLayout(3, starAttributeSize, 22, 1));
-
-		//Other Attributes
-		starVAO->AddAttributeArray(9, starAttributeBuffer, AttributeLayout(3, starAttributeSize, 25, 1)); //Radius, Star Temperature, Noise Octaves
-		starVAO->AddAttributeArray(10, starAttributeBuffer, AttributeLayout(3, starAttributeSize, 28, 1)); //Star Colour
-
-		Ref<Mesh> quadMesh = Geometry::CreateQuad();
-		coronaVAO->Bind();
-
-		arrayBuffers[2]->StoreData(quadMesh->GetVertexArray());
-		indexBuffers[1]->StoreData(quadMesh->GetIndiciesArray());
-
-		coronaVAO->AddAttributeArray(0, arrayBuffers[2], 2);
-		coronaVAO->AddIndexBuffer(indexBuffers[1]);
-
-		coronaAttributeBuffer = create <ArrayBuffer>(coronaAttributeSize * (unsigned int)sizeof(float) * 3U, GLType::Float, BufferUsage::DynamicDraw);
-
-		//Tranformation Matrix
-		coronaVAO->AddAttributeArray(1, coronaAttributeBuffer, AttributeLayout(4, coronaAttributeSize, 0, 1));
-		coronaVAO->AddAttributeArray(2, coronaAttributeBuffer, AttributeLayout(4, coronaAttributeSize, 4, 1));
-		coronaVAO->AddAttributeArray(3, coronaAttributeBuffer, AttributeLayout(4, coronaAttributeSize, 8, 1));
-		coronaVAO->AddAttributeArray(4, coronaAttributeBuffer, AttributeLayout(4, coronaAttributeSize, 12, 1));
-
-		//Star Colours
-		coronaVAO->AddAttributeArray(5, coronaAttributeBuffer, AttributeLayout(3, coronaAttributeSize, 16, 1));
-
-		VAO::Unbind();
-#pragma endregion
-		//
-#pragma region Shader program initilisation
-		starProgram = create <StarShader>();
-		coronaProgram = create <CoronaShader>();
-#pragma endregion
-		//
-		PopulateDistanceCache(glm::vec3(0.0f));
+		// CIE 1931 colour matching functions (the multi-lobe fit of Wyman, Sloan and Shirley 2013)
+		glm::dvec3 ColourMatching(const double wavelength)
+		{
+			auto lobe = [wavelength](double mean, double below, double above) {
+				const double t = (wavelength - mean) / (wavelength < mean ? below : above);
+				return std::exp(-0.5 * t * t);
+			};
+			return {
+				1.056 * lobe(599.8, 37.9, 31.0) + 0.362 * lobe(442.0, 16.0, 26.7) - 0.065 * lobe(501.1, 20.4, 26.2),
+				0.821 * lobe(568.8, 46.9, 40.5) + 0.286 * lobe(530.9, 16.3, 31.1),
+				1.217 * lobe(437.0, 11.8, 36.0) + 0.681 * lobe(459.0, 26.0, 13.8)
+			};
+		}
 	}
-	//
-	void StarRenderer::PackStarAttributes(SV::Array<float>& data)
+
+	glm::vec3 BlackbodyColour(const float temperature)
 	{
-		size_t count = data.GetCount() / starAttributeSize;
-		count = count > stars.GetCount() ? stars.GetCount() : count;
-
-		size_t i = 0;
-
-		for (const auto& keyPair : distanceCache)
+		// Planck's law integrated against the colour matching functions
+		constexpr double C2 = 1.4388e7; // Second radiation constant, nm K
+		glm::dvec3 xyz(0.0);
+		for (double wavelength = 380.0; wavelength <= 780.0; wavelength += 5.0)
 		{
-			Star& currentStar = *stars[keyPair.second];
-
-			currentStar.RecalculateTransformation();
-			currentStar.transformationMatrix = currentStar.transformationMatrix * glm::scale(glm::vec3(0.75f));
-
-			memcpy(&data[i * starAttributeSize], (void*)glm::value_ptr(currentStar.transformationMatrix), sizeof(glm::mat4));
-
-			memcpy(&data[(i * starAttributeSize) + 16], (void*)glm::value_ptr(Maths::CalculateNormalMatrix((glm::mat4&)currentStar.transformationMatrix)), sizeof(glm::mat3));
-
-			data[(i * starAttributeSize) + 25] = currentStar.radius;
-			data[(i * starAttributeSize) + 26] = currentStar.starTemperature;
-			data[(i * starAttributeSize) + 27] = 3.0f; //Noise octaves
-
-			const glm::vec3& col = currentStar.starColour;
-			data[(i * starAttributeSize) + 28] = col.r;
-			data[(i * starAttributeSize) + 29] = col.g;
-			data[(i * starAttributeSize) + 30] = col.b;
-
-			i++;
+			const double planck = 1.0 / (std::pow(wavelength, 5.0) * (std::exp(C2 / (wavelength * temperature)) - 1.0));
+			xyz += ColourMatching(wavelength) * planck;
 		}
+		xyz /= xyz.y;
+
+		// XYZ to linear sRGB
+		const glm::dvec3 rgb(3.2406 * xyz.x - 1.5372 * xyz.y - 0.4986 * xyz.z,
+							-0.9689 * xyz.x + 1.8758 * xyz.y + 0.0415 * xyz.z,
+							 0.0557 * xyz.x - 0.2040 * xyz.y + 1.0570 * xyz.z);
+		return glm::max(glm::vec3(rgb), glm::vec3(0.0f));
 	}
-	void StarRenderer::PackCoronaAttributes(SV::Array<float>& data, const Camera& currentCamera)
+
+	StarRenderer::StarRenderer(const SceneContext& context)
 	{
-		unsigned int count = (unsigned int)(data.GetCount()) / (unsigned int)coronaAttributeSize;
-		count = count > (unsigned int)stars.GetCount() ? (unsigned int)stars.GetCount() : count;
+		sphereMesh = DH::GPUMesh::Create(DH::Geometry::CreateQuadsphere(1.0f, SPHERE_SUBDIVISIONS));
+		quadMesh = DH::GPUMesh::Create(DH::Geometry::CreateQuad());
 
-		size_t i = 0;
+		DH::GraphicsPipelineDesc starDesc;
+		starDesc.vertexShader = Shaders::Create("Star.vert");
+		starDesc.fragmentShader = Shaders::Create("Star.frag");
+		// Positions and normals
+		starDesc.vertexBindings = { sphereMesh->GetVertexBindings()[0], sphereMesh->GetVertexBindings()[1] };
+		starDesc.vertexAttributes = { sphereMesh->GetVertexAttributes()[0], sphereMesh->GetVertexAttributes()[1] };
+		starDesc.raster.cullMode = DH::CullMode::Back;
+		starDesc.depth = { true, true, DH::CompareOp::Less };
+		starDesc.blend = DH::BlendPreset::None;
+		starDesc.targetLayout = context.targetLayout;
+		starDesc.bindGroupLayouts = { context.frameLayout };
+		starDesc.pushConstantSize = sizeof(StarPushConstants);
+		starPipeline = ModalPipeline(starDesc);
 
-		for (const auto& keyPair : distanceCache)
-		{
-			Star& currentStar = *stars[keyPair.second];
-			//Corona is sized relative to the star's scale so it isn't hidden inside larger stars
-			glm::mat4 transformationMatrix = glm::translate(currentStar.GetTranslation()) * glm::scale(1.8f * currentStar.GetScale());// *Maths::SphericalBillboard(currentCamera.GetActualPosition(), currentStar.GetTranslation());
+		DH::GraphicsPipelineDesc coronaDesc;
+		coronaDesc.vertexShader = Shaders::Create("Corona.vert");
+		coronaDesc.fragmentShader = Shaders::Create("Corona.frag");
+		coronaDesc.vertexBindings = quadMesh->GetVertexBindings();
+		coronaDesc.vertexAttributes = quadMesh->GetVertexAttributes();
+		coronaDesc.raster.cullMode = DH::CullMode::None;
+		// Tested against, but not written to, the depth buffer
+		coronaDesc.depth = { true, false, DH::CompareOp::Less };
+		coronaDesc.blend = DH::BlendPreset::AdditiveOne;
+		coronaDesc.targetLayout = context.targetLayout;
+		coronaDesc.bindGroupLayouts = { context.frameLayout };
+		coronaDesc.pushConstantSize = sizeof(CoronaPushConstants);
+		coronaPipeline = ModalPipeline(coronaDesc);
 
-			memcpy(&data[((size_t)i * coronaAttributeSize) + 0], glm::value_ptr(transformationMatrix), sizeof(glm::mat4));
-
-			glm::vec3& col = currentStar.starColour;
-			data[((size_t)i * coronaAttributeSize) + 16] = col.r;
-			data[((size_t)i * coronaAttributeSize) + 17] = col.g;
-			data[((size_t)i * coronaAttributeSize) + 18] = col.b;
-
-			i++;
-		}
+		// Over everything, in the lens rather than the scene (occlusion is worked out on the CPU)
+		DH::GraphicsPipelineDesc flareDesc;
+		flareDesc.vertexShader = Shaders::Create("Flare.vert");
+		flareDesc.fragmentShader = Shaders::Create("Flare.frag");
+		flareDesc.vertexBindings = quadMesh->GetVertexBindings();
+		flareDesc.vertexAttributes = quadMesh->GetVertexAttributes();
+		flareDesc.raster.cullMode = DH::CullMode::None;
+		flareDesc.depth = { false, false, DH::CompareOp::Always };
+		flareDesc.blend = DH::BlendPreset::AdditiveOne;
+		flareDesc.targetLayout = context.targetLayout;
+		flareDesc.bindGroupLayouts = { context.frameLayout };
+		flareDesc.pushConstantSize = sizeof(FlarePushConstants);
+		flarePipeline = DH::GraphicsPipeline::Create(flareDesc);
 	}
-	//
-	void StarRenderer::Render(float time, const Camera& currentCamera, const glm::mat4& projMatrix)
+
+	void StarRenderer::Render(DH::CommandList& cmd, const DH::PolygonMode polygonMode)
 	{
-		if (stars.IsEmpty()) return;
+		if (stars.empty()) return;
 
-		//
-#pragma region Corona Rendering
-	//Render star coronas
-		OpenGLContext::EnableAdditiveBlending();
-
-		coronaProgram->Bind();
-		coronaProgram->SetViewMatrix(currentCamera.GetViewMatrix());
-		coronaProgram->SetProjectionMatrix(projMatrix);
-		coronaProgram->SetTime(time);
-
-		coronaVAO->Bind();
-		coronaVAO->EnableAttributeArray(0, 5);
-
-		unsigned int coronaEleCount = ((unsigned int)stars.GetCount() * coronaAttributeSize);
-
-		if (starAttributeArray.GetCount() < coronaEleCount) starAttributeArray.Resize(stars.GetCount() * coronaAttributeSize);
-
-		StarRenderer::PackCoronaAttributes(starAttributeArray, currentCamera);
-
-		if (coronaAttributeBuffer->GetCount() < coronaEleCount)
+		// Coronas first, so the stars are drawn over them
+		cmd.BindPipeline(coronaPipeline.Get(polygonMode));
+		for (const auto& [distance, index] : distanceCache)
 		{
-			coronaAttributeBuffer->StoreData(nullptr, coronaEleCount, BufferUsage::DynamicDraw);
+			const Star& star = *stars[index];
+			const float radius = star.GetScale().x;
+			const glm::vec3 axis = glm::normalize(glm::vec3(star.GetRotationMatrix() * glm::vec4(0.0f, 1.0f, 0.0f, 0.0f)));
+			const CoronaPushConstants pushConstants{
+				glm::translate(star.GetTranslation()) * glm::scale(glm::vec3(CORONA_EXTENT * radius)),
+				glm::vec4(star.GetPhotosphereColour(), radius),
+				glm::vec4(axis, hydrogenEmission)
+			};
+			cmd.PushConstants(pushConstants);
+			quadMesh->Draw(cmd);
 		}
-		coronaAttributeBuffer->UpdateData(ArrayView(starAttributeArray, 0, coronaEleCount));
 
-		glDepthMask(false);
-		glDrawElementsInstanced(GL_TRIANGLES, coronaVAO->GetEleCount(), GL_UNSIGNED_INT, nullptr, (GLsizei)stars.GetCount());
-		glDepthMask(true);
-
-		coronaVAO->DisableAttributeArray(0, 5);
-		coronaVAO->Unbind();
-
-		coronaProgram->Unbind();
-
-		OpenGLContext::EnableAlphaBlending();
-#pragma endregion
-		//
-#pragma region Star Rendering
-
-		unsigned int starEleCount = (unsigned int)stars.GetCount() * starAttributeSize;
-		starAttributeArray.Resize((size_t)starEleCount);
-
-		//Render star objects
-		starProgram->Bind();
-		starProgram->SetViewMatrix(currentCamera.GetViewMatrix());
-		starProgram->SetProjectionMatrix(projMatrix);
-		starProgram->SetTime(time);
-		starProgram->SetCamPosition(currentCamera.GetActualPosition());
-
-		StarRenderer::PackStarAttributes(starAttributeArray);
-
-		if (starAttributeBuffer->GetCount() < starEleCount)
+		cmd.BindPipeline(starPipeline.Get(polygonMode));
+		for (const auto& [distance, index] : distanceCache)
 		{
-			starAttributeBuffer->StoreData(nullptr, (unsigned int)starEleCount, BufferUsage::DynamicDraw);
+			Star& star = *stars[index];
+			const StarPushConstants pushConstants{
+				star.RecalculateTransformation(),
+				glm::vec4(star.radius, star.starTemperature, STAR_NOISE_OCTAVES, 0.0f),
+				glm::vec4(star.starColour, 1.0f)
+			};
+			cmd.PushConstants(pushConstants);
+			sphereMesh->Draw(cmd);
 		}
-		starAttributeBuffer->UpdateData(ArrayView(starAttributeArray, 0, starEleCount));
-
-		starVAO->Bind();
-		starVAO->EnableAttributeArray(0, 10);
-
-		//glDrawElements(GL_TRIANGLES, starVAO->GetEleCount(), GL_UNSIGNED_INT, nullptr);
-
-		glDrawElementsInstanced(GL_TRIANGLES, starVAO->GetEleCount(), GL_UNSIGNED_INT, nullptr, (GLsizei)stars.GetCount());
-
-		starVAO->DisableAttributeArray(0, 10);
-
-#pragma endregion
-		//
 	}
-	//
-#pragma endregion
-//
-//
+
+	void StarRenderer::RenderFlares(DH::CommandList& cmd, const FlareView& view,
+									const std::vector<sRef<CelestrialBody>>& occluders)
+	{
+		if (flareIntensity <= 0.0f || view.viewportSize.x <= 0.0f || view.viewportSize.y <= 0.0f)
+			return;
+
+		const float aspect = view.viewportSize.x / view.viewportSize.y;
+		const float pixel = 2.0f / view.viewportSize.y; // In view units (half the viewport's height)
+
+		// A body's disc on screen, in view units
+		struct Disc
+		{
+			glm::vec2 centre;
+			float radius;
+			float depth; // Clip w
+		};
+		auto Project = [&](const CelestrialBody& body) {
+			const glm::vec4 clip = view.viewProjection * glm::vec4(body.GetTranslation(), 1.0f);
+			return Disc{ glm::vec2(clip.x / clip.w * aspect, clip.y / clip.w),
+						 body.GetScale().x / clip.w * view.projectionScale, clip.w };
+		};
+
+		bool bound = false;
+		for (const sRef<Star>& star : stars)
+		{
+			const Disc disc = Project(*star);
+			if (disc.depth <= 0.0f)
+				continue; // Behind the camera
+
+			// Fade in as the disc shrinks, and out as the star leaves the view
+			const float radiusPixels = disc.radius / pixel;
+			const float offScreen = std::max(std::abs(disc.centre.x / aspect), std::abs(disc.centre.y));
+			float strength = flareIntensity * SmoothStep(FLARE_START_RADIUS, FLARE_FULL_RADIUS, radiusPixels) *
+							 (1.0f - SmoothStep(GLARE_FADE_START, GLARE_FADE_END, offScreen));
+			if (strength <= 0.0f)
+				continue;
+
+			// Dimmed by the part of the disc hidden behind nearer bodies (at least a pixel wide, so
+			// it fades smoothly as a tiny star passes behind a limb)
+			const float visibleRadius = std::max(disc.radius, pixel);
+			const float area = 3.14159265358979f * visibleRadius * visibleRadius;
+			float hidden = 0.0f;
+			for (const sRef<CelestrialBody>& occluder : occluders)
+			{
+				if (occluder.get() == star.get())
+					continue;
+				const Disc other = Project(*occluder);
+				if (other.depth > 0.0f && other.depth < disc.depth)
+					hidden += DiscOverlap(visibleRadius, other.radius, glm::distance(disc.centre, other.centre));
+			}
+			strength *= std::clamp(1.0f - hidden / area, 0.0f, 1.0f);
+			if (strength <= 1e-3f)
+				continue;
+
+			const double distanceAU = glm::distance(star->GetTranslation(), view.cameraPosition) / Universe::AU_IN_UNITS;
+			const float size = std::clamp((float)std::pow(std::pow(distanceAU, -0.7), FLARE_SIZE_POWER), FLARE_MIN_SIZE, FLARE_MAX_SIZE);
+			const float ghostStrength = strength * (1.0f - SmoothStep(GHOST_FADE_START, GHOST_FADE_END, offScreen));
+
+			if (!bound)
+			{
+				cmd.BindPipeline(*flarePipeline);
+				bound = true;
+			}
+			cmd.PushConstants(FlarePushConstants{ glm::vec4(disc.centre, disc.radius, aspect),
+												  glm::vec4(strength, size, pixel, ghostStrength),
+												  glm::vec4(star->GetPhotosphereColour(), 0.0f) });
+			quadMesh->Draw(cmd);
+		}
+	}
 }

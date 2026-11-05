@@ -1,19 +1,28 @@
 #pragma once
-#include"SV-Engine/OpenGL/OpenGL Context.hpp"
-#include"SV-Engine/OpenGL/Texture.hpp"
-#include<initializer_list>
-#include<string>
-#include<array>
+#include <array>
+#include <cstdint>
+#include <span>
+#include <vector>
+
+#include <glm/glm.hpp>
+
+#include "Dahlia/Utilities/Memory.h"
+
+namespace DH
+{
+	class BindGroup;
+	class BindGroupLayout;
+	class Buffer;
+	class CommandList;
+	class Framebuffer;
+	class GraphicsPipeline;
+	class Texture2D;
+	class Texture3D;
+}
 
 namespace SV
 {
-	class VAO;
-	class ShaderProgram;
-	class FBO;
-	class FragmentShader;
-
-	struct Dimension2D;
-	struct Dimension3D;
+	struct SceneContext;
 }
 
 namespace SV::Atmosphere
@@ -21,6 +30,7 @@ namespace SV::Atmosphere
 
 #pragma region Constants
 
+	// Texture sizes; these must match Shaders/Include/Atmosphere/Definitions.glsl
 	constexpr int TRANSMITTANCE_TEXTURE_WIDTH = 256;
 	constexpr int TRANSMITTANCE_TEXTURE_HEIGHT = 64;
 
@@ -154,10 +164,8 @@ namespace SV::Atmosphere
 	constexpr glm::vec3 K_LAMBDA = { 680.0f, 550.0f, 440.0f };
 	constexpr unsigned int MAX_DENSITY_PROFILE_LAYERS = 2;
 
-	// Whether to pack the (red component of the) sin gle Mie scattering with the
-// Rayleigh and multiple scattering in a sin gle texture, or to store the
-// (3 components of the) sin gle Mie scattering in a separate texture.
-	constexpr bool COMBINE_SCATTERING_TEXTURES = true;
+	// The single Mie scattering (red component) is packed into the alpha channel of the scattering
+	// texture (COMBINED_SCATTERING_TEXTURES in Shaders/Include/Atmosphere/Definitions.glsl)
 
 	constexpr double kPi = 3.1415926;
 	constexpr double SUN_ANGULAR_RADIUS = 0.00935 / 2.0;
@@ -180,16 +188,6 @@ namespace SV::Atmosphere
 			: width(width), exp_term(exp_term), exp_scale(exp_scale),
 			linear_term(linear_term), constant_term(constant_term) {
 		}
-		//
-		void operator=(const DensityProfileLayer& layer)
-		{
-			width = layer.width;
-			exp_term = layer.exp_term;
-			exp_scale = layer.exp_scale;
-			linear_term = layer.linear_term;
-			constant_term = layer.constant_term;
-		}
-		//
 		double width;
 		double exp_term;
 		double exp_scale;
@@ -197,112 +195,8 @@ namespace SV::Atmosphere
 		double constant_term;
 	};
 
-	//A structure to hold the raw atmospheric properties, that have undergone no interpolation or steralisation for shader upload
-	class WavelengthData
-	{
-	public:
-		//
-#pragma region Initilisation
-		WavelengthData(const std::vector<double>& wavelengthsIn, const std::vector<double>& solarIrradianceIn, const double sunAngularRadiusIn, const double bottomRadiusIn, const double topRadiusIn,
-			const std::vector<DensityProfileLayer>& rayleighDensityIn, const std::vector<double>& rayleighScatteringIn, const std::vector<DensityProfileLayer>& mieDensityIn, const std::vector<double>& mieScatteringIn,
-			const std::vector<double>& mieExtinctionIn, const double miePhaseFunctionGIn, const std::vector<DensityProfileLayer>& absorptionDensityIn, const std::vector<double>& absorptionExtinctionIn,
-			const std::vector<double>& groundAlbedoIn, const double maxSunZenithAngleIn) :
-			wavelengths(wavelengthsIn),
-			solarIrradiance(solarIrradianceIn),
-			sunAngularRadius(sunAngularRadiusIn),
-			bottomRadius(bottomRadiusIn),
-			topRadius(topRadiusIn),
-			rayleighDensity(rayleighDensityIn),
-			rayleighScattering(rayleighScatteringIn),
-			mieDensity(mieDensityIn),
-			mieScattering(mieScatteringIn),
-			mieExtinction(mieExtinctionIn),
-			miePhaseFunctionG(miePhaseFunctionGIn),
-			absorptionDensity(absorptionDensityIn),
-			absorptionExtinction(absorptionExtinctionIn),
-			groundAlbedo(groundAlbedoIn),
-			maxSunZenithAngle(maxSunZenithAngleIn) {}
-		// The wavelength values, in nanometers, and sorted in increasing order, for
-// which the solar_irradiance, rayleigh_scattering, mie_scattering,
-// mie_extinction and ground_albedo samples are provided. If your shaders
-// use luminance values (as opposed to radiance values, see above), use a
-// large number of wavelengths (e.g. between 15 and 50) to get accurate
-// results (this number of wavelengths has absolutely no impact on the
-// shader performance).
-		const std::vector<double> wavelengths;
-		// The solar irradiance at the top of the atmosphere, in W/m^2/nm. This
-// vector must have the same size as the wavelengths parameter.
-		const std::vector<double> solarIrradiance;
-		// The sun's angular radius, in radians. Warning: the implementation uses
-// approximations that are valid only if this value is smaller than 0.1.
-		double sunAngularRadius;
-		// The distance between the planet center and the bottom of the atmosphere,
-// in m.
-		double bottomRadius;
-		// The distance between the planet center and the top of the atmosphere,
-		// in m.
-		double topRadius;
-		// The density profile of air molecules, i.e.a function from altitude to
-			// dimensionless values between 0 (nullptr density) and 1 (maximum density).
-			// Layers must be sorted from bottom to top. The width of the last layer is
-			// ignored, i.e. it always extend to the top atmosphere boundary. At most 2
-			// layers can be specified.
-		const std::vector<DensityProfileLayer> rayleighDensity;
-		// The scattering coefficient of air molecules at the altitude where their
-			// density is maximum (usually the bottom of the atmosphere), as a function
-			// of wavelength, in m^-1. The scattering coefficient at altitude h is equal
-			// to 'rayleigh_scattering' times 'rayleigh_density' at this altitude. This
-			// vector must have the same size as the wavelengths parameter.
-		const std::vector<double>  rayleighScattering;
-		// The density profile of aerosols, i.e. a function from altitude to
-		// dimensionless values between 0 (nullptr density) and 1 (maximum density).
-		// Layers must be sorted from bottom to top. The width of the last layer is
-		// ignored, i.e. it always extend to the top atmosphere boundary. At most 2
-		// layers can be specified.
-		const std::vector<DensityProfileLayer> mieDensity;
-		// The scattering coefficient of aerosols at the altitude where their
-		// density is maximum (usually the bottom of the atmosphere), as a function
-		// of wavelength, in m^-1. The scattering coefficient at altitude h is equal
-		// to 'mie_scattering' times 'mie_density' at this altitude. This vector
-		// must have the same size as the wavelengths parameter.
-		const std::vector<double> mieScattering;
-		// The extinction coefficient of aerosols at the altitude where their
-		// density is maximum (usually the bottom of the atmosphere), as a function
-		// of wavelength, in m^-1. The extinction coefficient at altitude h is equal
-		// to 'mie_extinction' times 'mie_density' at this altitude. This vector
-		// must have the same size as the wavelengths parameter.
-		const std::vector<double> mieExtinction;
-		// The asymetry parameter for the Cornette-Shanks phase function for the
-		// aerosols.
-		double miePhaseFunctionG;
-		// The density profile of air molecules that absorb light (e.g. ozone), i.e.
-		// a function from altitude to dimensionless values between 0 (nullptr density)
-		// and 1 (maximum density). Layers must be sorted from bottom to top. The
-		// width of the last layer is ignored, i.e. it always extend to the top
-		// atmosphere boundary. At most 2 layers can be specified.
-		const std::vector<DensityProfileLayer> absorptionDensity;
-		// The extinction coefficient of molecules that absorb light (e.g. ozone) at
-		// the altitude where their density is maximum, as a function of wavelength,
-		// in m^-1. The extinction coefficient at altitude h is equal to
-		// 'absorption_extinction' times 'absorption_density' at this altitude. This
-		// vector must have the same size as the wavelengths parameter.
-		const std::vector<double> absorptionExtinction;
-		// The average albedo of the ground, as a function of wavelength. This
-		// vector must have the same size as the wavelengths parameter.
-		const std::vector<double> groundAlbedo;
-		// The maximum Sun zenith an gle for which atmospheric scattering must be
-		// precomputed, in radians (for maximum precision, use the smallest Sun
-		// zenith an gle yielding ne gligible sky light radiance values. For instance,
-		// for the Earth case, 102 degrees is a good choice for most cases (120
-		// degrees is necessary for very high exposure values).
-		double maxSunZenithAngle;
-#pragma endregion
-		//
-	};
-
 	struct ScatteringData
 	{
-		//static constexpr unsigned int noOfValues = (kLambdaMax - kLambdaMin) / 10 + 1;
 	public:
 
 		ScatteringData() noexcept;
@@ -314,13 +208,13 @@ namespace SV::Atmosphere
 		unsigned int kLambdaMin;
 		unsigned int kLambdaMax;
 
-		SV::ArrayView<double> solarIrradiance;
+		std::span<const double> solarIrradiance;
 
 		double kBottomRadius;
 		double kTopRadius;
 
 		double kRayleighScatteringCoefficient;
-		SV::ArrayView<double> rayleighExtinction;
+		std::span<const double> rayleighExtinction;
 		std::array<DensityProfileLayer, MAX_DENSITY_PROFILE_LAYERS> rayleighDensity;
 
 		double kMieAngstromAlpha;
@@ -388,37 +282,42 @@ namespace SV::Atmosphere
 		mutable float surfaceAtmoIntensity;
 	};
 
+	// Mirrors the AtmosphereUniforms block in Shaders/Include/Atmosphere/Parameters.glsl (std140)
+	struct AtmosphereUniforms
+	{
+		glm::vec4 solarIrradiance;      // xyz, w = sun angular radius
+		glm::vec4 rayleighScattering;   // xyz, w = bottom radius
+		glm::vec4 mieScattering;        // xyz, w = top radius
+		glm::vec4 mieExtinction;        // xyz, w = Mie phase function g
+		glm::vec4 absorptionExtinction; // xyz, w = mu_s min
+		glm::vec4 groundAlbedo;         // xyz
+		// (width, exp_term, exp_scale, linear_term): [0, 1] Rayleigh, [2, 3] Mie, [4, 5] absorption
+		glm::vec4 densityLayers[MAX_DENSITY_PROFILE_LAYERS * 3];
+		// constant_term of each layer: [0].xyzw = layers 0-3, [1].xy = layers 4-5
+		glm::vec4 densityConstants[2];
+	};
+
+	// Mirrors the push constants in Shaders/Include/Atmosphere/Precompute.glsl
+	struct PrecomputePushConstants
+	{
+		glm::mat4 luminanceFromRadiance{ 1.0f };
+		int32_t layer = 0;
+		int32_t scatteringOrder = 0;
+	};
+
+	// Precomputes the transmittance, scattering and irradiance textures of an atmosphere (Bruneton's
+	// precomputed atmospheric scattering) with Dahlia. Scattering is precomputed for the 3
+	// wavelengths in K_LAMBDA and stored as radiance.
 	class AtmospherePrecomputer
 	{
 	public:
-
-		AtmospherePrecomputer(
-			const ScatteringData& atmoData,
-			double lengthUnitInMeters,
-			Ref<SV::VAO> fullScreenQuadIn,
-			unsigned int numPrecomputedWavelengths = 3);
+		AtmospherePrecomputer(const ScatteringData& atmoData, double lengthUnitInMeters);
 		AtmospherePrecomputer(
 			const ProcessedAtmoData& atmoData,
 			// The length unit used in your shaders and meshes. This is the length unit
 			// which must be used when calling the atmosphere model shader functions.
-			double lengthUnitInMeters,
-			Ref<SV::VAO> fullScreenQuadIn,
-			// The number of wavelengths for which atmospheric scattering must be
-	// precomputed (the temporary GPU memory used during precomputations, and
-	// the GPU memory used by the precomputed results, is independent of this
-	// number, but the <i>precomputation time is directly proportional to this
-	// number</i>):
-	// - if this number is less than or equal to 3, scattering is precomputed
-	// for 3 wavelengths, and stored as irradiance values. Then both the
-	// radiance-based and the luminance-based API functions are provided (see
-	// the above note).
-	// - otherwise, scattering is precomputed for this number of wavelengths
-	// (rounded up to a multiple of 3), integrated with the CIE color matching
-	// functions, and stored as illuminance values. Then only the
-	// luminance-based API functions are provided (see the above note).
-			unsigned int numPrecomputedWavelengths = 3);
-
-		~AtmospherePrecomputer() = default;
+			double lengthUnitInMeters);
+		~AtmospherePrecomputer();
 
 		static double CalculateRayleighCoefficient(double indexOfRefraction);
 
@@ -429,19 +328,16 @@ namespace SV::Atmosphere
 			const bool halfPrecision = true,
 			const glm::vec3& lambdas = K_LAMBDA);
 
-		static SV::String CompileAtmosphereDataToString(const ProcessedAtmoData& data);
-		static void RecompileTextureHeader();
-		static SV::String CompileAtmosphereHeaderToString(const SV::Dimension2D transmittanceTexDimensions, const glm::uivec4& scatteringTexProperties,
-			const SV::Dimension2D irradianceTexDimensions, const bool texturesCombined);
+		static AtmosphereUniforms PackUniforms(const ProcessedAtmoData& data);
 
-		void PrecomputeTextures(unsigned int numScatteringOrders = 4);
-
-		void SetProgramUniforms(
-			SV::ShaderProgram& program,
-			const TextureUnits transmittance_texture_unit,
-			const TextureUnits scattering_texture_unit,
-			const TextureUnits irradiance_texture_unit,
-			const TextureUnits optional_single_mie_scattering_texture_unit = 0) const;
+		// Records the precomputation into cmd, which must not be inside a render pass. The textures
+		// can be sampled by commands recorded after this.
+		void PrecomputeTextures(DH::CommandList& cmd, const SceneContext& context, unsigned int numScatteringOrders = 4);
+		[[nodiscard]] bool IsPrecomputed() const { return precomputed; }
+		// Frees the temporary textures and pipelines used by PrecomputeTextures once the GPU has
+		// finished with them. Call it outside of a frame (it waits for the GPU to be idle).
+		void ReleasePrecomputeResources();
+		[[nodiscard]] bool HasPrecomputeResources() const { return precomputeResources != nullptr; }
 
 		// Utility method to convert a function of the wavelength to linear sRGB.
 		// 'wavelengths' and 'spectrum' must have the same size. The integral of
@@ -453,24 +349,6 @@ namespace SV::Atmosphere
 			const std::vector<double>& spectrum,
 			double* r, double* g, double* b);
 
-		//Red, green and blue average wavelengths; lambda for rayleigh scattering equation
-		//static constexpr double kLambdaR = 680.0;
-		//static constexpr double kLambdaG = 550.0;
-		//static constexpr double kLambdaB = 440.0;
-
-		//std::function<std::string(const glm::vec3&)> GetAtmoParamHeader = nullptr;
-
-		inline const double GetLengthUnit()const { return lengthUnitInMetres; }
-		inline const unsigned int GetPrecomputedWavelengths()const { return precomputedWavelengths; }
-		inline const ProcessedAtmoData& GetProcessedAtmoData()const { return processedData; }
-		inline const SV::String& GetAtmosphereDataString() const { return atmosphericDataString; }
-		inline static const SV::String& GetTextureHeaderString()
-		{
-			if (textureSizeHeader == "") RecompileTextureHeader();
-			return textureSizeHeader;
-		}
-		inline const SV::String GetAtmosphereDataHeader()const { return textureSizeHeader + atmosphericDataString; }
-
 		static double CieColorMatchingFunctionTableValue(double wavelength, int column);
 		static double Interpolate(const std::vector<double>& wavelengths, const std::vector<double>& wavelength_function,
 			double wavelength);
@@ -478,39 +356,28 @@ namespace SV::Atmosphere
 		static void ComputeSpectralRadianceToLuminanceFactors(const std::vector<double>& wavelengths, const std::vector<double>& solar_irradiance, double lambda_power,
 			double* k_r, double* k_g, double* k_b);
 
-		inline const Ref<SV::Texture2D> GetTransmittanceTex() const { return transmittanceTexture; }
-		inline const Ref<SV::Texture3D> GetScatteringTex() const { return scatteringTexture; }
-		inline const Ref<SV::Texture3D> GetMieScatteringTex() const { return singleMieScatteringTexture; }
-		inline const Ref<SV::Texture2D> GetIrradianceTex() const { return irradianceTexture; }
+		[[nodiscard]] double GetLengthUnit() const { return lengthUnitInMetres; }
+		[[nodiscard]] const ProcessedAtmoData& GetProcessedAtmoData() const { return processedData; }
+
+		// Uniform buffer holding the AtmosphereUniforms of this atmosphere
+		[[nodiscard]] const sRef<DH::Buffer>& GetUniformBuffer() const { return uniformBuffer; }
+		[[nodiscard]] const sRef<DH::Texture2D>& GetTransmittanceTex() const { return transmittanceTexture; }
+		[[nodiscard]] const sRef<DH::Texture3D>& GetScatteringTex() const { return scatteringTexture; }
+		[[nodiscard]] const sRef<DH::Texture2D>& GetIrradianceTex() const { return irradianceTexture; }
 
 	private:
+		struct PrecomputeResources;
+
 		ProcessedAtmoData processedData;
-		//WavelengthData rawData;
-		double lengthUnitInMetres = 1000;
-		unsigned int precomputedWavelengths = 3;
+		double lengthUnitInMetres = kLengthUnitInMeters;
+		bool precomputed = false;
 
-		static SV::String textureSizeHeader;
-		SV::String atmosphericDataString;
+		sRef<DH::Buffer> uniformBuffer;
+		sRef<DH::Texture2D> transmittanceTexture;
+		sRef<DH::Texture3D> scatteringTexture;
+		sRef<DH::Texture2D> irradianceTexture;
 
-		void DrawQuad(const std::initializer_list<bool>& enable_blend);
-
-		void Precompute(
-			SV::FBO& fbo,
-			SV::Texture2D& deltaIrradianceTexture,
-			SV::Texture3D& deltaRayleighScatteringTexture,
-			SV::Texture3D& deltaMieScatteringTexture,
-			SV::Texture3D& deltaScatteringDensityTexture,
-			SV::Texture3D& deltaMultipleScatteringTexture,
-			const glm::vec3& lambdas,
-			const  glm::mat3& luminance_from_radiance,
-			bool blend,
-			unsigned int numScatteringOrders);
-
-		Ref<SV::Texture2D> transmittanceTexture = nullptr;
-		Ref<SV::Texture3D> scatteringTexture = nullptr;
-		Ref<SV::Texture3D> singleMieScatteringTexture = nullptr;
-		Ref<SV::Texture2D> irradianceTexture = nullptr;
-		Ref<SV::VAO> fullScreenQuad = nullptr;
+		uRef<PrecomputeResources> precomputeResources;
 	};
 
 }

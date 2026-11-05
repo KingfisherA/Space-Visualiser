@@ -1,468 +1,352 @@
-#include"SV-Engine/Precompiled Global.hpp"
 #include "Atmosphere.hpp"
-#include"AtmospherePrecomputer.hpp"
 
-#include<unordered_map>
-#include<string>
-#include<utility>
-#include<memory>
+#include <array>
+#include <cmath>
 
-#include"SV-Engine/OpenGL/OpenGL Context.hpp"
-#include"SV-Engine/Scene/Camera.hpp"
-#include"SV-Engine/Utilities/Geometry.hpp"
-
-//
-//
 namespace SV::Atmosphere
 {
-
-#pragma region Atmosphere Shader
-	//
-	AtmosphereShader::AtmosphereShader(const AtmoShaderType type, const SV::String& textureHeader, const Luminance luminance) : SV::ShaderProgram(
-		SV::VertexShader([type]() ->SV::StringView {
-			switch (type)
-			{
-			case SV::Atmosphere::AtmoShaderType::SurfaceShader:
-				return "./Shaders/Atmosphere/AtmosphereMain.v.glsl";
-				break;
-			case SV::Atmosphere::AtmoShaderType::SkyShader:
-				return "./Shaders/Atmosphere/AtmosphereSky.v.glsl";
-				break;
-			default:
-				return"";
-				break;
-			}}()),
-		SV::FragmentShader([type]() ->SV::StringView {
-				switch (type)
-				{
-				case SV::Atmosphere::AtmoShaderType::SurfaceShader:
-					return "./Shaders/Atmosphere/AtmosphereMain.f.glsl";
-					break;
-				case SV::Atmosphere::AtmoShaderType::SkyShader:
-					return "./Shaders/Atmosphere/AtmosphereSky.f.glsl";
-					break;
-				default:
-					return "";
-					break;
-				}}(), true, ShaderKeyMap{
-					{"maxDensityProfileLayers", SV::IntegralToString(MAX_DENSITY_PROFILE_LAYERS)},
-					{"texProperties", textureHeader},
-					//{"atmoParameters", precomputer.GetAtmosphereDataString()},
-					{"radianceAPI", /*precomputer.GetPrecomputedWavelengths() > 3 ? "" :*/ "#define RADIANCE_API_ENABLED\n"},
-					{ "useLuminance", luminance != Luminance::None ? "#define USE_LUMINANCE\n" : "" }
-				})
-				), shaderType(type), atmoUniformCache(22, false) {}
-				//
-
-				//
-#pragma endregion
-	//
-#pragma region IAtmosphere Interface
-//
-//
-				//IAtmosphere::IAtmosphere(Ref<SV::VAO> fullScreenQuadIn, Luminance lumIn) : fullScreenQuad(fullScreenQuadIn), aLuminiance(lumIn) {}
-				////
-				//void IAtmosphere::Initilise(const std::vector<double>& wavelengths, const std::vector<double>& solarIrradiance, double sunAngularRadius,
-				//	double bottomRadius, double topRadius, const std::vector<DensityProfileLayer>& rayleighDensity, const std::vector<double>& rayleighScattering,
-				//	const std::vector<DensityProfileLayer>& mieDensity, const std::vector<double>& mieScattering, const std::vector<double>& mieExtinction,
-				//	double miePhaseFunctionG, const std::vector<DensityProfileLayer>& absorptionDensity, const std::vector<double>& absorptionExtinction,
-				//	const std::vector<double>& groundAlbedo, double maxSunZenithAngle, double lengthUnitInMeters,
-				//	bool combineScatteringTextures, int numPrecomputedWavelengths, unsigned int scatteringOrders)
-				//{
-				//	m_wavelengths = wavelengths;
-				//	m_solarIrradiance = solarIrradiance;
-
-				//	if (numPrecomputedWavelengths < 0) numPrecomputedWavelengths = aLuminiance == Luminance::PRECOMPUTED ? 15 : 3;
-
-				//	aPrecomputer = create <SV::Atmosphere::AtmospherePrecomputer>(wavelengths, solarIrradiance, sunAngularRadius, bottomRadius, topRadius,
-				//		rayleighDensity, rayleighScattering, mieDensity,
-				//		mieScattering, mieExtinction, miePhaseFunctionG, absorptionDensity,
-				//		absorptionExtinction, groundAlbedo, maxSunZenithAngle, lengthUnitInMeters, numPrecomputedWavelengths,
-				//		combineScatteringTextures, fullScreenQuad);
-				//	aPrecomputer->PrecomputeTextures();
-
-				//	auto& atmoParams = AtmosphereShader::GetAtmoProgramParams(aPrecomputer->GetAtmoParamHeader({ aPrecomputer->kLambdaR, aPrecomputer->kLambdaG, aPrecomputer->kLambdaB }),
-				//		numPrecomputedWavelengths, aLuminiance, lengthUnitInMeters);
-
-				//	surfaceShader = create <Atmosphere::AtmosphereShader>(atmoParams, AtmoShaderType::SurfaceShader);
-
-				//	surfaceShader->Bind();
-				//	surfaceShader->SetTextureUniforms(0, *aPrecomputer->GetTransmittanceTex(), 1, *aPrecomputer->GetScatteringTex(), 2, *aPrecomputer->GetIrradianceTex(),
-				//		3, aPrecomputer->GetMieScatteringTex().operator->());
-				//	surfaceShader->SetPlanetCentre(glm::vec3(0.0f, 0.0f, 0.0f));
-				//	surfaceShader->SetSunSize(sunAngularRadius);
-				//	surfaceShader->SetWhitePoint(glm::vec3(1.0f));
-				//	surfaceShader->Unbind();
-
-				//	skyShader = create <Atmosphere::AtmosphereShader>(atmoParams, AtmoShaderType::SkyShader);
-
-				//	skyShader->Bind();
-				//	skyShader->SetTextureUniforms(0, *aPrecomputer->GetTransmittanceTex(), 1, *aPrecomputer->GetScatteringTex(), 2, *aPrecomputer->GetIrradianceTex(),
-				//		3, aPrecomputer->GetMieScatteringTex().operator->());
-				//	skyShader->SetPlanetCentre(glm::vec3(0.0f, 0.0f, 0.0f));
-				//	skyShader->SetSunSize(sunAngularRadius);
-				//	skyShader->SetWhitePoint(glm::vec3(1.0f));
-				//	skyShader->Unbind();
-				//}
-				//
-#pragma endregion
-	//
 #pragma region Earth Atmosphere
-				//
-				EarthAtmosphere::EarthAtmosphere(Ref<SV::VAO> fullScreenQuadIn, Luminance lum)
-				{
-					ScatteringData scatData;
+	//
+	EarthAtmosphere::EarthAtmosphere()
+	{
+		ScatteringData scatData;
 
-					scatData.kLambdaMin = 360;
-					scatData.kLambdaMax = 830;
+		scatData.kLambdaMin = 360;
+		scatData.kLambdaMax = 830;
 
-					// Values from "Reference Solar Spectral Irradiance: ASTM G-173", ETR column
-					// (see http://rredc.nrel.gov/solar/spectra/am1.5/ASTMG173/ASTMG173.html),
-					// summed and averaged in each bin (e.g. the value for 360nm is the average
-					// of the ASTM G-173 values for all wavelengths between 360 and 370nm).
-					// Values in W.m^-2.
-					StaticArray<double, 48> solarIrradianceValues = {
-						1.11776, 1.14259, 1.01249, 1.14716, 1.72765, 1.73054, 1.6887, 1.61253,
-							1.91198, 2.03474, 2.02042, 2.02212, 1.93377, 1.95809, 1.91686, 1.8298,
-							1.8685, 1.8931, 1.85149, 1.8504, 1.8341, 1.8345, 1.8147, 1.78158, 1.7533,
-							1.6965, 1.68194, 1.64654, 1.6048, 1.52143, 1.55622, 1.5113, 1.474, 1.4482,
-							1.41018, 1.36775, 1.34188, 1.31429, 1.28303, 1.26758, 1.2367, 1.2082,
-							1.18737, 1.14683, 1.12362, 1.1058, 1.07124, 1.04992
-					};
-					scatData.solarIrradiance = solarIrradianceValues;
+		// Values from "Reference Solar Spectral Irradiance: ASTM G-173", ETR column
+		// (see http://rredc.nrel.gov/solar/spectra/am1.5/ASTMG173/ASTMG173.html),
+		// summed and averaged in each bin (e.g. the value for 360nm is the average
+		// of the ASTM G-173 values for all wavelengths between 360 and 370nm).
+		// Values in W.m^-2.
+		std::array<double, 48> solarIrradianceValues = {
+			1.11776, 1.14259, 1.01249, 1.14716, 1.72765, 1.73054, 1.6887, 1.61253,
+				1.91198, 2.03474, 2.02042, 2.02212, 1.93377, 1.95809, 1.91686, 1.8298,
+				1.8685, 1.8931, 1.85149, 1.8504, 1.8341, 1.8345, 1.8147, 1.78158, 1.7533,
+				1.6965, 1.68194, 1.64654, 1.6048, 1.52143, 1.55622, 1.5113, 1.474, 1.4482,
+				1.41018, 1.36775, 1.34188, 1.31429, 1.28303, 1.26758, 1.2367, 1.2082,
+				1.18737, 1.14683, 1.12362, 1.1058, 1.07124, 1.04992
+		};
+		scatData.solarIrradiance = solarIrradianceValues;
 
-					StaticArray<double, 48> ozoneCrossSection = {
-						1.18e-27, 2.182e-28, 2.818e-28, 6.636e-28, 1.527e-27, 2.763e-27, 5.52e-27,
-						8.451e-27, 1.582e-26, 2.316e-26, 3.669e-26, 4.924e-26, 7.752e-26, 9.016e-26,
-						1.48e-25, 1.602e-25, 2.139e-25, 2.755e-25, 3.091e-25, 3.5e-25, 4.266e-25,
-						4.672e-25, 4.398e-25, 4.701e-25, 5.019e-25, 4.305e-25, 3.74e-25, 3.215e-25,
-						2.662e-25, 2.238e-25, 1.852e-25, 1.473e-25, 1.209e-25, 9.423e-26, 7.455e-26,
-						6.566e-26, 5.105e-26, 4.15e-26, 4.228e-26, 3.237e-26, 2.451e-26, 2.801e-26,
-						2.534e-26, 1.624e-26, 1.465e-26, 2.078e-26, 1.383e-26, 7.105e-27
-					};
-					// From https://en.wikipedia.org/wiki/Dobson_unit, in molecules.m^-2.
-					constexpr double kDobsonUnit = 2.687e20;
-					// Maximum number density of ozone molecules, in m^-3 (computed so at to get
-					// 300 Dobson units of ozone - for this we divide 300 DU by the integral of
-					// the ozone density profile defined below, which is equal to 15km).
-					constexpr double kMaxOzoneNumberDensity = (300.0 * kDobsonUnit / 15000.0) * 0.1;
+		std::array<double, 48> ozoneCrossSection = {
+			1.18e-27, 2.182e-28, 2.818e-28, 6.636e-28, 1.527e-27, 2.763e-27, 5.52e-27,
+			8.451e-27, 1.582e-26, 2.316e-26, 3.669e-26, 4.924e-26, 7.752e-26, 9.016e-26,
+			1.48e-25, 1.602e-25, 2.139e-25, 2.755e-25, 3.091e-25, 3.5e-25, 4.266e-25,
+			4.672e-25, 4.398e-25, 4.701e-25, 5.019e-25, 4.305e-25, 3.74e-25, 3.215e-25,
+			2.662e-25, 2.238e-25, 1.852e-25, 1.473e-25, 1.209e-25, 9.423e-26, 7.455e-26,
+			6.566e-26, 5.105e-26, 4.15e-26, 4.228e-26, 3.237e-26, 2.451e-26, 2.801e-26,
+			2.534e-26, 1.624e-26, 1.465e-26, 2.078e-26, 1.383e-26, 7.105e-27
+		};
+		// From https://en.wikipedia.org/wiki/Dobson_unit, in molecules.m^-2.
+		constexpr double kDobsonUnit = 2.687e20;
+		// Maximum number density of ozone molecules, in m^-3 (computed so at to get
+		// 300 Dobson units of ozone - for this we divide 300 DU by the integral of
+		// the ozone density profile defined below, which is equal to 15km).
+		constexpr double kMaxOzoneNumberDensity = (300.0 * kDobsonUnit / 15000.0) * 0.1;
 
-					for (double& value : ozoneCrossSection)
-					{
-						value *= kMaxOzoneNumberDensity;
-					}
+		for (double& value : ozoneCrossSection)
+		{
+			value *= kMaxOzoneNumberDensity;
+		}
 
-					// Values from http://www.iup.uni-bremen.de/gruppen/molspec/databases/
-					// referencespectra/o3spectra2011/index.html for 233K, summed and averaged in
-					// each bin (e.g. the value for 360nm is the average of the original values
-					// for all wavelengths between 360 and 370nm). Values in m^2.
-					scatData.rayleighExtinction = ozoneCrossSection;
+		// Values from http://www.iup.uni-bremen.de/gruppen/molspec/databases/
+		// referencespectra/o3spectra2011/index.html for 233K, summed and averaged in
+		// each bin (e.g. the value for 360nm is the average of the original values
+		// for all wavelengths between 360 and 370nm). Values in m^2.
+		scatData.rayleighExtinction = ozoneCrossSection;
 
-					scatData.kBottomRadius = 6360000.0;
-					scatData.kTopRadius = scatData.kBottomRadius + 60000.0;
+		scatData.kBottomRadius = 6360000.0;
+		scatData.kTopRadius = scatData.kBottomRadius + 60000.0;
 
-					constexpr double kRayleighScaleHeight = 8000.0; // Rayleigh layer height for density calculation
-					constexpr double kIOR = 1.0002973; //Refractive index of atmospheric gases at the upper atmosphere (nitrogen at 0.5876 micrometre wavelength at 0 celcius)
-					scatData.kRayleighScatteringCoefficient = AtmospherePrecomputer::CalculateRayleighCoefficient(kIOR);
+		constexpr double kRayleighScaleHeight = 8000.0; // Rayleigh layer height for density calculation
+		constexpr double kIOR = 1.0002973; //Refractive index of atmospheric gases at the upper atmosphere (nitrogen at 0.5876 micrometre wavelength at 0 celcius)
+		scatData.kRayleighScatteringCoefficient = AtmospherePrecomputer::CalculateRayleighCoefficient(kIOR);
 
-					scatData.kMieScaleHeight = 1200.0; //Mie layer height for density calculation
-					scatData.kMieAngstromAlpha = 0.0;
-					scatData.kMieAngstromBeta = 5.328e-3;
-					scatData.kMieSingleScatteringAlbedo = 0.9;
-					scatData.kMiePhaseFunctionG = 0.73;
+		scatData.kMieScaleHeight = 1200.0; //Mie layer height for density calculation
+		scatData.kMieAngstromAlpha = 0.0;
+		scatData.kMieAngstromBeta = 5.328e-3;
+		scatData.kMieSingleScatteringAlbedo = 0.9;
+		scatData.kMiePhaseFunctionG = 0.73;
 
-					scatData.kGroundAlbedo = 0.1;
+		scatData.kGroundAlbedo = 0.1;
 
-					scatData.rayleighDensity[0] = DensityProfileLayer(0.0, 1.0, -1.0 / kRayleighScaleHeight, 0.0, 0.0);
-					scatData.mieDensity[0] = DensityProfileLayer(0.0, 1.0, -1.0 / scatData.kMieScaleHeight, 0.0, 0.0);
-					// Density profile increasing linearly from 0 to 1 between 10 and 25km, and
-					// decreasing linearly from 1 to 0 between 25 and 40km. This is an approximate
-					// profile from http://www.kln.ac.lk/science/Chemistry/Teaching_Resources/
-					// Documents/Introduction%20to%20atmospheric%20chemistry.pdf (page 10).
-					//Specifies the density function for where the extinction coefficient will be applied to
-					//In this case, the extinction coefficients are held within the "kOzoneCrossSection" array for
-					//extinction caused by ozone gas.
-					scatData.absorptionDensity[0] = DensityProfileLayer(25000.0, 0.0, 0.0, 1.0 / 15000.0, -2.0 / 3.0);
-					scatData.absorptionDensity[1] = DensityProfileLayer(0.0, 0.0, 0.0, -1.0 / 15000.0, 8.0 / 3.0);
+		scatData.rayleighDensity[0] = DensityProfileLayer(0.0, 1.0, -1.0 / kRayleighScaleHeight, 0.0, 0.0);
+		scatData.mieDensity[0] = DensityProfileLayer(0.0, 1.0, -1.0 / scatData.kMieScaleHeight, 0.0, 0.0);
+		// Density profile increasing linearly from 0 to 1 between 10 and 25km, and
+		// decreasing linearly from 1 to 0 between 25 and 40km. This is an approximate
+		// profile from http://www.kln.ac.lk/science/Chemistry/Teaching_Resources/
+		// Documents/Introduction%20to%20atmospheric%20chemistry.pdf (page 10).
+		//Specifies the density function for where the extinction coefficient will be applied to
+		//In this case, the extinction coefficients are held within the "kOzoneCrossSection" array for
+		//extinction caused by ozone gas.
+		scatData.absorptionDensity[0] = DensityProfileLayer(25000.0, 0.0, 0.0, 1.0 / 15000.0, -2.0 / 3.0);
+		scatData.absorptionDensity[1] = DensityProfileLayer(0.0, 0.0, 0.0, -1.0 / 15000.0, 8.0 / 3.0);
 
-					atmoPrecomputer = make <AtmospherePrecomputer>(scatData, kLengthUnitInMeters, fullScreenQuadIn);
-					atmoPrecomputer->PrecomputeTextures();
+		atmoPrecomputer = make<AtmospherePrecomputer>(scatData, kLengthUnitInMeters);
 
-					processedAtmoData = &atmoPrecomputer->GetProcessedAtmoData();
-					processedAtmoData->surfaceAtmoIntensity = 0.85f;
-				}
-				//
+		surfaceAtmoIntensity = 0.85f;
+	}
+	//
+#pragma endregion
+		//
+#pragma region Shared
+	//
+	namespace
+	{
+		// Mean solar spectral irradiance at Earth in the visible (W m^-2 nm^-1), roughly the mean of
+		// Earth's ASTM G-173 spectrum
+		constexpr double EARTH_SOLAR_IRRADIANCE = 1.5;
+
+		// Sunlight on a planet `distance` AU from the Sun. The scene shares one exposure, and with the
+		// inverse square law Neptune (900 times dimmer than Earth) would be black: the irradiance falls
+		// as (1 / d^2)^0.35 instead, which gives Saturn a fifth of Earth's rather than a ninetieth.
+		double DisplaySolarIrradiance(const double distance)
+		{
+			return EARTH_SOLAR_IRRADIANCE * std::pow(distance, -0.7);
+		}
+
+		// CalculateRayleighCoefficient leaves out the number density N (it assumes Earth's at sea level,
+		// N0), so it takes an effective index: matching 8 pi^3 (n^2 - 1)^2 / (3 N lambda^4) for a gas
+		// with refractivity `stpRefractivity` (n - 1 at 0 C and 1 atm) at `pressure` (bar) and
+		// `temperature` (K) needs (n - 1) = stpRefractivity * sqrt(N / N0).
+		double EffectiveIndex(const double stpRefractivity, const double pressure, const double temperature)
+		{
+			return 1.0 + stpRefractivity * std::sqrt(pressure * 273.15 / temperature);
+		}
+
+		// A giant planet: gas over a cloud deck veiled by haze. Only the gas above the haze (about the
+		// top fifth of the column above 1 bar) is modelled, as the diffuse map already shows the colour
+		// seen through the rest: (n - 1) is scaled by sqrt(0.2). The haze is submicron, bright and
+		// strongly forward scattering; only a thin layer is modelled, which gives the limb its glow (it
+		// rings the night side when the planet is seen against the Sun).
+		struct GiantPlanetParameters
+		{
+			double equatorialRadius;  // m, at 1 bar
+			double distance;          // AU from the Sun
+			double stpRefractivity;   // of the gas mixture
+			double temperature;       // K, at 1 bar
+			double gasScaleHeight;    // m, at 1 bar
+			double hazeScaleHeight;   // m
+			double hazeOpticalDepth;  // Vertical, at 1 micrometre
+			double hazePhaseG;
+			double atmosphereHeight;  // m, above 1 bar
+		};
+
+		sRef<AtmospherePrecomputer> CreateGiantPlanetAtmosphere(const GiantPlanetParameters& planet)
+		{
+			ScatteringData scatData;
+			scatData.kLambdaMin = 360;
+			scatData.kLambdaMax = 830;
+
+			const std::array<double, 1> solarIrradiance{ DisplaySolarIrradiance(planet.distance) };
+			scatData.solarIrradiance = solarIrradiance;
+
+			// No absorption: methane only absorbs strongly in the red and near infrared, which the
+			// diffuse maps already show
+			const std::array<double, 1> absorptionExtinction{ 0.0 };
+			scatData.rayleighExtinction = absorptionExtinction;
+
+			scatData.kBottomRadius = planet.equatorialRadius;
+			scatData.kTopRadius = planet.equatorialRadius + planet.atmosphereHeight;
+
+			const double gasIndex = EffectiveIndex(planet.stpRefractivity * std::sqrt(0.2), 1.0, planet.temperature);
+			scatData.kRayleighScatteringCoefficient = AtmospherePrecomputer::CalculateRayleighCoefficient(gasIndex);
+
+			scatData.kMieScaleHeight = planet.hazeScaleHeight;
+			scatData.kMieAngstromAlpha = 0.5;
+			scatData.kMieAngstromBeta = planet.hazeOpticalDepth;
+			scatData.kMieSingleScatteringAlbedo = 0.95;
+			scatData.kMiePhaseFunctionG = planet.hazePhaseG;
+
+			// The cloud deck seen from the atmosphere (scaled by lambda^-4 in ProcessAtmosphericData)
+			scatData.kGroundAlbedo = 0.03;
+
+			scatData.rayleighDensity[0] = DensityProfileLayer(0.0, 1.0, -1.0 / planet.gasScaleHeight, 0.0, 0.0);
+			scatData.mieDensity[0] = DensityProfileLayer(0.0, 1.0, -1.0 / planet.hazeScaleHeight, 0.0, 0.0);
+
+			return make<AtmospherePrecomputer>(scatData, kLengthUnitInMeters);
+		}
+	}
+	//
 #pragma endregion
 	//
-#pragma region Jupiter Atmosphere
-				//
-				JupiterAtmosphere::JupiterAtmosphere(Ref<SV::VAO> fullScreenQuadIn, Luminance lum)
-				{
-					ScatteringData scatData;
+#pragma region Terrestrial Atmospheres
+	//
+	MercuryAtmosphere::MercuryAtmosphere()
+	{
+		ScatteringData scatData;
+		scatData.kLambdaMin = 360;
+		scatData.kLambdaMax = 830;
 
-					scatData.kLambdaMin = 360;
-					scatData.kLambdaMax = 830;
+		const std::array<double, 1> solarIrradiance{ DisplaySolarIrradiance(0.387) };
+		scatData.solarIrradiance = solarIrradiance;
+		const std::array<double, 1> absorptionExtinction{ 0.0 };
+		scatData.rayleighExtinction = absorptionExtinction;
 
-					StaticArray<double, 1> kSolarIrradiance{ 1.5 };
-					scatData.solarIrradiance = kSolarIrradiance;
+		scatData.kBottomRadius = 2439700.0;
+		scatData.kTopRadius = scatData.kBottomRadius + 50000.0;
 
-					StaticArray<double, 1> kRayleighExtinctionCoefficient{ 8.5e-8 };
-					scatData.rayleighExtinction = kRayleighExtinctionCoefficient;
+		// Vanishingly thin, but not zero (the precomputation divides by the scattering coefficients)
+		constexpr double kScaleHeight = 10000.0;
+		scatData.kRayleighScatteringCoefficient = AtmospherePrecomputer::CalculateRayleighCoefficient(1.0 + 1e-8);
+		scatData.kMieScaleHeight = kScaleHeight;
+		scatData.kMieAngstromAlpha = 0.0;
+		scatData.kMieAngstromBeta = 1e-9;
+		scatData.kMieSingleScatteringAlbedo = 0.9;
+		scatData.kMiePhaseFunctionG = 0.7;
+		scatData.kGroundAlbedo = 0.01;
 
-					scatData.kBottomRadius = 69911000.0;
-					scatData.kTopRadius = scatData.kBottomRadius + 5000000.0;
+		scatData.rayleighDensity[0] = DensityProfileLayer(0.0, 1.0, -1.0 / kScaleHeight, 0.0, 0.0);
+		scatData.mieDensity[0] = DensityProfileLayer(0.0, 1.0, -1.0 / kScaleHeight, 0.0, 0.0);
 
-					constexpr double kRayleighScaleHeight = 30000.0; // Rayleigh layer height for density calculation
-					constexpr double kIOR = 1.00014930; //Refractive index of atmospheric gases at the upper atmosphere (nitrogen at 0.5876 micrometre wavelength at 0 celcius)
-					scatData.kRayleighScatteringCoefficient = AtmospherePrecomputer::CalculateRayleighCoefficient(kIOR);
+		atmoPrecomputer = make<AtmospherePrecomputer>(scatData, kLengthUnitInMeters);
+	}
 
-					scatData.kMieScaleHeight = 1200.0; //Mie layer height for density calculation
-					scatData.kMieAngstromAlpha = 0.0;
-					scatData.kMieAngstromBeta = 5.328e-3;
-					scatData.kMieSingleScatteringAlbedo = 0.9;
-					scatData.kMiePhaseFunctionG = 0.73;
+	VenusAtmosphere::VenusAtmosphere()
+	{
+		ScatteringData scatData;
+		scatData.kLambdaMin = 360;
+		scatData.kLambdaMax = 830;
 
-					scatData.kGroundAlbedo = 1.5;
+		const std::array<double, 1> solarIrradiance{ DisplaySolarIrradiance(0.723) };
+		scatData.solarIrradiance = solarIrradiance;
+		const std::array<double, 1> absorptionExtinction{ 0.0 };
+		scatData.rayleighExtinction = absorptionExtinction;
 
-					scatData.rayleighDensity[0] = DensityProfileLayer(0.0, 1.0, -1.0 / kRayleighScaleHeight, 0.0, 0.0);
-					scatData.mieDensity[0] = DensityProfileLayer(0.0, 1.0, -1.0 / scatData.kMieScaleHeight, 0.0, 0.0);
-					scatData.absorptionDensity[0] = DensityProfileLayer(0.0, 1.0, -1.0 / ((scatData.kTopRadius - scatData.kBottomRadius) * 0.1), 0.0, 0.0);
-					scatData.absorptionDensity[1] = DensityProfileLayer();
+		// The bottom is the top of the sulphuric acid clouds, about 70 km up, where the pressure is
+		// about 40 mbar: the clouds hide everything below
+		scatData.kBottomRadius = 6051800.0;
+		scatData.kTopRadius = scatData.kBottomRadius + 80000.0;
 
-					atmoPrecomputer = make <AtmospherePrecomputer>(scatData, kLengthUnitInMeters, fullScreenQuadIn);
-					atmoPrecomputer->PrecomputeTextures();
+		// Carbon dioxide (refractivity 4.49e-4) at 40 mbar and 230 K
+		constexpr double kRayleighScaleHeight = 4900.0;
+		scatData.kRayleighScatteringCoefficient =
+			AtmospherePrecomputer::CalculateRayleighCoefficient(EffectiveIndex(4.49e-4, 0.04, 230.0));
 
-					processedAtmoData = &atmoPrecomputer->GetProcessedAtmoData();
-					processedAtmoData->surfaceAtmoIntensity = 0.08f;
-				}
-				//
+		// The upper haze over the clouds: submicron sulphuric acid droplets, which make the limb glow
+		scatData.kMieScaleHeight = 5000.0;
+		scatData.kMieAngstromAlpha = 1.0;
+		scatData.kMieAngstromBeta = 0.15;
+		scatData.kMieSingleScatteringAlbedo = 0.995;
+		scatData.kMiePhaseFunctionG = 0.75;
+
+		// The bright clouds (scaled by lambda^-4 in ProcessAtmosphericData)
+		scatData.kGroundAlbedo = 0.07;
+
+		scatData.rayleighDensity[0] = DensityProfileLayer(0.0, 1.0, -1.0 / kRayleighScaleHeight, 0.0, 0.0);
+		scatData.mieDensity[0] = DensityProfileLayer(0.0, 1.0, -1.0 / scatData.kMieScaleHeight, 0.0, 0.0);
+
+		atmoPrecomputer = make<AtmospherePrecomputer>(scatData, kLengthUnitInMeters);
+	}
+
+	MarsAtmosphere::MarsAtmosphere()
+	{
+		ScatteringData scatData;
+		scatData.kLambdaMin = 360;
+		scatData.kLambdaMax = 830;
+
+		const std::array<double, 1> solarIrradiance{ DisplaySolarIrradiance(1.524) };
+		scatData.solarIrradiance = solarIrradiance;
+
+		scatData.kBottomRadius = 3396200.0;
+		scatData.kTopRadius = scatData.kBottomRadius + 100000.0;
+
+		// Carbon dioxide at 6 mbar and 210 K: a Rayleigh optical depth of only 0.004
+		constexpr double kScaleHeight = 11100.0;
+		scatData.kRayleighScatteringCoefficient =
+			AtmospherePrecomputer::CalculateRayleighCoefficient(EffectiveIndex(4.49e-4, 0.006, 210.0));
+
+		// Suspended dust (a few micrometres across, so grey extinction) mixed through the lower
+		// atmosphere: an optical depth of about 0.4 outside dust storms
+		scatData.kMieScaleHeight = kScaleHeight;
+		scatData.kMieAngstromAlpha = 0.0;
+		scatData.kMieAngstromBeta = 0.4;
+		scatData.kMieSingleScatteringAlbedo = 0.97;
+		scatData.kMiePhaseFunctionG = 0.65;
+
+		// The dust's iron oxides absorb blue light, which gives the butterscotch sky. The absorption
+		// follows the dust; ProcessAtmosphericData scales it by lambda^-4 (in micrometres), which gives
+		// an albedo of about 0.75 at 450 nm and 0.95 at 650 nm.
+		const std::array<double, 1> dustAbsorption{ 3.5e-7 };
+		scatData.rayleighExtinction = dustAbsorption;
+		scatData.absorptionDensity[0] = DensityProfileLayer(0.0, 1.0, -1.0 / kScaleHeight, 0.0, 0.0);
+
+		// Scaled by lambda^-4 in ProcessAtmosphericData
+		scatData.kGroundAlbedo = 0.02;
+
+		scatData.rayleighDensity[0] = DensityProfileLayer(0.0, 1.0, -1.0 / kScaleHeight, 0.0, 0.0);
+		scatData.mieDensity[0] = DensityProfileLayer(0.0, 1.0, -1.0 / kScaleHeight, 0.0, 0.0);
+
+		atmoPrecomputer = make<AtmospherePrecomputer>(scatData, kLengthUnitInMeters);
+	}
+	//
 #pragma endregion
 	//
-#pragma region Saturn Atmosphere
-				//
-				SaturnAtmosphere::SaturnAtmosphere(Ref<SV::VAO> fullScreenQuadIn, Luminance lum)
-				{
-					ScatteringData scatData;
-
-					scatData.kLambdaMin = 360;
-					scatData.kLambdaMax = 830;
-
-					StaticArray<double, 1> kSolarIrradiance{ 1.5 };
-					scatData.solarIrradiance = kSolarIrradiance;
-
-					StaticArray<double, 1>kRayleighExtinctionCoefficient{ 8.5e-8 };
-					scatData.rayleighExtinction = kRayleighExtinctionCoefficient;
-
-					scatData.kBottomRadius = 6360000.0;
-					scatData.kTopRadius = scatData.kBottomRadius + 60000.0;
-
-					constexpr double kRayleighScaleHeight = 4000.0; // Rayleigh layer height for density calculation
-					constexpr double kIOR = 1.00014930; //Refractive index of atmospheric gases at the upper atmosphere (nitrogen at 0.5876 micrometre wavelength at 0 celcius)
-					scatData.kRayleighScatteringCoefficient = AtmospherePrecomputer::CalculateRayleighCoefficient(kIOR);
-
-					scatData.kMieScaleHeight = 2300.0; //1326.0; //Mie layer height for density calculation
-					scatData.kMieAngstromAlpha = 0.0;
-					scatData.kMieAngstromBeta = 0.3;
-					scatData.kMieSingleScatteringAlbedo = 0.9;
-					scatData.kMiePhaseFunctionG = 0.73;
-
-					scatData.kGroundAlbedo = 0.1;
-
-					scatData.rayleighDensity[0] = DensityProfileLayer(0.0, 1.0, -1.0 / kRayleighScaleHeight, 0.0, 0.0);
-					scatData.mieDensity[0] = DensityProfileLayer(0.0, 1.0, -1.0 / scatData.kMieScaleHeight, 0.0, 0.0);
-					scatData.absorptionDensity[0] = DensityProfileLayer(25000.0, 0.0, 0.0, 1.0 / 15000.0, -2.0 / 3.0);
-					scatData.absorptionDensity[1] = DensityProfileLayer(0.0, 0.0, 0.0, -1.0 / 15000.0, 8.0 / 3.0);
-
-					atmoPrecomputer = make <AtmospherePrecomputer>(scatData, kLengthUnitInMeters, fullScreenQuadIn);
-					atmoPrecomputer->PrecomputeTextures();
-
-					processedAtmoData = &atmoPrecomputer->GetProcessedAtmoData();
-					processedAtmoData->surfaceAtmoIntensity = 0.1f;
-				}
-				//
-#pragma endregion
-//
-#pragma region Titan Atmosphere
-				//
-				TitanAtmosphere::TitanAtmosphere(Ref<SV::VAO> fullScreenQuadIn, Luminance lum)
-				{
-					ScatteringData scatData;
-
-					scatData.kLambdaMin = 360;
-					scatData.kLambdaMax = 830;
-
-					StaticArray<double, 1> kSolarIrradiance{ 1.5 };
-					scatData.solarIrradiance = kSolarIrradiance;
-
-					StaticArray<double, 1>kRayleighExtinctionCoefficient{ 1.5e-6 };
-					scatData.rayleighExtinction = kRayleighExtinctionCoefficient;
-
-					scatData.kBottomRadius = 2574700.0;
-					scatData.kTopRadius = scatData.kBottomRadius + 595457.0;
-
-					constexpr double kRayleighScaleHeight = 30000.0; // Rayleigh layer height for density calculation
-					constexpr double kIOR = 1.00029433; //Refractive index of atmospheric gases at the upper atmosphere (nitrogen at 0.5876 micrometre wavelength at 0 celcius)
-					scatData.kRayleighScatteringCoefficient = AtmospherePrecomputer::CalculateRayleighCoefficient(kIOR);
-
-					scatData.kMieScaleHeight = 1200.0; //Mie layer height for density calculation
-					scatData.kMieAngstromAlpha = 0.0;
-					scatData.kMieAngstromBeta = 5.328e-3;
-					scatData.kMieSingleScatteringAlbedo = 0.9;
-					scatData.kMiePhaseFunctionG = 0.73;
-
-					scatData.kGroundAlbedo = 1.5;
-
-					scatData.rayleighDensity[0] = DensityProfileLayer(0.0, 1.0, -1.0 / kRayleighScaleHeight, 0.0, 0.0);
-					scatData.mieDensity[0] = DensityProfileLayer(0.0, 1.0, -1.0 / scatData.kMieScaleHeight, 0.0, 0.0);
-
-					scatData.absorptionDensity[0] = DensityProfileLayer(0.0, 1.0, -1.0 / ((scatData.kTopRadius - scatData.kBottomRadius) * 0.1), 0.0, 0.0);
-
-					atmoPrecomputer = make <AtmospherePrecomputer>(scatData, kLengthUnitInMeters, fullScreenQuadIn);
-					atmoPrecomputer->PrecomputeTextures();
-
-					processedAtmoData = &atmoPrecomputer->GetProcessedAtmoData();
-					processedAtmoData->surfaceAtmoIntensity = 0.9f;
-				}
-				//
-#pragma endregion
-//
-
+#pragma region Giant Planet Atmospheres
 	//
-//#pragma region Atmosphere Renderer
-//	//
-//				//Static variables
-//				SV::Camera AtmosphereRenderer::skyCam;
-//				const glm::mat4 AtmosphereRenderer::RING_ROTATION_CORRECTION = glm::rotate(glm::radians(90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
-//				const glm::mat4 AtmosphereRenderer::SKY_SCALE_MAT = glm::scale(glm::vec3(1.01f));
-//				//
-//				constexpr float ringsInnerRad = 1.5f;
-//				constexpr float ringsOuterRad = 3.2f;
-//				//
-//				AtmosphereRenderer::AtmosphereRenderer() : atmospheres()
-//				{
-//					sphereVAO = create <SV::VAO>();
-//					Ref<SV::Mesh> sphereMesh = SV::Geometry::CreateSphere(1.0f, 50, 50);
-//					sphereVAO->Bind();
-//					sphereVAO->AddAttributeArray(0, create<SV::ArrayBuffer>(sphereMesh->GetVertexArray()), SV::AttributeLayout(3));
-//					sphereVAO->AddAttributeArray(1, create<SV::ArrayBuffer>(sphereMesh->GetNormalsArray()), SV::AttributeLayout(3));
-//					sphereVAO->AddAttributeArray(2, create<SV::ArrayBuffer>(sphereMesh->GetTexCoordsArray()), SV::AttributeLayout(2));
-//					sphereVAO->AddIndexBuffer(create <SV::IndexBuffer>(sphereMesh->GetIndiciesArray()));
-//					sphereVAO->EnableAttributeArray(0, 2);
-//					sphereVAO->Unbind();
-//
-//					ringsVAO = create <SV::VAO>();
-//					Ref<SV::Mesh> ringsMesh = SV::Geometry::CreateRings(ringsInnerRad, ringsOuterRad, 50);
-//					ringsVAO->Bind();
-//					ringsVAO->AddAttributeArray(0, create<SV::ArrayBuffer>(ringsMesh->GetVertexArray()), SV::AttributeLayout(2));
-//					ringsVAO->AddIndexBuffer(create <SV::IndexBuffer>(ringsMesh->GetIndiciesArray()));
-//					ringsVAO->EnableAttributeArray(0);
-//					ringsVAO->Unbind();
-//
-//					ringsProgram = create <SV::ShaderProgram>(SV::VertexShader("Shaders/Atmosphere/Rings/Rings.v.glsl"), SV::FragmentShader("Shaders/Atmosphere/Rings/Rings.f.glsl"));
-//					ringsProgram->Bind();
-//					ringsProgram->UploadFloat("ringWidth", ringsOuterRad - ringsInnerRad);
-//					ringsProgram->UploadInt("ringMap", 0);
-//					ringsProgram->Unbind();
-//				}
-//				//
-//				size_t AtmosphereRenderer::AddAtmosphere(const Ref<IAtmosphere> atmo)
-//				{
-//					return atmospheres.Add(atmo);
-//				}
-//				//
-//				void AtmosphereRenderer::Render(const glm::mat4& projectionMatrix, const Camera& cam, const float time, const float exposure, const glm::vec3& sunPosition, const SV::ITexture& earthTex,
-//					const SV::ITexture& specularMap, const SV::ITexture* cloudsTex, const SV::ITexture* ringsMap, const SV::ITexture* nightMap)
-//				{
-//					if (atmospheres.GetCount() == 0) return;
-//
-//					unsigned int i = 0;
-//
-//					sphereVAO->Bind();
-//					for (i = 0; i < atmospheres.GetCount(); i++)
-//					{
-//						const Ref<IAtmosphere>& currentAtmo = atmospheres[i];
-//						const Ref<AtmosphereShader>& surfaceShader = currentAtmo->GetSurfaceShader();
-//						const Ref<AtmosphereShader>& skyShader = currentAtmo->GetSkyShader();
-//
-//						surfaceShader->Bind();
-//
-//						glm::mat4 transformMat(1.0f);
-//						//Upload matricies
-//						surfaceShader->UploadMatrixF("uTransformMatrix", transformMat);
-//						surfaceShader->UploadMatrixF("uViewProjMatrix", projectionMatrix * cam.GetViewMatrix());
-//						surfaceShader->UploadMatrixF("uNormalMatrix", Maths::CalculateNormalMatrix(transformMat));
-//						surfaceShader->UploadMatrixF("uInverseViewMatrix", cam.GetInverseViewMatrix());
-//
-//						//Upload vital uniforms
-//						constexpr float planetRadius = 6360.0f;
-//						surfaceShader->UploadFloat("uCameraPos", cam.GetActualPosition() * planetRadius);
-//						surfaceShader->UploadFloat("uExposure", /*currentAtmo->GetLuminance() != Luminance::NONE ? (float)exposure * (float)1e-5 :*/ (float)exposure);
-//						surfaceShader->UploadFloat("uSunPosition", sunPosition);
-//						surfaceShader->UploadFloat("uTime", time);
-//
-//						//Upload textures
-//						surfaceShader->UploadTexture("uDiffuseMap", 4, earthTex);
-//						surfaceShader->UploadTexture("uSpecularMap", 5, specularMap);
-//
-//						surfaceShader->UploadOptionalTexture("uCloudsMap", 6, cloudsTex);
-//						surfaceShader->UploadOptionalTexture("uRingsShadowMap", 7, ringsMap);
-//						surfaceShader->UploadOptionalTexture("uNightMap", 8, nightMap);
-//
-//						glDrawElements(GL_TRIANGLES, sphereVAO->GetEleCount(), GL_UNSIGNED_INT, nullptr);
-//
-//						skyShader->Bind();
-//
-//						//Set sky camera properties
-//						skyCam.Imitate(cam);
-//						constexpr float defaultZoomAmount = 8200.0f;
-//						skyCam.SetZoom(defaultZoomAmount * cam.GetZoom());
-//						skyCam.SetCentrePosition(glm::vec3(0.0f));
-//						skyCam.RecalculateViewMatrix();
-//
-//						glm::mat4 skyTransformMatrix = SKY_SCALE_MAT;
-//						//Upload matricies
-//						skyShader->UploadMatrixF("uViewProjMatrix", projectionMatrix * cam.GetViewMatrix());
-//						skyShader->UploadMatrixF("uTransformMatrix", skyTransformMatrix);
-//						skyShader->UploadMatrixF("uNormalMatrix", Maths::CalculateNormalMatrix(skyTransformMatrix));
-//
-//						//Upload vital uniforms
-//						skyShader->UploadFloat("uCameraPos", cam.GetActualPosition());
-//						skyShader->UploadFloat("uExposure", /*currentAtmo->GetLuminance() != Luminance::NONE ? (float)exposure * (float)1e-5 :*/  (float)exposure + 2.0f);
-//						skyShader->UploadFloat("uSunPosition", sunPosition);
-//
-//						glDrawElements(GL_TRIANGLES, sphereVAO->GetEleCount(), GL_UNSIGNED_INT, nullptr);
-//
-//					}
-//					sphereVAO->Unbind();
-//
-//					ringsProgram->Bind();
-//					ringsVAO->Bind();
-//
-//					glm::mat4 ringsTransformation(1.0f);
-//					glDisable(GL_CULL_FACE);
-//					for (i = 0; i < atmospheres.GetCount(); i++)
-//					{
-//						ringsMap->Bind(0);
-//
-//						ringsTransformation *= RING_ROTATION_CORRECTION;
-//
-//						ringsProgram->UploadMatrixF("u_transformMatrix", ringsTransformation);
-//						ringsProgram->UploadMatrixF("u_viewProjMatrix", projectionMatrix * cam.GetViewMatrix());
-//						ringsProgram->UploadFloat("lightPosition", sunPosition);
-//
-//						glDrawElements(GL_TRIANGLES, ringsVAO->GetEleCount(), GL_UNSIGNED_INT, nullptr);
-//
-//						ringsMap->Unbind();
-//					}
-//					glEnable(GL_CULL_FACE);
-//
-//					ringsVAO->Unbind();
-//					ringsProgram->Unbind();
-//
-//				}
-//				//
-//#pragma endregion
+	// Refractivities at 0 C and 1 atm: H2 1.32e-4, He 3.5e-5, CH4 4.4e-4
+	JupiterAtmosphere::JupiterAtmosphere()
+	{
+		// 86% H2, 14% He at 165 K; scale height 27 km (2.22 g/mol, g = 24.8 m s^-2)
+		atmoPrecomputer = CreateGiantPlanetAtmosphere({
+			.equatorialRadius = 71492000.0,
+			.distance = 5.203,
+			.stpRefractivity = 1.18e-4,
+			.temperature = 165.0,
+			.gasScaleHeight = 27000.0,
+			.hazeScaleHeight = 60000.0,
+			.hazeOpticalDepth = 0.1,
+			.hazePhaseG = 0.75,
+			.atmosphereHeight = 600000.0 });
+	}
 
+	SaturnAtmosphere::SaturnAtmosphere()
+	{
+		// 96% H2 at 134 K; scale height 59.5 km (2.07 g/mol, g = 10.4 m s^-2). The haze (fractal
+		// aggregates; Cassini's high phase views give g of about 0.8) reaches far higher than the
+		// gas's scale height, with detached layers hundreds of km up.
+		atmoPrecomputer = CreateGiantPlanetAtmosphere({
+			.equatorialRadius = 60268000.0,
+			.distance = 9.537,
+			.stpRefractivity = 1.28e-4,
+			.temperature = 134.0,
+			.gasScaleHeight = 59500.0,
+			.hazeScaleHeight = 150000.0,
+			.hazeOpticalDepth = 0.15,
+			.hazePhaseG = 0.8,
+			.atmosphereHeight = 1000000.0 });
+	}
 
+	UranusAtmosphere::UranusAtmosphere()
+	{
+		// 83% H2, 15% He, 2.3% CH4 at 76 K; scale height 28 km (2.64 g/mol, g = 8.9 m s^-2)
+		atmoPrecomputer = CreateGiantPlanetAtmosphere({
+			.equatorialRadius = 25559000.0,
+			.distance = 19.19,
+			.stpRefractivity = 1.25e-4,
+			.temperature = 76.0,
+			.gasScaleHeight = 28000.0,
+			.hazeScaleHeight = 50000.0,
+			.hazeOpticalDepth = 0.05,
+			.hazePhaseG = 0.7,
+			.atmosphereHeight = 500000.0 });
+	}
 
+	NeptuneAtmosphere::NeptuneAtmosphere()
+	{
+		// 80% H2, 19% He, 1.5% CH4 at 72 K; scale height 21 km (2.6 g/mol, g = 11.2 m s^-2)
+		atmoPrecomputer = CreateGiantPlanetAtmosphere({
+			.equatorialRadius = 24764000.0,
+			.distance = 30.07,
+			.stpRefractivity = 1.25e-4,
+			.temperature = 72.0,
+			.gasScaleHeight = 21000.0,
+			.hazeScaleHeight = 40000.0,
+			.hazeOpticalDepth = 0.05,
+			.hazePhaseG = 0.7,
+			.atmosphereHeight = 400000.0 });
+	}
+	//
+#pragma endregion
 }

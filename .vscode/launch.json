@@ -1,17 +1,17 @@
-   {
-        "version": "0.2.0",
-        "configurations": [
-            {
-                "name": "Run CMake Target",
-                "type": "cppdbg", // Use "cppdbg" for Linux/macOS
-                "request": "launch",
-                "program": "${command:cmake.launchTargetPath}",
-                "args": [],
-                "stopAtEntry": false,
-                "cwd": "${workspaceFolder}/bin/darwin/Debug/", // Set your desired working directory here
-                "environment": [],
-                "externalConsole": false,
-                "MIMode": "lldb"
-            }
-        ]
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Run CMake Target",
+      "type": "cppdbg",
+      "request": "launch",
+      "program": "${command:cmake.launchTargetPath}",
+      "args": [],
+      "stopAtEntry": false,
+      "cwd": "${workspaceFolder}/build/SV",
+      "environment": [],
+      "externalConsole": false,
+      "MIMode": "lldb"
     }
+  ]
+}

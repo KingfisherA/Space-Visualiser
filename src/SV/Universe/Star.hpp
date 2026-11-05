@@ -1,73 +1,30 @@
 #pragma once
-#include"SV-Engine/Utilities/GlobalItems.hpp"
-#include"SV-Engine/OpenGL/ShaderProgram.hpp"
-#include"SV-Engine/Scene/Transformation.hpp"
-#include"SV-Engine/Utilities/Array.hpp"
-#include"SV-Engine/Utilities/SVMemory.hpp"
-#include"CelestrialBody.hpp"
+#include <vector>
+
+#include <glm/glm.hpp>
+
+#include "Dahlia/Graphics/GPUMesh.h"
+#include "Dahlia/Graphics/GraphicsPipeline.h"
+#include "Dahlia/Utilities/Memory.h"
+#include "SV/Graphics/ModalPipeline.hpp"
+#include "CelestrialBody.hpp"
+
+namespace DH
+{
+	class CommandList;
+}
 
 namespace SV
 {
-	//Forward declarations
-	class VAO;
-	class ArrayBuffer;
-	class Camera;
+	struct SceneContext;
 
-	//
-	class StarShader : public ShaderProgram
-	{
-	public:
-		StarShader();
-		//
-		inline void SetViewMatrix(const glm::mat4& va) { UploadMatrixF(viewMatLocation, va); }
-		inline void SetProjectionMatrix(const glm::mat4& va) { UploadMatrixF(projMatLocation, va); }
-		//
-		inline void SetTime(const float va) { UploadFloat(timeLocation, va); }
-		inline void SetCamPosition(const glm::vec3& va) { UploadFloat(cameraPositionLocation, va); }
-		//
-	private:
-		//
-		Uniform viewMatLocation = 0;
-		Uniform projMatLocation = 0;
-		//
-		Uniform timeLocation = 0;
-		Uniform cameraPositionLocation = 0;
-	};
+	// Colour of a blackbody at the given temperature (K): linear sRGB with a luminance of 1
+	glm::vec3 BlackbodyColour(float temperature);
 
-	//
-	class CoronaShader : public ShaderProgram
-	{
-	public:
-		CoronaShader();
-		//
-		inline void SetViewMatrix(const glm::mat4& va) { UploadMatrixF(viewMatLocation, va); }
-		inline void SetProjectionMatrix(const glm::mat4& va) { UploadMatrixF(projMatLocation, va); }
-		//
-		inline void SetTime(const float va) { UploadFloat(timeLocation, va); }
-		inline void SetNoiseOctaves(const GLsizei va) { UploadUInt(noiseOctavesLocation, va); }
-		//
-	private:
-		//
-		Uniform viewMatLocation = 0;
-		Uniform projMatLocation = 0;
-		//
-		Uniform timeLocation = 0;
-		Uniform noiseOctavesLocation = 0;
-	};
-
-	//
 	class Star : public CelestrialBody
 	{
 	public:
-		Star(const double massIn, float radiusIn, float starTempIn) :
-			CelestrialBody(CelestrialBodyType::Star, massIn),
-			starColour(1.0f),
-			radius(radiusIn),
-			starTemperature(starTempIn)
-		{
-		}
-
-		Star(const double massIn, float radiusIn, float starTempIn, const glm::vec3& starColIn) :
+		Star(const double massIn, float radiusIn, float starTempIn, const glm::vec3& starColIn = glm::vec3(1.0f)) :
 			CelestrialBody(CelestrialBodyType::Star, massIn),
 			radius(radiusIn),
 			starTemperature(starTempIn),
@@ -75,30 +32,13 @@ namespace SV
 		{
 		}
 
-		Star(const double massIn, float radiusIn, float starTempIn, const glm::vec3& starColIn, const glm::vec3& position) :
-			CelestrialBody(CelestrialBodyType::Star, massIn, position),
-			radius(radiusIn),
-			starTemperature(starTempIn),
-			starColour(starColIn)
-		{
-		}
+		// The photosphere's colour: a blackbody at the star's temperature, tinted by starColour
+		[[nodiscard]] glm::vec3 GetPhotosphereColour() const { return BlackbodyColour(starTemperature) * starColour; }
 
-		Star(const Star& s) :
-			CelestrialBody(CelestrialBodyType::Star, s.mass),
-			radius(s.radius),
-			starTemperature(s.starTemperature),
-			starColour(s.starColour)
-		{
-		}
-		//
+		// The star is drawn with the radius of its scale; this scales its sunspot noise
 		float radius = 1.0f;
-		float starTemperature = 5800.0f;
+		float starTemperature = 5772.0f;
 		glm::vec3 starColour;
-		//
-	private:
-		//
-		friend class StarRenderer;
-		//
 	};
 
 	namespace PresetStars
@@ -106,42 +46,47 @@ namespace SV
 		class Sun : public Star
 		{
 		public:
-			Sun() : Star(1.989E30, 1.0f, 5800.0f, glm::vec3(1.0f))
-			{
-			}
-			Sun(const glm::vec3& posIn) : Star(1.989E30, 1.0f, 5800.0f, glm::vec3(1.0f), posIn)
-			{
-			}
+			Sun() : Star(1.98847E30, 1.0f, 5772.0f, glm::vec3(1.0f)) {}
 		};
 	}
 
-	//
+	// How the scene is viewed, for drawing flares
+	struct FlareView
+	{
+		glm::mat4 viewProjection;
+		glm::vec3 cameraPosition;
+		float projectionScale; // The projection's [1][1]: 1 / tan(half the vertical field of view)
+		glm::vec2 viewportSize; // Pixels
+	};
+
+	// Draws stars (noise textured spheres) and their coronas and chromospheres (additive camera
+	// facing quads), and the glare of stars too small on screen to show them (a lens flare)
 	class StarRenderer : public CelestrialRenderer<SV::Star>
 	{
 	public:
-		StarRenderer();
-		//
-		void Render(float time, const Camera& currentCamera, const glm::mat4& projMatrix);
-		//
-	private:
-		//
-		void PackStarAttributes(SV::Array<float>& data);
-		void PackCoronaAttributes(SV::Array<float>& data, const Camera& currentCamera);
-		//
-		SV::Array<Ref<SV::Star>>& stars = CelestrialRenderer<SV::Star>::celestrialBodies;
-		SV::Array<float> starAttributeArray;
-		//
-		Ref<StarShader> starProgram;
-		Ref<CoronaShader> coronaProgram;
-		//
-		static constexpr unsigned short starAttributeSize = 31U;
-		Ref<ArrayBuffer> starAttributeBuffer;
-		//
-		static constexpr unsigned short coronaAttributeSize = 19U;
-		Ref<ArrayBuffer> coronaAttributeBuffer;
-		//
-		Ref<VAO> starVAO;
-		Ref<VAO> coronaVAO;
-	};
+		explicit StarRenderer(const SceneContext& context);
 
+		// Must be inside the scene render pass with the frame bind group bound at set 0
+		void Render(DH::CommandList& cmd, DH::PolygonMode polygonMode);
+
+		// Draws the flares over everything else, so call it last in the scene pass. Each fades in
+		// as its star shrinks on screen, and is dimmed by the part of the star's disc that
+		// `occluders` (the scene's other bodies) hide.
+		void RenderFlares(DH::CommandList& cmd, const FlareView& view, const std::vector<sRef<CelestrialBody>>& occluders);
+
+		// Brightness of the hydrogen (Balmer line) emission of the chromosphere and prominences
+		float hydrogenEmission = 1.0f;
+		// Brightness of the flare (0 for none)
+		float flareIntensity = 1.0f;
+
+	private:
+		std::vector<sRef<SV::Star>>& stars = CelestrialRenderer<SV::Star>::celestrialBodies;
+
+		sRef<DH::GPUMesh> sphereMesh;
+		sRef<DH::GPUMesh> quadMesh;
+
+		ModalPipeline starPipeline;
+		ModalPipeline coronaPipeline;
+		sRef<DH::GraphicsPipeline> flarePipeline;
+	};
 }
