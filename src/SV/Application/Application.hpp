@@ -78,8 +78,10 @@ namespace SV
 		uRef<Universe::PlanetarySystem> solarSystem;
 		std::vector<NamedBody> namedBodies;
 
+		// The body that lights the scene (the Sun)
+		sRef<CelestrialBody> lightSource;
+
 		// Scene settings
-		glm::vec3 lightPosition{ -10.0f, 0.0f, 0.0f };
 		float exposure = 10.0f;
 		DH::PolygonMode polygonMode = DH::PolygonMode::Solid;
 		double animationTime = 0.0;

@@ -1,6 +1,7 @@
 #include "Planetary System.h"
 
 #include <algorithm>
+#include <cmath>
 #include <stdexcept>
 
 #include "Dahlia/Maths/Maths.h"
@@ -13,6 +14,22 @@ namespace SV::Universe
 	{
 		if (sRIn == nullptr || pRIn == nullptr)
 			throw std::invalid_argument("For a planetary system to be constructed, a valid StarRenderer and PlanetRenderer must be passed.");
+	}
+
+	double PlanetarySystem::CircularOrbitSpeed(const double centralMass, const double distance)
+	{
+		return std::sqrt(SV::Maths::Gravity::G * centralMass / (distance * METRES_PER_UNIT));
+	}
+
+	void PlanetarySystem::ZeroMomentum(const sRef<SV::CelestrialBody>& body)
+	{
+		glm::dvec3 momentum(0.0);
+		for (const auto& other : celestrialBodies)
+		{
+			if (other != body)
+				momentum += other->mass * other->velocity;
+		}
+		body->velocity = -momentum / body->mass;
 	}
 
 	PlanetarySystemI PlanetarySystem::Add(const sRef<SV::CelestrialBody>& body)
@@ -65,8 +82,7 @@ namespace SV::Universe
 			{
 				if (body1 == body2) continue;
 
-				// Assume distances 1 unit = 1x10^6 km * 1x10^9
-				const glm::dvec3 separation = (1E9 * (glm::dvec3)body2->translation) - (1E9 * (glm::dvec3)body1->translation);
+				const glm::dvec3 separation = METRES_PER_UNIT * ((glm::dvec3)body2->translation - (glm::dvec3)body1->translation);
 				const double sqrDst = glm::length2(separation);
 				const glm::dvec3 force = glm::normalize(separation) * G * body1->mass * body2->mass / sqrDst;
 				const glm::dvec3 acceleration = force / body1->mass;
@@ -75,7 +91,8 @@ namespace SV::Universe
 			}
 		}
 
+		// Semi-implicit Euler (positions move with the updated velocities), which keeps orbits stable
 		for (const auto& body : celestrialBodies)
-			body->translation += (glm::vec3)(body->velocity / 1.0E6 * deltaTime);
+			body->translation += (glm::vec3)(body->velocity / METRES_PER_UNIT * deltaTime);
 	}
 }

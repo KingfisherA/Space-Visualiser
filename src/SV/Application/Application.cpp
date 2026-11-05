@@ -60,14 +60,22 @@ namespace SV
 		// Pan speed per unit of zoom distance, so panning moves the view by a similar amount at
 		// any distance
 		constexpr float PAN_ACCELERATION_PER_ZOOM = 6.0f;
+		// "Go to" zoom distance per unit of the body's radius
 		constexpr float GO_TO_ZOOM = 6.0f;
 		// Fraction of the remaining distance covered each 1/60 s when travelling to a body
 		constexpr float TRAVEL_RATE = 0.11f;
 
 		constexpr double ANIMATION_SPEED = 0.2;
 		constexpr double MAX_FRAME_TIME = 0.1;
-		// Simulated seconds per real second for the gravity simulation
-		constexpr double SIMULATION_SPEED = 500.0;
+		// Simulated seconds per real second for the gravity simulation: Earth orbits the Sun in
+		// about 100 s and Saturn in about 75 min
+		constexpr double SIMULATION_SPEED = 15000.0;
+
+		// Saturn: its radius relative to Earth's (1 unit), placed far enough out for the Sun to look
+		// small, with its axis tilted (towards the Sun at the start) by its obliquity
+		constexpr float SATURN_RADIUS = 60268.0f / 6371.0f;
+		constexpr float SATURN_DISTANCE = 250.0f;
+		constexpr float SATURN_OBLIQUITY = 26.73f;
 
 		// A line list grid on the XZ plane, from (0, 0, 0) to (scale, 0, scale)
 		DH::Mesh_F32 CreateGridLines(float scale, unsigned int lines)
@@ -198,12 +206,24 @@ namespace SV
 		sun->Scale(glm::vec3{ 15.0f });
 		solarSystem->Add(sun);
 
+		// The planets orbit anticlockwise (seen from above) in the grid's plane
+		constexpr double EARTH_DISTANCE = 20.0;
 		const sRef<Earth> earth = make<Earth>();
-		earth->Translate(glm::vec3(20.0f, 0.0f, 0.0f));
-		earth->SetVelocity({ 0.0, 24000, 0.0 });
+		earth->Translate(glm::vec3((float)EARTH_DISTANCE, 0.0f, 0.0f));
+		earth->SetVelocity({ 0.0, 0.0, -Universe::PlanetarySystem::CircularOrbitSpeed(sun->GetMass(), EARTH_DISTANCE) });
 		solarSystem->Add(earth);
 
-		namedBodies = { { "Sun", sun }, { "Earth", earth } };
+		const sRef<Saturn> saturn = make<Saturn>();
+		saturn->Translate(glm::vec3(-SATURN_DISTANCE, 0.0f, 0.0f));
+		saturn->Scale(glm::vec3(SATURN_RADIUS));
+		saturn->Rotate(glm::vec4(0.0f, 0.0f, 1.0f, SATURN_OBLIQUITY));
+		saturn->SetVelocity({ 0.0, 0.0, Universe::PlanetarySystem::CircularOrbitSpeed(sun->GetMass(), SATURN_DISTANCE) });
+		solarSystem->Add(saturn);
+
+		solarSystem->ZeroMomentum(sun);
+
+		lightSource = sun;
+		namedBodies = { { "Sun", sun }, { "Earth", earth }, { "Saturn", saturn } };
 
 		return true;
 	}
@@ -215,6 +235,7 @@ namespace SV
 		// GPU resources must be released before Dahlia destroys the device
 		DH::GPUContext::Get()->WaitIdle();
 		namedBodies.clear();
+		lightSource.reset();
 		solarSystem.reset();
 		planetRenderer.reset();
 		starRenderer.reset();
@@ -310,8 +331,9 @@ namespace SV
 		frame.projection = projectionMatrix;
 		frame.cameraPosition = glm::vec4(camera.GetActualPosition(), 1.0f);
 		frame.cameraCentre = glm::vec4(camera.GetCentrePosition(), 1.0f);
-		frame.sun = glm::vec4(lightPosition, exposure);
+		frame.sun = glm::vec4(lightSource->GetTranslation(), lightSource->GetScale().x);
 		frame.times = glm::vec4((float)animationTime, (float)animationTime * 0.05f, 0.0f, 0.0f);
+		frame.display = glm::vec4(exposure, 0.0f, 0.0f, 0.0f);
 		frameUniformBuffer->Update(&frame, sizeof(frame));
 
 		// Atmosphere precomputation and texture uploads happen outside the scene pass
@@ -331,7 +353,7 @@ namespace SV
 		RenderGrid(cmd);
 
 		// Draw the furthest kind of body first so blending (coronas, atmospheres) composites correctly
-		auto RenderPlanets = [&]() { planetRenderer->Render(cmd, polygonMode, camera.GetYaw()); };
+		auto RenderPlanets = [&]() { planetRenderer->Render(cmd, polygonMode, cameraPosition); };
 		auto RenderStars = [&]() { starRenderer->Render(cmd, polygonMode); };
 		if (planetRenderer->GetClosestDistance() <= starRenderer->GetClosestDistance())
 		{
@@ -394,7 +416,6 @@ namespace SV
 				polygonMode = (DH::PolygonMode)mode;
 
 			ImGui::Checkbox("Simulate gravity", &simulateGravity);
-			ImGui::DragFloat3("Light position", &lightPosition[0], 0.1f);
 		}
 
 		if (ImGui::CollapsingHeader("Bodies", ImGuiTreeNodeFlags_DefaultOpen))
@@ -404,7 +425,7 @@ namespace SV
 				const glm::vec3& position = namedBody.body->GetTranslation();
 				ImGui::PushID(namedBody.name.c_str());
 				if (ImGui::Button("Go to"))
-					MoveTo(*namedBody.body, GO_TO_ZOOM);
+					MoveTo(*namedBody.body, GO_TO_ZOOM * namedBody.body->GetScale().x);
 				ImGui::SameLine();
 				ImGui::Text("%s (%.1f, %.1f, %.1f)", namedBody.name.c_str(), position.x, position.y, position.z);
 				ImGui::PopID();

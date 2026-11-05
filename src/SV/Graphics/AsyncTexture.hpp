@@ -12,6 +12,10 @@ namespace SV
 	void SetTextureDirectory(const std::filesystem::path& directory);
 	const std::filesystem::path& GetTextureDirectory();
 
+	// Textures should decode (as RGBA8) to no more than this, to bound memory use: a 2:1 map can be
+	// up to about 1600x800. Larger textures still load, with a warning.
+	constexpr size_t MAX_TEXTURE_BYTES = 5 * 1024 * 1024;
+
 	// A texture whose image is decoded on a background thread. Call Poll once a frame from the
 	// render thread: when decoding has finished it uploads the image (with mip maps) and returns true.
 	class AsyncTexture

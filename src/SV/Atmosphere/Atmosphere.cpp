@@ -140,31 +140,48 @@ namespace SV::Atmosphere
 		scatData.kLambdaMin = 360;
 		scatData.kLambdaMax = 830;
 
-		std::array<double, 1> kSolarIrradiance{ 1.5 };
+		// Hydrogen (96%) and helium above the 1 bar level, over a cloud deck of ammonia ice veiled by
+		// a photochemical haze. The bottom of the atmosphere is the planet's 1 bar surface, which the
+		// sky mesh is shaped to (an oblate spheroid; see SV::Saturn).
+
+		// Sunlight at Saturn is 1/90 of Earth's. The scene shares one exposure, so it is dimmed only
+		// to 1/5 of Earth's here: enough to keep Saturn's bright clouds (and rings) in the same range
+		// as Earth (whose ground reflects much less).
+		std::array<double, 1> kSolarIrradiance{ 0.3 };
 		scatData.solarIrradiance = kSolarIrradiance;
 
-		std::array<double, 1>kRayleighExtinctionCoefficient{ 8.5e-8 };
-		scatData.rayleighExtinction = kRayleighExtinctionCoefficient;
+		// No absorption: methane only absorbs strongly in the near infrared
+		std::array<double, 1> kAbsorptionExtinction{ 0.0 };
+		scatData.rayleighExtinction = kAbsorptionExtinction;
 
-		scatData.kBottomRadius = 6360000.0;
-		scatData.kTopRadius = scatData.kBottomRadius + 60000.0;
+		scatData.kBottomRadius = 60268000.0;                    // Equatorial radius at 1 bar
+		scatData.kTopRadius = scatData.kBottomRadius + 600000.0; // About ten scale heights
 
-		constexpr double kRayleighScaleHeight = 4000.0; // Rayleigh layer height for density calculation
-		constexpr double kIOR = 1.00014930; //Refractive index of atmospheric gases at the upper atmosphere (nitrogen at 0.5876 micrometre wavelength at 0 celcius)
+		// Scale height at 1 bar (134 K, 2.07 g/mol)
+		constexpr double kRayleighScaleHeight = 59500.0;
+		// CalculateRayleighCoefficient leaves out the number density, so this is an effective index:
+		// H2/He's refractivity (1.28e-4 at STP, 2.6e-4 at 1 bar and 134 K) scaled so the scattering
+		// coefficient matches 8 pi^3 (n^2 - 1)^2 / (3 N lambda^4) relative to Earth's, given Saturn's
+		// number density at 1 bar (5.4e25 m^-3, twice Earth's at sea level): n = 1.000183, a Rayleigh
+		// optical depth of 0.25 at 550 nm. Only the gas above the haze (about the top fifth of the
+		// column) is modelled, as the diffuse map already shows the colour seen through the rest:
+		// (n - 1) is scaled by sqrt(0.2).
+		constexpr double kIOR = 1.0000818;
 		scatData.kRayleighScatteringCoefficient = AtmospherePrecomputer::CalculateRayleighCoefficient(kIOR);
 
-		scatData.kMieScaleHeight = 2300.0; //1326.0; //Mie layer height for density calculation
-		scatData.kMieAngstromAlpha = 0.0;
-		scatData.kMieAngstromBeta = 0.3;
-		scatData.kMieSingleScatteringAlbedo = 0.9;
-		scatData.kMiePhaseFunctionG = 0.73;
+		// Upper tropospheric haze: submicron, bright and forward scattering. The diffuse map already
+		// shows the haze over the clouds, so only a thin layer is modelled (it gives the limb its glow).
+		scatData.kMieScaleHeight = 60000.0;
+		scatData.kMieAngstromAlpha = 0.5;
+		scatData.kMieAngstromBeta = 0.15; // Vertical optical depth at 1 micrometre
+		scatData.kMieSingleScatteringAlbedo = 0.95;
+		scatData.kMiePhaseFunctionG = 0.65;
 
-		scatData.kGroundAlbedo = 0.1;
+		// The cloud deck seen from the atmosphere (scaled by lambda^-4 in ProcessAtmosphericData)
+		scatData.kGroundAlbedo = 0.03;
 
 		scatData.rayleighDensity[0] = DensityProfileLayer(0.0, 1.0, -1.0 / kRayleighScaleHeight, 0.0, 0.0);
 		scatData.mieDensity[0] = DensityProfileLayer(0.0, 1.0, -1.0 / scatData.kMieScaleHeight, 0.0, 0.0);
-		scatData.absorptionDensity[0] = DensityProfileLayer(25000.0, 0.0, 0.0, 1.0 / 15000.0, -2.0 / 3.0);
-		scatData.absorptionDensity[1] = DensityProfileLayer(0.0, 0.0, 0.0, -1.0 / 15000.0, 8.0 / 3.0);
 
 		atmoPrecomputer = make<AtmospherePrecomputer>(scatData, kLengthUnitInMeters);
 

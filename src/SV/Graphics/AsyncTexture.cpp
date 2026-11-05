@@ -38,6 +38,14 @@ namespace SV
 		try
 		{
 			const uRef<DH::TextureLoader> image = pendingImage.get();
+			const DH::Dimension2D& size = image->GetDimensions();
+			const size_t decodedBytes = size.x * size.y * 4;
+			if (decodedBytes > MAX_TEXTURE_BYTES)
+			{
+				std::cerr << "[SV::AsyncTexture] \"" << path.string() << "\" is " << size.x << 'x' << size.y
+						  << " (" << decodedBytes / (1024 * 1024) << " MB decoded), over the " << MAX_TEXTURE_BYTES / (1024 * 1024)
+						  << " MB texture budget: use a downscaled copy\n";
+			}
 			texture = DH::Texture2D::Create(*image);
 			texture->GenerateMipMaps();
 			return true;

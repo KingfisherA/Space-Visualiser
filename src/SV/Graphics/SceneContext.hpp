@@ -16,8 +16,9 @@ namespace SV
 		glm::mat4 projection{ 1.0f };
 		glm::vec4 cameraPosition{ 0.0f };
 		glm::vec4 cameraCentre{ 0.0f };
-		glm::vec4 sun{ 0.0f };   // xyz = light position, w = exposure
-		glm::vec4 times{ 0.0f }; // x = planet animation time, y = star animation time
+		glm::vec4 sun{ 0.0f };     // xyz = the Sun's position (world space), w = the Sun's radius
+		glm::vec4 times{ 0.0f };   // x = planet animation time, y = star animation time
+		glm::vec4 display{ 0.0f }; // x = exposure
 	};
 
 	// Resources shared by every scene renderer. Scene pipelines use set 0 for the frame uniforms.

@@ -6,11 +6,11 @@
 
 layout(location = 0) in vec2 aPosition;
 
-layout(location = 0) out vec3 vVertex;
+layout(location = 0) out vec3 vWorldPosition;
 
 void main()
 {
     vec4 positionWorld = uRings.transform * vec4(aPosition, 0.0, 1.0);
-    vVertex = positionWorld.xyz;
+    vWorldPosition = positionWorld.xyz;
     gl_Position = uFrame.viewProjection * positionWorld;
 }
