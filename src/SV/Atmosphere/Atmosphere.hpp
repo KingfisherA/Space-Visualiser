@@ -27,6 +27,28 @@ namespace SV::Atmosphere
 		EarthAtmosphere();
 	};
 
+	// Mercury has only a tenuous exosphere: the atmosphere is a vacuum
+	class MercuryAtmosphere : public IAtmosphere
+	{
+	public:
+		MercuryAtmosphere();
+	};
+
+	// Venus' atmosphere above its cloud tops (the planet's visible surface)
+	class VenusAtmosphere : public IAtmosphere
+	{
+	public:
+		VenusAtmosphere();
+	};
+
+	class MarsAtmosphere : public IAtmosphere
+	{
+	public:
+		MarsAtmosphere();
+	};
+
+	// The giant planets: hydrogen and helium over a cloud deck veiled by haze. The bottom of each is
+	// the planet's 1 bar level.
 	class JupiterAtmosphere : public IAtmosphere
 	{
 	public:
@@ -37,6 +59,18 @@ namespace SV::Atmosphere
 	{
 	public:
 		SaturnAtmosphere();
+	};
+
+	class UranusAtmosphere : public IAtmosphere
+	{
+	public:
+		UranusAtmosphere();
+	};
+
+	class NeptuneAtmosphere : public IAtmosphere
+	{
+	public:
+		NeptuneAtmosphere();
 	};
 
 	class TitanAtmosphere : public IAtmosphere

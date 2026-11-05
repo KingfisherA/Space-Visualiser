@@ -1,7 +1,9 @@
 #pragma once
 #include <filesystem>
+#include <functional>
 #include <future>
 #include <string>
+#include <vector>
 
 #include "Dahlia/Graphics/Texture.h"
 #include "Dahlia/Utilities/Memory.h"
@@ -21,8 +23,15 @@ namespace SV
 	class AsyncTexture
 	{
 	public:
+		// Changes a decoded RGBA8 image in place (on the decoding thread) before it is uploaded
+		using ImageProcessor = std::function<void(DH::TextureLoader& image)>;
+
 		// relativePath is relative to the texture directory
-		explicit AsyncTexture(const std::string& relativePath);
+		explicit AsyncTexture(const std::string& relativePath, ImageProcessor process = nullptr);
+
+		// A texture made in memory (such as a generated ring profile), uploaded on the first Poll.
+		// `data` is tightly packed texels of `format`.
+		AsyncTexture(const DH::Dimension2D& dimensions, std::vector<unsigned char> data, DH::Format format);
 
 		// Returns true on the call that makes the texture available
 		bool Poll();
@@ -35,5 +44,10 @@ namespace SV
 		std::filesystem::path path;
 		std::future<uRef<DH::TextureLoader>> pendingImage;
 		sRef<DH::Texture2D> texture;
+
+		// Generated textures
+		DH::Dimension2D generatedDimensions{};
+		std::vector<unsigned char> generatedData;
+		DH::Format generatedFormat = DH::Format::None;
 	};
 }

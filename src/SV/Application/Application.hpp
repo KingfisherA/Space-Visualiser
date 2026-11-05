@@ -6,9 +6,9 @@
 
 #include "Dahlia/Application/GraphicsApp.h"
 #include "Dahlia/Graphics/GPUMesh.h"
+#include "Dahlia/Graphics/GraphicsTypes.h"
 #include "Dahlia/Scene/Camera3D.h"
 #include "Dahlia/Utilities/Memory.h"
-#include "SV/Graphics/ModalPipeline.hpp"
 #include "SV/Graphics/SceneContext.hpp"
 
 namespace DH
@@ -21,7 +21,7 @@ namespace SV
 {
 	class CelestrialBody;
 	class StarRenderer;
-	class PlanetNewRenderer;
+	class PlanetRenderer;
 
 	namespace Universe
 	{
@@ -55,26 +55,35 @@ namespace SV
 
 		void UpdateProjectionMatrix();
 		void UpdateCamera(float deltaTime);
-		void MoveTo(const CelestrialBody& body, float zoom);
+		// Travel to the body, then follow it
+		void MoveTo(const sRef<CelestrialBody>& body, float zoom);
+		void StopFollowing();
+		// The closest zoom allowed: outside the body being followed
+		[[nodiscard]] float GetMinZoom() const;
 		// Zoom in (positive) or out by a fraction of the current distance
 		void ZoomBy(float amount);
 		void RenderGrid(DH::CommandList& cmd);
-		void RenderCentreMarker(DH::CommandList& cmd);
 		void RenderControlsPanel();
+		// Names the bodies over the viewport (inside its ImGui window)
+		void DrawLabels();
+		// Marks the camera's orbit centre over the viewport (inside its ImGui window)
+		void DrawCrosshair();
 
+		// The camera works in render coordinates: world positions relative to cameraOrigin (kept at
+		// the camera's centre each frame), which keeps them small enough for floats
 		DH::Camera3D camera;
+		glm::dvec3 cameraOrigin{ 0.0 };
 		glm::mat4 projectionMatrix{ 1.0f };
+		glm::mat4 viewProjection{ 1.0f };
 
 		SceneContext sceneContext;
 		sRef<DH::Buffer> frameUniformBuffer;
 
 		sRef<DH::GPUMesh> gridMesh;
 		sRef<DH::GraphicsPipeline> gridPipeline;
-		sRef<DH::GPUMesh> markerMesh;
-		ModalPipeline markerPipeline;
 
 		sRef<StarRenderer> starRenderer;
-		sRef<PlanetNewRenderer> planetRenderer;
+		sRef<PlanetRenderer> planetRenderer;
 		uRef<Universe::PlanetarySystem> solarSystem;
 		std::vector<NamedBody> namedBodies;
 
@@ -86,13 +95,18 @@ namespace SV
 		DH::PolygonMode polygonMode = DH::PolygonMode::Solid;
 		double animationTime = 0.0;
 		bool simulateGravity = true;
+		// Simulated days per real second
+		float daysPerSecond = 1.0f;
+		bool showGrid = true;
+		bool showLabels = true;
 
 		// Whether the cursor is over the viewport window (updated each ImGui frame)
 		bool isViewportHovered = false;
 
-		// Smooth camera travel to a body ("Go to")
+		// Smooth camera travel to a body ("Go to"), which the camera then follows
 		bool isTravelling = false;
-		glm::vec3 travelTarget{ 0.0f };
+		sRef<CelestrialBody> travelBody;
 		float travelZoom = 0.0f;
+		sRef<CelestrialBody> followBody;
 	};
 }

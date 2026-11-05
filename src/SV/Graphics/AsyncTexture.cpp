@@ -22,15 +22,33 @@ namespace SV
 		return TextureDirectory();
 	}
 
-	AsyncTexture::AsyncTexture(const std::string& relativePath) : path(GetTextureDirectory() / relativePath)
+	AsyncTexture::AsyncTexture(const std::string& relativePath, ImageProcessor process) : path(GetTextureDirectory() / relativePath)
 	{
 		// Always decode to RGBA8: 3 channel formats are OpenGL only
-		pendingImage = std::async(std::launch::async, [file = path.string()]()
-			{ return umake<DH::TextureLoader>(file, 4); });
+		pendingImage = std::async(std::launch::async, [file = path.string(), process = std::move(process)]()
+			{
+				uRef<DH::TextureLoader> image = umake<DH::TextureLoader>(file, 4);
+				if (process && image->GetData() != nullptr)
+					process(*image);
+				return image;
+			});
+	}
+
+	AsyncTexture::AsyncTexture(const DH::Dimension2D& dimensions, std::vector<unsigned char> data, const DH::Format format) :
+		generatedDimensions(dimensions), generatedData(std::move(data)), generatedFormat(format)
+	{
 	}
 
 	bool AsyncTexture::Poll()
 	{
+		if (!generatedData.empty())
+		{
+			// Mip maps are generated on creation
+			texture = DH::Texture2D::Create(generatedDimensions, generatedData.data(), generatedFormat);
+			generatedData = {};
+			return true;
+		}
+
 		if (!pendingImage.valid() ||
 			pendingImage.wait_for(std::chrono::seconds(0)) != std::future_status::ready)
 			return false;

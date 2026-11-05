@@ -5,10 +5,13 @@
 // shadows and ringshine).
 //
 // Before including, define:
-//   RING_MAP                 sampler2D: a radial profile from the inner to the outer radius (only
-//                            v = 0.5 is read). RGB = ring colour, A = opacity seen face on.
+//   RING_MAP                 sampler2D: the ring map, a radial profile of the rings of macroscopic
+//                            particles from the inner to the outer radius (only v = 0.5 is read).
+//                            A = opacity seen face on, RGB = the particles' albedo (gamma 2.2)
+//                            multiplied by the opacity. See src/SV/Universe/Rings.hpp.
 //   TRANSMITTANCE_TEXTURE    the planet's precomputed atmospheric transmittance
-// and include Atmosphere/Parameters.glsl (for ATMOSPHERE).
+// and include Atmosphere/Parameters.glsl (for ATMOSPHERE). The faint dusty rings have a separate
+// dust map, sampled by the ring shader (see DustOpticalDepth).
 //
 // Coordinates are "planet space": centred on the planet, y along its rotation axis (the ring plane
 // is y = 0), in units of the equatorial radius. The planet is an oblate spheroid; dividing y by the
@@ -39,8 +42,19 @@ float HenyeyGreenstein(float cosTheta, float g)
 //    D, C and F rings and the Cassini Division) therefore glow when seen against the Sun, while the
 //    dense B ring blocks the light and goes dark (as in Cassini's "In Saturn's Shadow" mosaic).
 const float RING_PARTICLE_G = -0.35;
-const float RING_DUST_G = 0.8;
+const float RING_DUST_G = 0.6;
 const float RING_DUST_ALBEDO = 0.8;
+// Fraction of the dust's scattering in its narrow diffraction peak (the aureole)
+const float RING_DUST_AUREOLE = 0.5;
+
+// Phase function of micron sized dust: a broad forward lobe, plus a narrow diffraction peak that
+// makes a bright aureole (a hotspot) around the Sun when it shines through the rings. The peak is
+// no narrower than the Sun's disc, which it blurs.
+float DustPhase(float cosTheta, float sunAngularRadius)
+{
+    float gAureole = 1.0 - max(2.0 * sunAngularRadius, 0.05);
+    return mix(HenyeyGreenstein(cosTheta, RING_DUST_G), HenyeyGreenstein(cosTheta, gAureole), RING_DUST_AUREOLE);
+}
 
 struct RingSample
 {
@@ -59,14 +73,11 @@ RingSample SampleRings(float radius, float innerRadius, float outerRadius, float
     RingSample ring;
     float opacity = min(texel.a, 0.995);
     ring.opticalDepth = -log(1.0 - opacity);
-    // The map's colour darkens with opacity; undo that for the particles' own colour. Texels that
-    // are nearly transparent have arbitrary colours, so faint rings take a neutral grey.
-    vec3 mapAlbedo = clamp(pow(texel.rgb / max(texel.a, 0.5), vec3(2.2)) * 2.0, 0.0, 0.9);
-    ring.albedo = mix(vec3(0.5), mapAlbedo, smoothstep(0.02, 0.15, texel.a));
-    // Thin rings are dustier than dense ones, and the F ring (and the D ring inside the C ring) is
-    // mostly dust
-    float edgeDust = max(1.0 - smoothstep(1.225, 1.24, radius), smoothstep(2.30, 2.32, radius));
-    ring.dustFraction = mix(0.02 + 0.28 * (1.0 - smoothstep(0.05, 0.6, ring.opticalDepth)), 0.9, edgeDust);
+    ring.albedo = min(pow(texel.rgb / max(texel.a, 0.02), vec3(2.2)), vec3(0.9));
+    // Thin rings are dustier than dense ones. Rings of dark particles (Uranus' and Neptune's) are
+    // dust poor where they are dense; their dust is in the dust map.
+    ring.dustFraction = (0.02 + 0.28 * (1.0 - smoothstep(0.05, 0.6, ring.opticalDepth))) *
+                        smoothstep(0.05, 0.3, max(ring.albedo.r, max(ring.albedo.g, ring.albedo.b)));
     return ring;
 }
 
@@ -75,7 +86,7 @@ RingSample SampleRings(float radius, float innerRadius, float outerRadius, float
 //   toSun, toViewer: unit vectors in planet space (the ring normal is +-y)
 // Light reaching the viewer on the lit face is diffusely reflected; on the unlit face it is
 // diffusely transmitted through the layer.
-vec3 RingReflectance(RingSample ring, vec3 toSun, vec3 toViewer)
+vec3 RingReflectance(RingSample ring, vec3 toSun, vec3 toViewer, float sunAngularRadius)
 {
     float mu0 = max(abs(toSun.y), 1e-3);    // Incidence
     float mu = max(abs(toViewer.y), 1e-3);  // Emission
@@ -84,7 +95,7 @@ vec3 RingReflectance(RingSample ring, vec3 toSun, vec3 toViewer)
     // Scattering angle: 0 when looking towards the Sun through the rings (forward scattering)
     float cosTheta = -dot(toSun, toViewer);
     vec3 albedoPhase = (1.0 - ring.dustFraction) * ring.albedo * HenyeyGreenstein(cosTheta, RING_PARTICLE_G) +
-                       ring.dustFraction * RING_DUST_ALBEDO * HenyeyGreenstein(cosTheta, RING_DUST_G);
+                       ring.dustFraction * RING_DUST_ALBEDO * DustPhase(cosTheta, sunAngularRadius);
 
     float slab;
     if (toSun.y * toViewer.y > 0.0)
@@ -146,10 +157,12 @@ vec3 RingShadow(vec3 p, vec3 toSun, float innerRadius, float outerRadius, float 
         return vec3(1.0); // The rings are not between the point and the Sun
 
     vec3 hit = p + toSun * t;
-    // Blur by the Sun's size seen through the rings (the shadow's penumbra)
-    float blur = t * tan(sunAngularRadius) / (outerRadius - innerRadius);
+    float hitRadius = length(hit.xz);
+    // Blur by the Sun's size seen through the rings (the shadow's penumbra), and by the pixel's
+    // footprint so the fine structure doesn't alias. Called in uniform control flow, for fwidth.
+    float blur = max(t * tan(sunAngularRadius), fwidth(hitRadius)) / (outerRadius - innerRadius);
     float lod = log2(max(blur * float(textureSize(RING_MAP, 0).x), 1.0));
-    RingSample ring = SampleRings(length(hit.xz), innerRadius, outerRadius, lod);
+    RingSample ring = SampleRings(hitRadius, innerRadius, outerRadius, lod);
     return vec3(RingTransmittance(ring, abs(toSun.y)));
 }
 
@@ -183,13 +196,38 @@ vec3 RingshineIrradiance(vec3 p, vec3 normal, vec3 toSun, float innerRadius, flo
             if (cosSurface <= 0.0)
                 continue;
 
-            vec3 radiance = RingReflectance(ring, toSun, -toRing) *
+            vec3 radiance = RingReflectance(ring, toSun, -toRing, sunAngularRadius) *
                             PlanetShadow(ringPoint, toSun, polarRatio, sunAngularRadius);
             irradiance += radiance * cosSurface * abs(toRing.y) * area / distance2;
         }
     }
     // I/F is radiance relative to solar irradiance / pi
     return irradiance / PI;
+}
+
+// The dust map's optical depths are in this unit (mirrors SV::Rings::DUST_DEPTH_UNIT)
+const float DUST_DEPTH_UNIT = 1e-5;
+// The gain exaggerates the faint dusty rings only up to about this optical depth
+const float DUST_GAIN_LIMIT = 0.02;
+
+// Normal optical depth per colour channel of the dust (a texel of the dust map), exaggerated by
+// `gain` while faint (the optical depths of the dusty rings are about 1e-5, hundreds of times
+// fainter than the main rings even against the Sun). Rings already denser than the limit keep their
+// true optical depth.
+vec3 DustOpticalDepth(vec3 texel, float gain)
+{
+    vec3 opticalDepth = texel * DUST_DEPTH_UNIT;
+    vec3 exaggerated = opticalDepth * gain / (1.0 + opticalDepth * gain / DUST_GAIN_LIMIT);
+    return max(opticalDepth, exaggerated);
+}
+
+// I/F of an optically thin layer of dust (either face), for a normal optical depth per channel
+vec3 DustReflectance(vec3 opticalDepth, vec3 toSun, vec3 toViewer, float sunAngularRadius)
+{
+    // The dusty rings are hundreds to thousands of km thick (Saturn's E ring and Jupiter's halo
+    // more than that), which limits the path through them when seen edge on
+    float mu = max(abs(toViewer.y), 0.05);
+    return RING_DUST_ALBEDO * DustPhase(-dot(toSun, toViewer), sunAngularRadius) * opticalDepth / (4.0 * mu);
 }
 
 #endif // SV_RINGS_GLSL

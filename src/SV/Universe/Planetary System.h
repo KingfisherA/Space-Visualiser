@@ -2,15 +2,16 @@
 #include <vector>
 
 #include "CelestrialBody.hpp"
-#include "PlanetNew.hpp"
+#include "Planet.hpp"
 #include "Star.hpp"
 
 namespace SV::Universe
 {
 	using PlanetarySystemI = size_t;
 
-	// Length of one unit of world space in the gravity simulation. Velocities are in m/s.
-	constexpr double METRES_PER_UNIT = 1E9;
+	// Length of one unit of world space: Earth's mean radius. Velocities are in m/s.
+	constexpr double METRES_PER_UNIT = 6371000.0;
+	constexpr double KM_PER_UNIT = METRES_PER_UNIT / 1000.0;
 
 	// A set of stars and planets under mutual gravitation. Bodies added here are also added to the
 	// renderer for their type.
@@ -20,7 +21,7 @@ namespace SV::Universe
 		// Speed (m/s) of a circular orbit `distance` world units from a body of mass `centralMass` (kg)
 		[[nodiscard]] static double CircularOrbitSpeed(double centralMass, double distance);
 
-		PlanetarySystem(const sRef<SV::StarRenderer>& sRIn, const sRef<SV::PlanetNewRenderer>& pRIn);
+		PlanetarySystem(const sRef<SV::StarRenderer>& sRIn, const sRef<SV::PlanetRenderer>& pRIn);
 
 		PlanetarySystemI Add(const sRef<SV::CelestrialBody>& body);
 		void Remove(PlanetarySystemI index);
@@ -36,9 +37,12 @@ namespace SV::Universe
 		// Advances the simulation by deltaTime seconds
 		void Update(double deltaTime);
 
+		// Places each body's render translation at its position relative to `origin`
+		void SetRenderOrigin(const glm::dvec3& origin);
+
 	private:
 		std::vector<sRef<SV::CelestrialBody>> celestrialBodies;
 		sRef<SV::StarRenderer> sRenderer;
-		sRef<SV::PlanetNewRenderer> pRenderer;
+		sRef<SV::PlanetRenderer> pRenderer;
 	};
 }

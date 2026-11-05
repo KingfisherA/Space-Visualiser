@@ -15,12 +15,6 @@ namespace
 	const uint32_t kGridFrag[] =
 #include "Grid.frag.inc"
 		;
-	const uint32_t kMarkerVert[] =
-#include "Marker.vert.inc"
-		;
-	const uint32_t kMarkerFrag[] =
-#include "Marker.frag.inc"
-		;
 	const uint32_t kStarVert[] =
 #include "Star.vert.inc"
 		;
@@ -32,6 +26,12 @@ namespace
 		;
 	const uint32_t kCoronaFrag[] =
 #include "Corona.frag.inc"
+		;
+	const uint32_t kFlareVert[] =
+#include "Flare.vert.inc"
+		;
+	const uint32_t kFlareFrag[] =
+#include "Flare.frag.inc"
 		;
 	const uint32_t kRingsVert[] =
 #include "Rings.vert.inc"
@@ -70,12 +70,12 @@ namespace
 	const std::unordered_map<std::string_view, std::span<const uint32_t>> kShaders = {
 		{ "Grid.vert", kGridVert },
 		{ "Grid.frag", kGridFrag },
-		{ "Marker.vert", kMarkerVert },
-		{ "Marker.frag", kMarkerFrag },
 		{ "Star.vert", kStarVert },
 		{ "Star.frag", kStarFrag },
 		{ "Corona.vert", kCoronaVert },
 		{ "Corona.frag", kCoronaFrag },
+		{ "Flare.vert", kFlareVert },
+		{ "Flare.frag", kFlareFrag },
 		{ "Rings.vert", kRingsVert },
 		{ "Rings.frag", kRingsFrag },
 		{ "Planet.vert", kPlanetVert },

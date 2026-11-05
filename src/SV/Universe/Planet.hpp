@@ -24,20 +24,24 @@ namespace SV
 
 #pragma region Planets
 
-	// A ring system's extent in the planet's equatorial plane, in equatorial radii. The ring map spans
-	// it from the inner to the outer radius.
+	// A ring system's extent in the planet's equatorial plane, in equatorial radii (see
+	// SV/Universe/Rings.hpp for the maps)
 	struct PlanetRings
 	{
+		// The ring map (macroscopic particles) spans innerRadius to outerRadius
 		float innerRadius = 0.0f;
 		float outerRadius = 0.0f;
+		// The dust map spans the planet's centre to dustOuterRadius; the dust starts at dustInnerRadius
+		float dustInnerRadius = 0.0f;
+		float dustOuterRadius = 0.0f;
 	};
 
 	// A planet's size is its scale (world units per equatorial radius, the same on every axis); its
 	// shape is fixed by the polar ratio
-	class PlanetNew : public CelestrialBody
+	class Planet : public CelestrialBody
 	{
 	public:
-		PlanetNew(const double massIn, const sRef<SV::Atmosphere::IAtmosphere>& atmoIn) :
+		Planet(const double massIn, const sRef<SV::Atmosphere::IAtmosphere>& atmoIn) :
 			CelestrialBody(CelestrialBodyType::Planet, massIn), planetAtmo(atmoIn) {}
 
 		// Any map may be nullptr: a planet without a diffuse map is drawn black
@@ -45,8 +49,10 @@ namespace SV
 		[[nodiscard]] const sRef<AsyncTexture>& GetSpecularMap() const noexcept { return specularMap; }
 		[[nodiscard]] const sRef<AsyncTexture>& GetCloudsMap() const noexcept { return cloudsMap; }
 		[[nodiscard]] const sRef<AsyncTexture>& GetNightMap() const noexcept { return nightMap; }
-		// Planets with a ring map are drawn with rings (spanning GetRings), which also shadow the surface
+		// Planets with a ring map or a dust map are drawn with rings (spanning GetRings). Rings in the
+		// ring map also shadow the surface.
 		[[nodiscard]] const sRef<AsyncTexture>& GetRingMap() const noexcept { return ringMap; }
+		[[nodiscard]] const sRef<AsyncTexture>& GetDustMap() const noexcept { return dustMap; }
 		[[nodiscard]] const PlanetRings& GetRings() const noexcept { return rings; }
 
 		[[nodiscard]] const sRef<SV::Atmosphere::IAtmosphere>& GetAtmosphere() const noexcept { return planetAtmo; }
@@ -58,6 +64,9 @@ namespace SV
 		// Lit surfaces are shaded with the sunlight transmitted by the atmosphere (gas giants);
 		// otherwise Earth's stylised shading is used
 		[[nodiscard]] bool HasLitSurface() const noexcept { return litSurface; }
+		// Lit surfaces: the reflectance of the brightest point of the diffuse map (a display image
+		// normalised to its brightest point)
+		[[nodiscard]] float GetSurfaceAlbedo() const noexcept { return surfaceAlbedo; }
 
 	protected:
 		sRef<AsyncTexture> diffuseMap;
@@ -65,6 +74,7 @@ namespace SV
 		sRef<AsyncTexture> cloudsMap;
 		sRef<AsyncTexture> nightMap;
 		sRef<AsyncTexture> ringMap;
+		sRef<AsyncTexture> dustMap;
 		PlanetRings rings;
 
 		sRef<SV::Atmosphere::IAtmosphere> planetAtmo;
@@ -72,45 +82,58 @@ namespace SV
 		float polarRatio = 1.0f;
 		float rotationSpeed = 0.3f;
 		bool litSurface = false;
+		float surfaceAlbedo = 0.5f;
 	};
 
-	class Mercury : public PlanetNew
+	class Mercury : public Planet
 	{
 	public:
 		Mercury();
 	};
 
-	class Venus : public PlanetNew
+	class Venus : public Planet
 	{
 	public:
 		Venus();
 	};
 
-	class Earth : public PlanetNew
+	class Earth : public Planet
 	{
 	public:
 		Earth();
 	};
 
-	class Mars : public PlanetNew
+	class Mars : public Planet
 	{
 	public:
 		Mars();
 	};
 
-	class Jupiter : public PlanetNew
+	class Jupiter : public Planet
 	{
 	public:
 		Jupiter();
 	};
 
-	class Saturn : public PlanetNew
+	class Saturn : public Planet
 	{
 	public:
 		Saturn();
 	};
 
-	class Titan : public PlanetNew
+	class Uranus : public Planet
+	{
+	public:
+		Uranus();
+	};
+
+	class Neptune : public Planet
+	{
+	public:
+		Neptune();
+	};
+
+	class Titan : public Planet
 	{
 	public:
 		Titan();
@@ -120,11 +143,11 @@ namespace SV
 
 	// Draws planets: the surface with its atmosphere in one pass over a spheroid, and rings as two
 	// halves (the half behind the planet before it, the half in front after).
-	class PlanetNewRenderer final : public CelestrialRenderer<SV::PlanetNew>
+	class PlanetRenderer final : public CelestrialRenderer<SV::Planet>
 	{
 	public:
-		explicit PlanetNewRenderer(const SceneContext& context);
-		~PlanetNewRenderer();
+		explicit PlanetRenderer(const SceneContext& context);
+		~PlanetRenderer();
 
 		// Call each frame before the scene render pass: precomputes new atmospheres and picks up
 		// textures that have finished loading
@@ -132,6 +155,12 @@ namespace SV
 
 		// Must be inside the scene render pass with the frame bind group bound at set 0
 		void Render(DH::CommandList& cmd, DH::PolygonMode polygonMode, const glm::vec3& cameraPosition);
+
+		// Brightness gain of the faint, dusty rings (such as Saturn's E ring and Jupiter's rings), up
+		// to an optical depth of about 0.02. At 1 they have their true optical depths (about 1e-5)
+		// and are hundreds of times fainter than Saturn's main rings; the default shows them as in
+		// long exposures such as Cassini's "The Day the Earth Smiled".
+		float diffuseRingGain = 300.0f;
 
 	private:
 		// GPU state of one planet
@@ -144,13 +173,15 @@ namespace SV
 			sRef<DH::GPUMesh> ringsMesh;         // Half of the planet's rings
 			sRef<DH::GPUMesh> skyMesh;           // Spheroid of the planet's shape
 			int mapFlags = 0;                    // PLANET_* in Shaders/Include/PlanetPushConstants.glsl
+			bool hasRingMap = false;             // Whether the ring and dust maps have loaded
+			bool hasDustMap = false;
 		};
 
-		void UpdateMapBindings(const PlanetNew& planet, PlanetBindings& bindings);
+		void UpdateMapBindings(const Planet& planet, PlanetBindings& bindings);
 		const sRef<DH::GPUMesh>& GetSkyMesh(float polarRatio);
 		void RenderRings(DH::CommandList& cmd, DH::PolygonMode polygonMode, const glm::vec3& cameraPosition, bool isBack);
 
-		std::vector<sRef<SV::PlanetNew>>& planets = CelestrialRenderer<SV::PlanetNew>::celestrialBodies;
+		std::vector<sRef<SV::Planet>>& planets = CelestrialRenderer<SV::Planet>::celestrialBodies;
 
 		const SceneContext& context;
 
@@ -165,7 +196,7 @@ namespace SV
 		ModalPipeline surfacePipeline;
 		ModalPipeline ringsPipeline;
 
-		std::unordered_map<const PlanetNew*, PlanetBindings> planetBindings;
+		std::unordered_map<const Planet*, PlanetBindings> planetBindings;
 		// Precomputers whose temporary resources can be freed once their commands have run
 		std::vector<sRef<SV::Atmosphere::AtmospherePrecomputer>> finishedPrecomputers;
 	};

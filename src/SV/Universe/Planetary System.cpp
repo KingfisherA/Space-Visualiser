@@ -8,7 +8,7 @@
 
 namespace SV::Universe
 {
-	PlanetarySystem::PlanetarySystem(const sRef<SV::StarRenderer>& sRIn, const sRef<SV::PlanetNewRenderer>& pRIn) :
+	PlanetarySystem::PlanetarySystem(const sRef<SV::StarRenderer>& sRIn, const sRef<SV::PlanetRenderer>& pRIn) :
 		sRenderer(sRIn),
 		pRenderer(pRIn)
 	{
@@ -37,7 +37,7 @@ namespace SV::Universe
 		switch (body->GetType())
 		{
 		case CelestrialBodyType::Planet:
-			pRenderer->Add(std::static_pointer_cast<SV::PlanetNew>(body));
+			pRenderer->Add(std::static_pointer_cast<SV::Planet>(body));
 			break;
 		case CelestrialBodyType::Star:
 			sRenderer->Add(std::static_pointer_cast<SV::Star>(body));
@@ -60,7 +60,7 @@ namespace SV::Universe
 		switch (body->GetType())
 		{
 		case CelestrialBodyType::Planet:
-			pRenderer->Remove(std::static_pointer_cast<SV::PlanetNew>(body));
+			pRenderer->Remove(std::static_pointer_cast<SV::Planet>(body));
 			break;
 		case CelestrialBodyType::Star:
 			sRenderer->Remove(std::static_pointer_cast<SV::Star>(body));
@@ -72,27 +72,39 @@ namespace SV::Universe
 		std::erase(celestrialBodies, body);
 	}
 
-	void PlanetarySystem::Update(double deltaTime)
+	void PlanetarySystem::Update(const double deltaTime)
 	{
 		using namespace SV::Maths::Gravity;
 
-		for (const auto& body1 : celestrialBodies)
+		// Steps of at most an hour: Mercury's 88 day orbit then takes over 2000 steps
+		constexpr double MAX_STEP = 3600.0;
+		const int steps = std::max(1, (int)std::ceil(deltaTime / MAX_STEP));
+		const double step = deltaTime / steps;
+
+		for (int i = 0; i < steps; i++)
 		{
-			for (const auto& body2 : celestrialBodies)
+			for (const auto& body1 : celestrialBodies)
 			{
-				if (body1 == body2) continue;
+				for (const auto& body2 : celestrialBodies)
+				{
+					if (body1 == body2) continue;
 
-				const glm::dvec3 separation = METRES_PER_UNIT * ((glm::dvec3)body2->translation - (glm::dvec3)body1->translation);
-				const double sqrDst = glm::length2(separation);
-				const glm::dvec3 force = glm::normalize(separation) * G * body1->mass * body2->mass / sqrDst;
-				const glm::dvec3 acceleration = force / body1->mass;
-
-				body1->velocity += acceleration * deltaTime;
+					const glm::dvec3 separation = METRES_PER_UNIT * (body2->position - body1->position);
+					const double sqrDst = glm::length2(separation);
+					const glm::dvec3 acceleration = glm::normalize(separation) * G * body2->mass / sqrDst;
+					body1->velocity += acceleration * step;
+				}
 			}
-		}
 
-		// Semi-implicit Euler (positions move with the updated velocities), which keeps orbits stable
+			// Semi-implicit Euler (positions move with the updated velocities), which keeps orbits stable
+			for (const auto& body : celestrialBodies)
+				body->position += body->velocity / METRES_PER_UNIT * step;
+		}
+	}
+
+	void PlanetarySystem::SetRenderOrigin(const glm::dvec3& origin)
+	{
 		for (const auto& body : celestrialBodies)
-			body->translation += (glm::vec3)(body->velocity / METRES_PER_UNIT * deltaTime);
+			body->Translate(glm::vec3(body->position - origin));
 	}
 }

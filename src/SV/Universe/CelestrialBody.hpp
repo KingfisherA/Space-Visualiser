@@ -27,21 +27,31 @@ namespace SV
 		Planet = 2
 	};
 
+	// A body of the gravity simulation. Its position is kept in double precision (the solar system
+	// spans millions of world units, beyond float precision); its Transformation's translation is
+	// its position relative to the render origin (see PlanetarySystem::SetRenderOrigin), which keeps
+	// the coordinates the GPU sees small.
 	class CelestrialBody : public Transformation
 	{
 	public:
 		CelestrialBody(const CelestrialBodyType typeIn, const double massIn) : Transformation(), mass(massIn), mytype(typeIn) {}
-		CelestrialBody(const CelestrialBodyType typeIn, const double massIn, const glm::vec3& posIn) : Transformation(posIn), mass(massIn), mytype(typeIn) {}
+		CelestrialBody(const CelestrialBodyType typeIn, const double massIn, const glm::dvec3& posIn) :
+			Transformation(glm::vec3(posIn)), position(posIn), mass(massIn), mytype(typeIn) {}
 
 		[[nodiscard]] CelestrialBodyType GetType() const noexcept { return mytype; }
 		[[nodiscard]] double GetMass() const noexcept { return mass; }
+		// World units (see Universe::METRES_PER_UNIT)
+		[[nodiscard]] const glm::dvec3& GetPosition() const noexcept { return position; }
+		// m/s
 		[[nodiscard]] const glm::dvec3& GetVelocity() const noexcept { return velocity; }
 
+		void SetPosition(const glm::dvec3& pos) { position = pos; }
 		void SetVelocity(const glm::dvec3& vel) { velocity = vel; }
 
 	protected:
 		friend class SV::Universe::PlanetarySystem;
 
+		glm::dvec3 position = { 0.0, 0.0, 0.0 };
 		glm::dvec3 velocity = { 0.0, 0.0, 0.0 };
 		double mass;
 		CelestrialBodyType mytype;

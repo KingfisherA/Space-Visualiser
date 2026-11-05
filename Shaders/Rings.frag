@@ -4,8 +4,9 @@
 #include "Frame.glsl"
 #include "RingsPushConstants.glsl"
 
-// Set 1: the ring map
+// Set 1: the ring map and the dust map (see src/SV/Universe/Rings.hpp)
 layout(set = 1, binding = 0) uniform sampler2D uRingMap;
+layout(set = 1, binding = 1) uniform sampler2D uDustMap;
 
 // Set 2: the planet's atmosphere, for the planet's shadow (sunlight grazing the planet is filtered
 // by its atmosphere)
@@ -29,6 +30,8 @@ void main()
 {
     float innerRadius = uRings.rings.x;
     float outerRadius = uRings.rings.y;
+    float dustOuterRadius = uRings.rings.z;
+    float dustGain = uRings.rings.w;
     float unitsPerRadius = uRings.axes[0].w;
     float polarRatio = uRings.axes[1].w;
 
@@ -43,17 +46,31 @@ void main()
     vec3 toSun = normalize(toPlanet * sunOffset);
     float sunAngularRadius = asin(min(uFrame.sun.w / length(sunOffset), 1.0));
 
-    // Filter the ring map by the pixel's radial footprint (before any branch, for the derivatives)
+    // Filter the maps by the pixel's radial footprint (before any branch, for the derivatives)
     float radius = length(position.xz);
-    float u = (radius - innerRadius) / (outerRadius - innerRadius);
-    float lod = log2(max(fwidth(u) * float(textureSize(uRingMap, 0).x), 1.0));
-    RingSample ring = SampleRings(radius, innerRadius, outerRadius, lod);
-    if (ring.opticalDepth <= 1e-4)
+    float radiusWidth = fwidth(radius);
+    RingSample ring = RingSample(vec3(0.0), 0.0, 0.0);
+    if (outerRadius > innerRadius)
+    {
+        float lod = log2(max(radiusWidth / (outerRadius - innerRadius) * float(textureSize(uRingMap, 0).x), 1.0));
+        ring = SampleRings(radius, innerRadius, outerRadius, lod);
+    }
+
+    // The faint dusty rings
+    vec3 dustDepth = vec3(0.0);
+    if (dustOuterRadius > 0.0)
+    {
+        float lod = log2(max(radiusWidth / dustOuterRadius * float(textureSize(uDustMap, 0).x), 1.0));
+        dustDepth = DustOpticalDepth(textureLod(uDustMap, vec2(radius / dustOuterRadius, 0.5), lod).rgb, dustGain);
+    }
+
+    if (ring.opticalDepth <= 1e-4 && max(dustDepth.r, max(dustDepth.g, dustDepth.b)) <= 1e-6)
         discard;
 
     // Sunlight scattered towards the camera (reflected from the lit face, or transmitted through
     // to the unlit face) by the ring particles and dust
-    vec3 reflectance = RingReflectance(ring, toSun, toViewer);
+    vec3 reflectance = RingReflectance(ring, toSun, toViewer, sunAngularRadius) +
+                       DustReflectance(dustDepth, toSun, toViewer, sunAngularRadius);
     vec3 sunlight = PlanetShadow(position, toSun, polarRatio, sunAngularRadius);
     vec3 radiance = reflectance * sunlight * ATMOSPHERE.solar_irradiance / PI;
 

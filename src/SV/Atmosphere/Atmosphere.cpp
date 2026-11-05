@@ -1,6 +1,7 @@
 #include "Atmosphere.hpp"
 
 #include <array>
+#include <cmath>
 
 namespace SV::Atmosphere
 {
@@ -89,103 +90,262 @@ namespace SV::Atmosphere
 	//
 #pragma endregion
 		//
-#pragma region Jupiter Atmosphere
+#pragma region Shared
 	//
-	JupiterAtmosphere::JupiterAtmosphere()
+	namespace
 	{
-		ScatteringData scatData;
+		// Mean solar spectral irradiance at Earth in the visible (W m^-2 nm^-1), roughly the mean of
+		// Earth's ASTM G-173 spectrum
+		constexpr double EARTH_SOLAR_IRRADIANCE = 1.5;
 
-		scatData.kLambdaMin = 360;
-		scatData.kLambdaMax = 830;
+		// Sunlight on a planet `distance` AU from the Sun. The scene shares one exposure, and with the
+		// inverse square law Neptune (900 times dimmer than Earth) would be black: the irradiance falls
+		// as (1 / d^2)^0.35 instead, which gives Saturn a fifth of Earth's rather than a ninetieth.
+		double DisplaySolarIrradiance(const double distance)
+		{
+			return EARTH_SOLAR_IRRADIANCE * std::pow(distance, -0.7);
+		}
 
-		std::array<double, 1> kSolarIrradiance{ 1.5 };
-		scatData.solarIrradiance = kSolarIrradiance;
+		// CalculateRayleighCoefficient leaves out the number density N (it assumes Earth's at sea level,
+		// N0), so it takes an effective index: matching 8 pi^3 (n^2 - 1)^2 / (3 N lambda^4) for a gas
+		// with refractivity `stpRefractivity` (n - 1 at 0 C and 1 atm) at `pressure` (bar) and
+		// `temperature` (K) needs (n - 1) = stpRefractivity * sqrt(N / N0).
+		double EffectiveIndex(const double stpRefractivity, const double pressure, const double temperature)
+		{
+			return 1.0 + stpRefractivity * std::sqrt(pressure * 273.15 / temperature);
+		}
 
-		std::array<double, 1> kRayleighExtinctionCoefficient{ 8.5e-8 };
-		scatData.rayleighExtinction = kRayleighExtinctionCoefficient;
+		// A giant planet: gas over a cloud deck veiled by haze. Only the gas above the haze (about the
+		// top fifth of the column above 1 bar) is modelled, as the diffuse map already shows the colour
+		// seen through the rest: (n - 1) is scaled by sqrt(0.2). The haze is submicron, bright and
+		// strongly forward scattering; only a thin layer is modelled, which gives the limb its glow (it
+		// rings the night side when the planet is seen against the Sun).
+		struct GiantPlanetParameters
+		{
+			double equatorialRadius;  // m, at 1 bar
+			double distance;          // AU from the Sun
+			double stpRefractivity;   // of the gas mixture
+			double temperature;       // K, at 1 bar
+			double gasScaleHeight;    // m, at 1 bar
+			double hazeScaleHeight;   // m
+			double hazeOpticalDepth;  // Vertical, at 1 micrometre
+			double hazePhaseG;
+			double atmosphereHeight;  // m, above 1 bar
+		};
 
-		scatData.kBottomRadius = 69911000.0;
-		scatData.kTopRadius = scatData.kBottomRadius + 5000000.0;
+		sRef<AtmospherePrecomputer> CreateGiantPlanetAtmosphere(const GiantPlanetParameters& planet)
+		{
+			ScatteringData scatData;
+			scatData.kLambdaMin = 360;
+			scatData.kLambdaMax = 830;
 
-		constexpr double kRayleighScaleHeight = 30000.0; // Rayleigh layer height for density calculation
-		constexpr double kIOR = 1.00014930; //Refractive index of atmospheric gases at the upper atmosphere (nitrogen at 0.5876 micrometre wavelength at 0 celcius)
-		scatData.kRayleighScatteringCoefficient = AtmospherePrecomputer::CalculateRayleighCoefficient(kIOR);
+			const std::array<double, 1> solarIrradiance{ DisplaySolarIrradiance(planet.distance) };
+			scatData.solarIrradiance = solarIrradiance;
 
-		scatData.kMieScaleHeight = 1200.0; //Mie layer height for density calculation
-		scatData.kMieAngstromAlpha = 0.0;
-		scatData.kMieAngstromBeta = 5.328e-3;
-		scatData.kMieSingleScatteringAlbedo = 0.9;
-		scatData.kMiePhaseFunctionG = 0.73;
+			// No absorption: methane only absorbs strongly in the red and near infrared, which the
+			// diffuse maps already show
+			const std::array<double, 1> absorptionExtinction{ 0.0 };
+			scatData.rayleighExtinction = absorptionExtinction;
 
-		scatData.kGroundAlbedo = 1.5;
+			scatData.kBottomRadius = planet.equatorialRadius;
+			scatData.kTopRadius = planet.equatorialRadius + planet.atmosphereHeight;
 
-		scatData.rayleighDensity[0] = DensityProfileLayer(0.0, 1.0, -1.0 / kRayleighScaleHeight, 0.0, 0.0);
-		scatData.mieDensity[0] = DensityProfileLayer(0.0, 1.0, -1.0 / scatData.kMieScaleHeight, 0.0, 0.0);
-		scatData.absorptionDensity[0] = DensityProfileLayer(0.0, 1.0, -1.0 / ((scatData.kTopRadius - scatData.kBottomRadius) * 0.1), 0.0, 0.0);
-		scatData.absorptionDensity[1] = DensityProfileLayer();
+			const double gasIndex = EffectiveIndex(planet.stpRefractivity * std::sqrt(0.2), 1.0, planet.temperature);
+			scatData.kRayleighScatteringCoefficient = AtmospherePrecomputer::CalculateRayleighCoefficient(gasIndex);
 
-		atmoPrecomputer = make<AtmospherePrecomputer>(scatData, kLengthUnitInMeters);
+			scatData.kMieScaleHeight = planet.hazeScaleHeight;
+			scatData.kMieAngstromAlpha = 0.5;
+			scatData.kMieAngstromBeta = planet.hazeOpticalDepth;
+			scatData.kMieSingleScatteringAlbedo = 0.95;
+			scatData.kMiePhaseFunctionG = planet.hazePhaseG;
 
-		surfaceAtmoIntensity = 0.08f;
+			// The cloud deck seen from the atmosphere (scaled by lambda^-4 in ProcessAtmosphericData)
+			scatData.kGroundAlbedo = 0.03;
+
+			scatData.rayleighDensity[0] = DensityProfileLayer(0.0, 1.0, -1.0 / planet.gasScaleHeight, 0.0, 0.0);
+			scatData.mieDensity[0] = DensityProfileLayer(0.0, 1.0, -1.0 / planet.hazeScaleHeight, 0.0, 0.0);
+
+			return make<AtmospherePrecomputer>(scatData, kLengthUnitInMeters);
+		}
 	}
 	//
 #pragma endregion
-		//
-#pragma region Saturn Atmosphere
 	//
-	SaturnAtmosphere::SaturnAtmosphere()
+#pragma region Terrestrial Atmospheres
+	//
+	MercuryAtmosphere::MercuryAtmosphere()
 	{
 		ScatteringData scatData;
-
 		scatData.kLambdaMin = 360;
 		scatData.kLambdaMax = 830;
 
-		// Hydrogen (96%) and helium above the 1 bar level, over a cloud deck of ammonia ice veiled by
-		// a photochemical haze. The bottom of the atmosphere is the planet's 1 bar surface, which the
-		// sky mesh is shaped to (an oblate spheroid; see SV::Saturn).
+		const std::array<double, 1> solarIrradiance{ DisplaySolarIrradiance(0.387) };
+		scatData.solarIrradiance = solarIrradiance;
+		const std::array<double, 1> absorptionExtinction{ 0.0 };
+		scatData.rayleighExtinction = absorptionExtinction;
 
-		// Sunlight at Saturn is 1/90 of Earth's. The scene shares one exposure, so it is dimmed only
-		// to 1/5 of Earth's here: enough to keep Saturn's bright clouds (and rings) in the same range
-		// as Earth (whose ground reflects much less).
-		std::array<double, 1> kSolarIrradiance{ 0.3 };
-		scatData.solarIrradiance = kSolarIrradiance;
+		scatData.kBottomRadius = 2439700.0;
+		scatData.kTopRadius = scatData.kBottomRadius + 50000.0;
 
-		// No absorption: methane only absorbs strongly in the near infrared
-		std::array<double, 1> kAbsorptionExtinction{ 0.0 };
-		scatData.rayleighExtinction = kAbsorptionExtinction;
+		// Vanishingly thin, but not zero (the precomputation divides by the scattering coefficients)
+		constexpr double kScaleHeight = 10000.0;
+		scatData.kRayleighScatteringCoefficient = AtmospherePrecomputer::CalculateRayleighCoefficient(1.0 + 1e-8);
+		scatData.kMieScaleHeight = kScaleHeight;
+		scatData.kMieAngstromAlpha = 0.0;
+		scatData.kMieAngstromBeta = 1e-9;
+		scatData.kMieSingleScatteringAlbedo = 0.9;
+		scatData.kMiePhaseFunctionG = 0.7;
+		scatData.kGroundAlbedo = 0.01;
 
-		scatData.kBottomRadius = 60268000.0;                    // Equatorial radius at 1 bar
-		scatData.kTopRadius = scatData.kBottomRadius + 600000.0; // About ten scale heights
+		scatData.rayleighDensity[0] = DensityProfileLayer(0.0, 1.0, -1.0 / kScaleHeight, 0.0, 0.0);
+		scatData.mieDensity[0] = DensityProfileLayer(0.0, 1.0, -1.0 / kScaleHeight, 0.0, 0.0);
 
-		// Scale height at 1 bar (134 K, 2.07 g/mol)
-		constexpr double kRayleighScaleHeight = 59500.0;
-		// CalculateRayleighCoefficient leaves out the number density, so this is an effective index:
-		// H2/He's refractivity (1.28e-4 at STP, 2.6e-4 at 1 bar and 134 K) scaled so the scattering
-		// coefficient matches 8 pi^3 (n^2 - 1)^2 / (3 N lambda^4) relative to Earth's, given Saturn's
-		// number density at 1 bar (5.4e25 m^-3, twice Earth's at sea level): n = 1.000183, a Rayleigh
-		// optical depth of 0.25 at 550 nm. Only the gas above the haze (about the top fifth of the
-		// column) is modelled, as the diffuse map already shows the colour seen through the rest:
-		// (n - 1) is scaled by sqrt(0.2).
-		constexpr double kIOR = 1.0000818;
-		scatData.kRayleighScatteringCoefficient = AtmospherePrecomputer::CalculateRayleighCoefficient(kIOR);
+		atmoPrecomputer = make<AtmospherePrecomputer>(scatData, kLengthUnitInMeters);
+	}
 
-		// Upper tropospheric haze: submicron, bright and forward scattering. The diffuse map already
-		// shows the haze over the clouds, so only a thin layer is modelled (it gives the limb its glow).
-		scatData.kMieScaleHeight = 60000.0;
-		scatData.kMieAngstromAlpha = 0.5;
-		scatData.kMieAngstromBeta = 0.15; // Vertical optical depth at 1 micrometre
-		scatData.kMieSingleScatteringAlbedo = 0.95;
-		scatData.kMiePhaseFunctionG = 0.65;
+	VenusAtmosphere::VenusAtmosphere()
+	{
+		ScatteringData scatData;
+		scatData.kLambdaMin = 360;
+		scatData.kLambdaMax = 830;
 
-		// The cloud deck seen from the atmosphere (scaled by lambda^-4 in ProcessAtmosphericData)
-		scatData.kGroundAlbedo = 0.03;
+		const std::array<double, 1> solarIrradiance{ DisplaySolarIrradiance(0.723) };
+		scatData.solarIrradiance = solarIrradiance;
+		const std::array<double, 1> absorptionExtinction{ 0.0 };
+		scatData.rayleighExtinction = absorptionExtinction;
+
+		// The bottom is the top of the sulphuric acid clouds, about 70 km up, where the pressure is
+		// about 40 mbar: the clouds hide everything below
+		scatData.kBottomRadius = 6051800.0;
+		scatData.kTopRadius = scatData.kBottomRadius + 80000.0;
+
+		// Carbon dioxide (refractivity 4.49e-4) at 40 mbar and 230 K
+		constexpr double kRayleighScaleHeight = 4900.0;
+		scatData.kRayleighScatteringCoefficient =
+			AtmospherePrecomputer::CalculateRayleighCoefficient(EffectiveIndex(4.49e-4, 0.04, 230.0));
+
+		// The upper haze over the clouds: submicron sulphuric acid droplets, which make the limb glow
+		scatData.kMieScaleHeight = 5000.0;
+		scatData.kMieAngstromAlpha = 1.0;
+		scatData.kMieAngstromBeta = 0.15;
+		scatData.kMieSingleScatteringAlbedo = 0.995;
+		scatData.kMiePhaseFunctionG = 0.75;
+
+		// The bright clouds (scaled by lambda^-4 in ProcessAtmosphericData)
+		scatData.kGroundAlbedo = 0.07;
 
 		scatData.rayleighDensity[0] = DensityProfileLayer(0.0, 1.0, -1.0 / kRayleighScaleHeight, 0.0, 0.0);
 		scatData.mieDensity[0] = DensityProfileLayer(0.0, 1.0, -1.0 / scatData.kMieScaleHeight, 0.0, 0.0);
 
 		atmoPrecomputer = make<AtmospherePrecomputer>(scatData, kLengthUnitInMeters);
+	}
 
-		surfaceAtmoIntensity = 0.1f;
+	MarsAtmosphere::MarsAtmosphere()
+	{
+		ScatteringData scatData;
+		scatData.kLambdaMin = 360;
+		scatData.kLambdaMax = 830;
+
+		const std::array<double, 1> solarIrradiance{ DisplaySolarIrradiance(1.524) };
+		scatData.solarIrradiance = solarIrradiance;
+
+		scatData.kBottomRadius = 3396200.0;
+		scatData.kTopRadius = scatData.kBottomRadius + 100000.0;
+
+		// Carbon dioxide at 6 mbar and 210 K: a Rayleigh optical depth of only 0.004
+		constexpr double kScaleHeight = 11100.0;
+		scatData.kRayleighScatteringCoefficient =
+			AtmospherePrecomputer::CalculateRayleighCoefficient(EffectiveIndex(4.49e-4, 0.006, 210.0));
+
+		// Suspended dust (a few micrometres across, so grey extinction) mixed through the lower
+		// atmosphere: an optical depth of about 0.4 outside dust storms
+		scatData.kMieScaleHeight = kScaleHeight;
+		scatData.kMieAngstromAlpha = 0.0;
+		scatData.kMieAngstromBeta = 0.4;
+		scatData.kMieSingleScatteringAlbedo = 0.97;
+		scatData.kMiePhaseFunctionG = 0.65;
+
+		// The dust's iron oxides absorb blue light, which gives the butterscotch sky. The absorption
+		// follows the dust; ProcessAtmosphericData scales it by lambda^-4 (in micrometres), which gives
+		// an albedo of about 0.75 at 450 nm and 0.95 at 650 nm.
+		const std::array<double, 1> dustAbsorption{ 3.5e-7 };
+		scatData.rayleighExtinction = dustAbsorption;
+		scatData.absorptionDensity[0] = DensityProfileLayer(0.0, 1.0, -1.0 / kScaleHeight, 0.0, 0.0);
+
+		// Scaled by lambda^-4 in ProcessAtmosphericData
+		scatData.kGroundAlbedo = 0.02;
+
+		scatData.rayleighDensity[0] = DensityProfileLayer(0.0, 1.0, -1.0 / kScaleHeight, 0.0, 0.0);
+		scatData.mieDensity[0] = DensityProfileLayer(0.0, 1.0, -1.0 / kScaleHeight, 0.0, 0.0);
+
+		atmoPrecomputer = make<AtmospherePrecomputer>(scatData, kLengthUnitInMeters);
+	}
+	//
+#pragma endregion
+	//
+#pragma region Giant Planet Atmospheres
+	//
+	// Refractivities at 0 C and 1 atm: H2 1.32e-4, He 3.5e-5, CH4 4.4e-4
+	JupiterAtmosphere::JupiterAtmosphere()
+	{
+		// 86% H2, 14% He at 165 K; scale height 27 km (2.22 g/mol, g = 24.8 m s^-2)
+		atmoPrecomputer = CreateGiantPlanetAtmosphere({
+			.equatorialRadius = 71492000.0,
+			.distance = 5.203,
+			.stpRefractivity = 1.18e-4,
+			.temperature = 165.0,
+			.gasScaleHeight = 27000.0,
+			.hazeScaleHeight = 60000.0,
+			.hazeOpticalDepth = 0.1,
+			.hazePhaseG = 0.75,
+			.atmosphereHeight = 600000.0 });
+	}
+
+	SaturnAtmosphere::SaturnAtmosphere()
+	{
+		// 96% H2 at 134 K; scale height 59.5 km (2.07 g/mol, g = 10.4 m s^-2). The haze (fractal
+		// aggregates; Cassini's high phase views give g of about 0.8) reaches far higher than the
+		// gas's scale height, with detached layers hundreds of km up.
+		atmoPrecomputer = CreateGiantPlanetAtmosphere({
+			.equatorialRadius = 60268000.0,
+			.distance = 9.537,
+			.stpRefractivity = 1.28e-4,
+			.temperature = 134.0,
+			.gasScaleHeight = 59500.0,
+			.hazeScaleHeight = 150000.0,
+			.hazeOpticalDepth = 0.15,
+			.hazePhaseG = 0.8,
+			.atmosphereHeight = 1000000.0 });
+	}
+
+	UranusAtmosphere::UranusAtmosphere()
+	{
+		// 83% H2, 15% He, 2.3% CH4 at 76 K; scale height 28 km (2.64 g/mol, g = 8.9 m s^-2)
+		atmoPrecomputer = CreateGiantPlanetAtmosphere({
+			.equatorialRadius = 25559000.0,
+			.distance = 19.19,
+			.stpRefractivity = 1.25e-4,
+			.temperature = 76.0,
+			.gasScaleHeight = 28000.0,
+			.hazeScaleHeight = 50000.0,
+			.hazeOpticalDepth = 0.05,
+			.hazePhaseG = 0.7,
+			.atmosphereHeight = 500000.0 });
+	}
+
+	NeptuneAtmosphere::NeptuneAtmosphere()
+	{
+		// 80% H2, 19% He, 1.5% CH4 at 72 K; scale height 21 km (2.6 g/mol, g = 11.2 m s^-2)
+		atmoPrecomputer = CreateGiantPlanetAtmosphere({
+			.equatorialRadius = 24764000.0,
+			.distance = 30.07,
+			.stpRefractivity = 1.25e-4,
+			.temperature = 72.0,
+			.gasScaleHeight = 21000.0,
+			.hazeScaleHeight = 40000.0,
+			.hazeOpticalDepth = 0.05,
+			.hazePhaseG = 0.7,
+			.atmosphereHeight = 400000.0 });
 	}
 	//
 #pragma endregion

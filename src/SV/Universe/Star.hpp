@@ -1,7 +1,10 @@
 #pragma once
+#include <vector>
+
 #include <glm/glm.hpp>
 
 #include "Dahlia/Graphics/GPUMesh.h"
+#include "Dahlia/Graphics/GraphicsPipeline.h"
 #include "Dahlia/Utilities/Memory.h"
 #include "SV/Graphics/ModalPipeline.hpp"
 #include "CelestrialBody.hpp"
@@ -14,6 +17,9 @@ namespace DH
 namespace SV
 {
 	struct SceneContext;
+
+	// Colour of a blackbody at the given temperature (K): linear sRGB with a luminance of 1
+	glm::vec3 BlackbodyColour(float temperature);
 
 	class Star : public CelestrialBody
 	{
@@ -34,8 +40,12 @@ namespace SV
 		{
 		}
 
+		// The photosphere's colour: a blackbody at the star's temperature, tinted by starColour
+		[[nodiscard]] glm::vec3 GetPhotosphereColour() const { return BlackbodyColour(starTemperature) * starColour; }
+
+		// The star is drawn with the radius of its scale; this scales its sunspot noise
 		float radius = 1.0f;
-		float starTemperature = 5800.0f;
+		float starTemperature = 5772.0f;
 		glm::vec3 starColour;
 	};
 
@@ -44,12 +54,22 @@ namespace SV
 		class Sun : public Star
 		{
 		public:
-			Sun() : Star(1.989E30, 1.0f, 5800.0f, glm::vec3(1.0f)) {}
-			explicit Sun(const glm::vec3& posIn) : Star(1.989E30, 1.0f, 5800.0f, glm::vec3(1.0f), posIn) {}
+			Sun() : Star(1.98847E30, 1.0f, 5772.0f, glm::vec3(1.0f)) {}
+			explicit Sun(const glm::vec3& posIn) : Star(1.98847E30, 1.0f, 5772.0f, glm::vec3(1.0f), posIn) {}
 		};
 	}
 
-	// Draws stars (noise textured spheres) and their coronas (additive camera facing quads)
+	// How the scene is viewed, for drawing flares
+	struct FlareView
+	{
+		glm::mat4 viewProjection;
+		glm::vec3 cameraPosition;
+		float projectionScale; // The projection's [1][1]: 1 / tan(half the vertical field of view)
+		glm::vec2 viewportSize; // Pixels
+	};
+
+	// Draws stars (noise textured spheres) and their coronas and chromospheres (additive camera
+	// facing quads), and the glare of stars too small on screen to show them (a lens flare)
 	class StarRenderer : public CelestrialRenderer<SV::Star>
 	{
 	public:
@@ -57,6 +77,16 @@ namespace SV
 
 		// Must be inside the scene render pass with the frame bind group bound at set 0
 		void Render(DH::CommandList& cmd, DH::PolygonMode polygonMode);
+
+		// Draws the flares over everything else, so call it last in the scene pass. Each fades in
+		// as its star shrinks on screen, and is dimmed by the part of the star's disc that
+		// `occluders` (the scene's other bodies) hide.
+		void RenderFlares(DH::CommandList& cmd, const FlareView& view, const std::vector<sRef<CelestrialBody>>& occluders);
+
+		// Brightness of the hydrogen (Balmer line) emission of the chromosphere and prominences
+		float hydrogenEmission = 1.0f;
+		// Brightness of the flare (0 for none)
+		float flareIntensity = 1.0f;
 
 	private:
 		std::vector<sRef<SV::Star>>& stars = CelestrialRenderer<SV::Star>::celestrialBodies;
@@ -66,5 +96,6 @@ namespace SV
 
 		ModalPipeline starPipeline;
 		ModalPipeline coronaPipeline;
+		sRef<DH::GraphicsPipeline> flarePipeline;
 	};
 }

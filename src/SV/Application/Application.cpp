@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cmath>
 #include <iostream>
+#include <vector>
 
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtx/norm.hpp>
@@ -23,59 +24,82 @@
 #include "SV/Graphics/ShaderSources.hpp"
 #include "SV/Platform/Trackpad.hpp"
 #include "SV/Universe/Planetary System.h"
+#include "SV/Universe/SolarSystem.hpp"
 
 namespace SV
 {
 	namespace
 	{
-		// Mirrors the push constants in Shaders/Grid.vert
+		// Mirrors the push constants in Shaders/Grid.vert and Grid.frag
 		struct GridPushConstants
 		{
 			glm::mat4 transform;
-		};
-
-		// Mirrors the push constants in Shaders/Marker.vert and Marker.frag
-		struct MarkerPushConstants
-		{
-			glm::mat4 transform;
-			glm::vec4 colour;
+			glm::vec4 params; // x = fade distance, y = opacity
 		};
 
 		constexpr float FOV = 45.0f;
-		constexpr float NEAR_PLANE = 0.1f;
-		constexpr float FAR_PLANE = 1500.0f;
+		// The solar system spans millions of units, so the near and far planes are fitted to the scene
+		// each frame: the near plane is this fraction of the distance to the nearest surface
+		constexpr float NEAR_PLANE_FRACTION = 0.05f;
+		constexpr float MIN_NEAR_PLANE = 1e-3f;
+		// Extents of a body in its radii: its surface (with the atmosphere), and everything drawn
+		// around it (rings and coronae)
+		constexpr float BODY_SURFACE_EXTENT = 1.02f;
+		constexpr float BODY_BOUNDING_EXTENT = 10.0f;
 
-		constexpr float GRID_SIZE = 1000.0f;
-		constexpr unsigned int GRID_LINES = 1000;
+		// The grid lies in the ecliptic, drawn at two scales a factor of 10 apart (powers of 10
+		// chosen from the zoom; the finer fades out as the camera zooms out). Each scale is a square
+		// of GRID_LINES spacings around the camera's centre, fading out GRID_FADE_SPACINGS from it.
+		constexpr unsigned int GRID_LINES = 100;
+		constexpr float GRID_FADE_SPACINGS = 40.0f;
+		// The finer scale's spacing is at most the zoom divided by this
+		constexpr float GRID_SPACINGS_PER_ZOOM = 30.0f;
+		constexpr float GRID_OPACITY = 0.35f;
 
-		constexpr float DEFAULT_ZOOM = 60.0f;
 		constexpr float MIN_ZOOM = 0.2f;
-		constexpr float MAX_ZOOM = FAR_PLANE * 0.5f;
+		constexpr float MAX_ZOOM = 3.0e6f; // About 128 AU
+		// Closest zoom to the body being followed, in its radii
+		constexpr float MIN_ZOOM_PER_RADIUS = 1.1f;
 
 		// Camera input
 		constexpr float WHEEL_ZOOM_STEP = 0.1f;      // Fraction of the distance per wheel notch
 		constexpr float TRACKPAD_ZOOM_STEP = 0.02f;  // Per point of two finger scrolling
 		constexpr float PINCH_ZOOM_SCALE = 2.0f;     // Per unit of pinch magnification
+		constexpr float DRAG_ZOOM_SCALE = 5.0f;      // Per window height of Shift + dragging
 		constexpr float TRACKPAD_ORBIT_SCALE = 1.0f; // Relative to dragging the same distance
 		// Pan speed per unit of zoom distance, so panning moves the view by a similar amount at
 		// any distance
 		constexpr float PAN_ACCELERATION_PER_ZOOM = 6.0f;
 		// "Go to" zoom distance per unit of the body's radius
 		constexpr float GO_TO_ZOOM = 6.0f;
-		// Fraction of the remaining distance covered each 1/60 s when travelling to a body
+		// Fraction of the remaining distance (and log zoom) covered each 1/60 s when travelling to a body
 		constexpr float TRAVEL_RATE = 0.11f;
+		// "Reset camera" zoom: the inner solar system, around the Sun
+		constexpr double OVERVIEW_ZOOM = 4.0 * Universe::AU_IN_UNITS;
+
+		// The crosshair at the camera's orbit centre, in pixels: the length of each arm, the gap
+		// between the arms and the centre, and the lines' thickness
+		constexpr float CROSSHAIR_ARM = 8.0f;
+		constexpr float CROSSHAIR_GAP = 3.0f;
+		constexpr float CROSSHAIR_THICKNESS = 1.5f;
+
+		// Body labels: a dot for bodies smaller than this on screen, and no label for bodies larger
+		// than this fraction of the viewport's height
+		constexpr float LABEL_DOT_RADIUS = 2.5f;
+		constexpr float LABEL_MAX_DISC_FRACTION = 0.25f;
 
 		constexpr double ANIMATION_SPEED = 0.2;
 		constexpr double MAX_FRAME_TIME = 0.1;
-		// Simulated seconds per real second for the gravity simulation: Earth orbits the Sun in
-		// about 100 s and Saturn in about 75 min
-		constexpr double SIMULATION_SPEED = 15000.0;
+		constexpr double SECONDS_PER_DAY = 86400.0;
 
-		// Saturn: its radius relative to Earth's (1 unit), placed far enough out for the Sun to look
-		// small, with its axis tilted (towards the Sun at the start) by its obliquity
-		constexpr float SATURN_RADIUS = 60268.0f / 6371.0f;
-		constexpr float SATURN_DISTANCE = 250.0f;
-		constexpr float SATURN_OBLIQUITY = 26.73f;
+		// The top left of the viewport image in screen coordinates, inside the viewport's ImGui window
+		// (the image fills the window's content region at the framebuffer's size)
+		glm::vec2 GetViewportImageOrigin()
+		{
+			const ImVec2 windowPos = ImGui::GetWindowPos();
+			const ImVec2 start = ImGui::GetCursorStartPos();
+			return { windowPos.x + start.x - ImGui::GetScrollX(), windowPos.y + start.y - ImGui::GetScrollY() };
+		}
 
 		// A line list grid on the XZ plane, from (0, 0, 0) to (scale, 0, scale)
 		DH::Mesh_F32 CreateGridLines(float scale, unsigned int lines)
@@ -133,9 +157,7 @@ namespace SV
 		std::cout << "Textures are loaded from \"" << GetTextureDirectory().string() << "\"\n";
 
 		camera.SetCentrePosition(glm::vec3(0.0f));
-		camera.SetZoom(DEFAULT_ZOOM);
 		Trackpad::Install();
-		UpdateProjectionMatrix();
 
 		// Shared scene resources
 		sceneContext.targetLayout = mViewportFramebuffer->GetLayout();
@@ -166,7 +188,7 @@ namespace SV
 		sceneContext.blackTexture = DH::Texture2D::Create({ 1, 1 }, black, DH::Format::RGBA8);
 
 		// Grid
-		gridMesh = DH::GPUMesh::Create(CreateGridLines(GRID_SIZE, GRID_LINES));
+		gridMesh = DH::GPUMesh::Create(CreateGridLines(1.0f, GRID_LINES));
 		DH::GraphicsPipelineDesc gridDesc;
 		gridDesc.vertexShader = Shaders::Create("Grid.vert");
 		gridDesc.fragmentShader = Shaders::Create("Grid.frag");
@@ -181,49 +203,29 @@ namespace SV
 		gridDesc.pushConstantSize = sizeof(GridPushConstants);
 		gridPipeline = DH::GraphicsPipeline::Create(gridDesc);
 
-		// Marker at the camera's orbit centre
-		const DH::Mesh_F32 markerMeshData = DH::Geometry::CreateQuadsphere(0.1f, 20);
-		markerMesh = DH::GPUMesh::Create(markerMeshData);
-		DH::GraphicsPipelineDesc markerDesc;
-		markerDesc.vertexShader = Shaders::Create("Marker.vert");
-		markerDesc.fragmentShader = Shaders::Create("Marker.frag");
-		markerDesc.vertexBindings = { markerMesh->GetVertexBindings()[0], markerMesh->GetVertexBindings()[1] };
-		markerDesc.vertexAttributes = { markerMesh->GetVertexAttributes()[0], markerMesh->GetVertexAttributes()[1] };
-		markerDesc.raster.cullMode = DH::CullMode::Back;
-		markerDesc.depth = { true, true, DH::CompareOp::Less };
-		markerDesc.blend = DH::BlendPreset::Alpha;
-		markerDesc.targetLayout = sceneContext.targetLayout;
-		markerDesc.bindGroupLayouts = { sceneContext.frameLayout };
-		markerDesc.pushConstantSize = sizeof(MarkerPushConstants);
-		markerPipeline = ModalPipeline(markerDesc);
-
 		// The solar system
 		starRenderer = make<StarRenderer>(sceneContext);
-		planetRenderer = make<PlanetNewRenderer>(sceneContext);
+		planetRenderer = make<PlanetRenderer>(sceneContext);
 		solarSystem = umake<Universe::PlanetarySystem>(starRenderer, planetRenderer);
 
-		const sRef<PresetStars::Sun> sun = make<PresetStars::Sun>(glm::vec3(0.0f, 0.0f, 0.0f));
-		sun->Scale(glm::vec3{ 15.0f });
-		solarSystem->Add(sun);
+		// The Sun and planets where they are today, to scale
+		for (const Universe::SolarSystemBody& body : Universe::CreateSolarSystem(*solarSystem, Universe::DaysSinceJ2000Now()))
+			namedBodies.push_back({ body.name, body.body });
+		lightSource = namedBodies.front().body;
 
-		// The planets orbit anticlockwise (seen from above) in the grid's plane
-		constexpr double EARTH_DISTANCE = 20.0;
-		const sRef<Earth> earth = make<Earth>();
-		earth->Translate(glm::vec3((float)EARTH_DISTANCE, 0.0f, 0.0f));
-		earth->SetVelocity({ 0.0, 0.0, -Universe::PlanetarySystem::CircularOrbitSpeed(sun->GetMass(), EARTH_DISTANCE) });
-		solarSystem->Add(earth);
-
-		const sRef<Saturn> saturn = make<Saturn>();
-		saturn->Translate(glm::vec3(-SATURN_DISTANCE, 0.0f, 0.0f));
-		saturn->Scale(glm::vec3(SATURN_RADIUS));
-		saturn->Rotate(glm::vec4(0.0f, 0.0f, 1.0f, SATURN_OBLIQUITY));
-		saturn->SetVelocity({ 0.0, 0.0, Universe::PlanetarySystem::CircularOrbitSpeed(sun->GetMass(), SATURN_DISTANCE) });
-		solarSystem->Add(saturn);
-
-		solarSystem->ZeroMomentum(sun);
-
-		lightSource = sun;
-		namedBodies = { { "Sun", sun }, { "Earth", earth }, { "Saturn", saturn } };
+		// Start at Earth
+		for (const NamedBody& namedBody : namedBodies)
+		{
+			if (namedBody.name == "Earth")
+			{
+				followBody = namedBody.body;
+				cameraOrigin = followBody->GetPosition();
+				camera.SetZoom(GO_TO_ZOOM * followBody->GetScale().x);
+			}
+		}
+		solarSystem->SetRenderOrigin(cameraOrigin);
+		camera.UpdateCamera(0.0f);
+		UpdateProjectionMatrix();
 
 		return true;
 	}
@@ -239,8 +241,6 @@ namespace SV
 		solarSystem.reset();
 		planetRenderer.reset();
 		starRenderer.reset();
-		markerPipeline = ModalPipeline();
-		markerMesh.reset();
 		gridPipeline.reset();
 		gridMesh.reset();
 		sceneContext = SceneContext{};
@@ -255,7 +255,24 @@ namespace SV
 		const float height = (float)mViewportFramebuffer->GetHeight();
 		if (width <= 0.0f || height <= 0.0f)
 			return;
-		projectionMatrix = glm::perspective(glm::radians(FOV), width / height, NEAR_PLANE, FAR_PLANE);
+
+		// Fit the near and far planes to the bodies (in render coordinates, around the camera), so
+		// the depth buffer's precision is spent where the nearest body is
+		const glm::vec3& eye = camera.GetActualPosition();
+		float nearest = camera.GetZoom(), farthest = camera.GetZoom();
+		if (solarSystem != nullptr)
+		{
+			for (const sRef<CelestrialBody>& body : solarSystem->GetBodies())
+			{
+				const float distance = glm::distance(body->GetTranslation(), eye);
+				const float radius = body->GetScale().x;
+				nearest = std::min(nearest, distance - radius * BODY_SURFACE_EXTENT);
+				farthest = std::max(farthest, distance + radius * BODY_BOUNDING_EXTENT);
+			}
+		}
+		const float nearPlane = std::max(NEAR_PLANE_FRACTION * nearest, MIN_NEAR_PLANE);
+		const float farPlane = std::max(1.5f * farthest, 10.0f * nearPlane);
+		projectionMatrix = glm::perspective(glm::radians(FOV), width / height, nearPlane, farPlane);
 	}
 
 	void Application::OnViewportResize()
@@ -264,11 +281,24 @@ namespace SV
 		UpdateProjectionMatrix();
 	}
 
-	void Application::MoveTo(const CelestrialBody& body, const float zoom)
+	void Application::MoveTo(const sRef<CelestrialBody>& body, const float zoom)
 	{
-		travelTarget = body.GetTranslation();
+		travelBody = body;
 		travelZoom = zoom;
 		isTravelling = true;
+		followBody = nullptr;
+	}
+
+	void Application::StopFollowing()
+	{
+		isTravelling = false;
+		followBody = nullptr;
+	}
+
+	float Application::GetMinZoom() const
+	{
+		const sRef<CelestrialBody>& body = isTravelling ? travelBody : followBody;
+		return body != nullptr ? std::max(MIN_ZOOM, MIN_ZOOM_PER_RADIUS * body->GetScale().x) : MIN_ZOOM;
 	}
 
 	void Application::UpdateCamera(const float deltaTime)
@@ -278,7 +308,7 @@ namespace SV
 			(mKeyDown == DH::KeyCode::K_W || mKeyDown == DH::KeyCode::K_A ||
 			 mKeyDown == DH::KeyCode::K_S || mKeyDown == DH::KeyCode::K_D))
 		{
-			isTravelling = false;
+			StopFollowing();
 			camera.UpdateMovement(glm::vec2(0.0f), DH::MouseButton::None, mKeyDown, mKeyMods);
 		}
 
@@ -289,24 +319,39 @@ namespace SV
 
 		camera.SetPosAcc(PAN_ACCELERATION_PER_ZOOM * std::max(camera.GetZoom(), MIN_ZOOM));
 
+		// Move the render origin to the camera's centre, so the camera's own (float) coordinates stay
+		// small wherever it is in the solar system
+		cameraOrigin += glm::dvec3(camera.GetCentrePosition());
+		camera.SetCentrePosition(glm::vec3(0.0f));
+
 		if (isTravelling)
 		{
-			const float t = 1.0f - std::pow(1.0f - TRAVEL_RATE, deltaTime * 60.0f);
-			const glm::vec3 centre = glm::mix(camera.GetCentrePosition(), travelTarget, t);
-			const float zoom = glm::mix(camera.GetZoom(), travelZoom, t);
+			// Towards the body (which may be moving), zooming in proportion
+			const double t = 1.0 - std::pow(1.0 - TRAVEL_RATE, deltaTime * 60.0);
+			const glm::dvec3& target = travelBody->GetPosition();
+			cameraOrigin = glm::mix(cameraOrigin, target, t);
+			const float zoom = (float)std::exp(glm::mix(std::log((double)camera.GetZoom()), std::log((double)travelZoom), t));
 
-			constexpr float THRESHOLD = 0.001f;
-			if (glm::distance2(centre, travelTarget) < THRESHOLD * THRESHOLD && std::abs(travelZoom - zoom) < THRESHOLD)
+			constexpr double THRESHOLD = 1e-3;
+			if (glm::distance(cameraOrigin, target) < THRESHOLD * travelZoom && std::abs(std::log(zoom / travelZoom)) < THRESHOLD)
 			{
 				isTravelling = false;
-				camera.SetCentrePosition(travelTarget);
+				followBody = travelBody;
+				cameraOrigin = target;
 				camera.SetZoom(travelZoom);
 			}
 			else
 			{
-				camera.SetCentrePosition(centre);
 				camera.SetZoom(zoom);
 			}
+		}
+		else
+		{
+			if (followBody != nullptr)
+				cameraOrigin = followBody->GetPosition();
+			// Never inside the body being followed or past the solar system (travel eases into its
+			// own zoom, so is left alone)
+			camera.SetZoom(std::clamp(camera.GetZoom(), GetMinZoom(), MAX_ZOOM));
 		}
 
 		camera.UpdateCamera(deltaTime);
@@ -318,15 +363,19 @@ namespace SV
 		// clamp so the camera and simulation don't jump
 		const double frameTime = std::min(mDeltaTime, MAX_FRAME_TIME);
 		const float deltaTime = (float)frameTime;
-		UpdateCamera(deltaTime);
 		animationTime += ANIMATION_SPEED * frameTime;
 
+		// The simulation first, so the camera follows a body to where it is this frame
 		if (simulateGravity)
-			solarSystem->Update(frameTime * SIMULATION_SPEED);
+			solarSystem->Update(frameTime * daysPerSecond * SECONDS_PER_DAY);
+		UpdateCamera(deltaTime);
+		solarSystem->SetRenderOrigin(cameraOrigin);
+		UpdateProjectionMatrix();
 
 		const glm::mat4& view = camera.GetViewMatrix();
+		viewProjection = projectionMatrix * view;
 		FrameUniforms frame;
-		frame.viewProjection = projectionMatrix * view;
+		frame.viewProjection = viewProjection;
 		frame.view = view;
 		frame.projection = projectionMatrix;
 		frame.cameraPosition = glm::vec4(camera.GetActualPosition(), 1.0f);
@@ -350,7 +399,8 @@ namespace SV
 
 		cmd.BindGroup(0, *sceneContext.frameGroup);
 
-		RenderGrid(cmd);
+		if (showGrid)
+			RenderGrid(cmd);
 
 		// Draw the furthest kind of body first so blending (coronas, atmospheres) composites correctly
 		auto RenderPlanets = [&]() { planetRenderer->Render(cmd, polygonMode, cameraPosition); };
@@ -366,36 +416,130 @@ namespace SV
 			RenderStars();
 		}
 
-		RenderCentreMarker(cmd);
+		// The Sun's glare when it is far away, over everything
+		const glm::vec2 viewportSize((float)mViewportFramebuffer->GetWidth(), (float)mViewportFramebuffer->GetHeight());
+		starRenderer->RenderFlares(cmd, FlareView{ viewProjection, cameraPosition, projectionMatrix[1][1], viewportSize },
+								   solarSystem->GetBodies());
 
 		cmd.EndRenderPass();
 	}
 
 	void Application::RenderGrid(DH::CommandList& cmd)
 	{
-		cmd.BindPipeline(*gridPipeline);
-		cmd.PushConstants(GridPushConstants{ glm::translate(glm::vec3(-GRID_SIZE * 0.5f, 0.0f, -GRID_SIZE * 0.5f)) });
-		gridMesh->Draw(cmd);
-	}
+		const double level = std::log10(std::max(camera.GetZoom(), MIN_ZOOM) / GRID_SPACINGS_PER_ZOOM);
+		const double fineSpacing = std::pow(10.0, std::floor(level));
+		const float fineOpacity = GRID_OPACITY * (1.0f - (float)(level - std::floor(level)));
 
-	void Application::RenderCentreMarker(DH::CommandList& cmd)
-	{
-		cmd.BindPipeline(markerPipeline.Get(polygonMode));
-		cmd.PushConstants(MarkerPushConstants{ glm::translate(camera.GetCentrePosition()), glm::vec4(1.0f, 1.0f, 1.0f, 0.85f) });
-		markerMesh->Draw(cmd);
+		// Lines on multiples of the spacing in the solar system's coordinates (so they stay put as the
+		// camera moves), in the ecliptic (y = 0), around the camera's centre
+		const glm::dvec3 centre = cameraOrigin + glm::dvec3(camera.GetCentrePosition());
+		cmd.BindPipeline(*gridPipeline);
+		for (const auto& [spacing, opacity] : { std::pair{ fineSpacing, fineOpacity }, std::pair{ 10.0 * fineSpacing, GRID_OPACITY } })
+		{
+			const double halfSize = 0.5 * GRID_LINES * spacing;
+			const glm::dvec3 corner(std::floor(centre.x / spacing) * spacing - halfSize, 0.0,
+									std::floor(centre.z / spacing) * spacing - halfSize);
+			const glm::mat4 transform = glm::translate(glm::vec3(corner - cameraOrigin)) *
+										glm::scale(glm::vec3((float)(GRID_LINES * spacing)));
+			cmd.PushConstants(GridPushConstants{ transform, glm::vec4((float)(GRID_FADE_SPACINGS * spacing), opacity, 0.0f, 0.0f) });
+			gridMesh->Draw(cmd);
+		}
 	}
 
 	void Application::OnImGuiRender()
 	{
 		// GraphicsApp drew the viewport window this frame; reopen it to ask whether the cursor is
-		// over it, so scrolling and pinching work without clicking the viewport first
+		// over it, so scrolling and pinching work without clicking the viewport first, and to label
+		// the bodies over it
+		ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
 		if (ImGui::Begin(mViewportName.c_str()))
+		{
 			isViewportHovered = ImGui::IsWindowHovered(ImGuiHoveredFlags_ChildWindows);
+			if (showLabels)
+				DrawLabels();
+			DrawCrosshair();
+		}
 		else
+		{
 			isViewportHovered = false;
+		}
 		ImGui::End();
+		ImGui::PopStyleVar();
 
 		RenderControlsPanel();
+	}
+
+	void Application::DrawLabels()
+	{
+		const glm::vec2 origin = GetViewportImageOrigin();
+		const glm::vec2 size((float)mViewportFramebuffer->GetWidth(), (float)mViewportFramebuffer->GetHeight());
+		ImDrawList* drawList = ImGui::GetWindowDrawList();
+		const ImU32 colour = IM_COL32(220, 220, 220, 210);
+		const float fontSize = ImGui::GetFontSize();
+
+		// Each body's disc on screen
+		struct Disc
+		{
+			glm::vec2 centre;
+			float radius;
+			float depth; // Clip w: the distance in front of the camera
+		};
+		std::vector<Disc> discs;
+		for (const NamedBody& namedBody : namedBodies)
+		{
+			const glm::vec4 clip = viewProjection * glm::vec4(namedBody.body->GetTranslation(), 1.0f);
+			const glm::vec2 ndc = glm::vec2(clip) / clip.w;
+			discs.push_back({ origin + glm::vec2(ndc.x * 0.5f + 0.5f, 0.5f - ndc.y * 0.5f) * size,
+							  namedBody.body->GetScale().x / clip.w * projectionMatrix[1][1] * size.y * 0.5f, clip.w });
+		}
+
+		for (size_t i = 0; i < namedBodies.size(); i++)
+		{
+			const Disc& disc = discs[i];
+			const glm::vec2& point = disc.centre;
+			const float discRadius = disc.radius;
+			if (disc.depth <= 0.0f || discRadius > LABEL_MAX_DISC_FRACTION * size.y)
+				continue;
+			if (point.x < origin.x - size.x * 0.25f || point.x > origin.x + size.x * 1.25f ||
+				point.y < origin.y - size.y * 0.25f || point.y > origin.y + size.y * 1.25f)
+				continue;
+
+			// Hidden behind a nearer body's disc
+			bool hidden = false;
+			for (const Disc& other : discs)
+			{
+				if (other.depth > 0.0f && other.depth < disc.depth && glm::distance(other.centre, point) < other.radius)
+					hidden = true;
+			}
+			if (hidden)
+				continue;
+
+			const NamedBody& namedBody = namedBodies[i];
+			if (discRadius < LABEL_DOT_RADIUS)
+				drawList->AddCircleFilled(ImVec2(point.x, point.y), LABEL_DOT_RADIUS, colour);
+			const float offset = std::max(discRadius, LABEL_DOT_RADIUS) + 4.0f;
+			drawList->AddText(ImVec2(point.x + offset, point.y - fontSize * 0.5f), colour, namedBody.name.c_str());
+		}
+	}
+
+	void Application::DrawCrosshair()
+	{
+		// The camera looks at its orbit centre, so it is always at the middle of the viewport
+		const glm::vec2 size((float)mViewportFramebuffer->GetWidth(), (float)mViewportFramebuffer->GetHeight());
+		const glm::vec2 centre = glm::floor(GetViewportImageOrigin() + 0.5f * size) + 0.5f;
+		ImDrawList* drawList = ImGui::GetWindowDrawList();
+
+		// A dark outline under light lines, so it shows over bright bodies as well as space
+		for (const auto& [colour, thickness] : { std::pair{ IM_COL32(0, 0, 0, 140), CROSSHAIR_THICKNESS + 2.0f },
+												 std::pair{ IM_COL32(255, 255, 255, 220), CROSSHAIR_THICKNESS } })
+		{
+			for (const glm::vec2 direction : { glm::vec2(1.0f, 0.0f), glm::vec2(-1.0f, 0.0f), glm::vec2(0.0f, 1.0f), glm::vec2(0.0f, -1.0f) })
+			{
+				const glm::vec2 from = centre + direction * CROSSHAIR_GAP;
+				const glm::vec2 to = centre + direction * (CROSSHAIR_GAP + CROSSHAIR_ARM);
+				drawList->AddLine(ImVec2(from.x, from.y), ImVec2(to.x, to.y), colour, thickness);
+			}
+		}
 	}
 
 	void Application::RenderControlsPanel()
@@ -409,43 +553,61 @@ namespace SV
 		if (ImGui::CollapsingHeader("Scene", ImGuiTreeNodeFlags_DefaultOpen))
 		{
 			ImGui::DragFloat("Exposure (-/=)", &exposure, 0.1f, 0.0f, 100.0f);
+			ImGui::SliderFloat("H-alpha emission", &starRenderer->hydrogenEmission, 0.0f, 4.0f);
+			ImGui::SliderFloat("Sun flare", &starRenderer->flareIntensity, 0.0f, 2.0f);
+			ImGui::SetItemTooltip("The Sun's glare and lens flare when it is far away (0 for none)");
+			ImGui::SliderFloat("Faint ring gain", &planetRenderer->diffuseRingGain, 0.0f, 3000.0f, "%.0f",
+							   ImGuiSliderFlags_Logarithmic);
 
 			int mode = (int)polygonMode;
 			const char* modes[] = { "Solid (1)", "Wireframe (2)", "Points (3)" };
 			if (ImGui::Combo("Render style", &mode, modes, 3))
 				polygonMode = (DH::PolygonMode)mode;
 
+			ImGui::Checkbox("Show grid (G)", &showGrid);
+			ImGui::SameLine();
+			ImGui::Checkbox("Show labels (L)", &showLabels);
 			ImGui::Checkbox("Simulate gravity", &simulateGravity);
+			ImGui::SliderFloat("Time scale", &daysPerSecond, 0.001f, 100.0f, "%.3g days/s", ImGuiSliderFlags_Logarithmic);
 		}
 
 		if (ImGui::CollapsingHeader("Bodies", ImGuiTreeNodeFlags_DefaultOpen))
 		{
 			for (const NamedBody& namedBody : namedBodies)
 			{
-				const glm::vec3& position = namedBody.body->GetTranslation();
 				ImGui::PushID(namedBody.name.c_str());
 				if (ImGui::Button("Go to"))
-					MoveTo(*namedBody.body, GO_TO_ZOOM * namedBody.body->GetScale().x);
+					MoveTo(namedBody.body, GO_TO_ZOOM * namedBody.body->GetScale().x);
 				ImGui::SameLine();
-				ImGui::Text("%s (%.1f, %.1f, %.1f)", namedBody.name.c_str(), position.x, position.y, position.z);
+				if (namedBody.body == lightSource)
+				{
+					ImGui::TextUnformatted(namedBody.name.c_str());
+				}
+				else
+				{
+					const double distance = glm::distance(namedBody.body->GetPosition(), lightSource->GetPosition());
+					ImGui::Text("%s (%.2f AU from the Sun)", namedBody.name.c_str(), distance / Universe::AU_IN_UNITS);
+				}
 				ImGui::PopID();
 			}
 		}
 
 		if (ImGui::CollapsingHeader("Camera", ImGuiTreeNodeFlags_DefaultOpen))
 		{
-			const glm::vec3& centre = camera.GetCentrePosition();
-			ImGui::Text("Centre: X=%.2f, Y=%.2f, Z=%.2f", centre.x, centre.y, centre.z);
-			ImGui::Text("Zoom: %.2f, Pitch: %.1f, Yaw: %.1f", camera.GetZoom(), camera.GetPitch(), camera.GetYaw());
-			if (ImGui::Button("Reset camera"))
+			const glm::dvec3 centre = (cameraOrigin + glm::dvec3(camera.GetCentrePosition())) / Universe::AU_IN_UNITS;
+			ImGui::Text("Centre (AU): X=%.4f, Y=%.4f, Z=%.4f", centre.x, centre.y, centre.z);
+			ImGui::Text("Zoom: %.3g Earth radii (%.3g AU)", camera.GetZoom(), camera.GetZoom() / Universe::AU_IN_UNITS);
+			ImGui::Text("Pitch: %.1f, Yaw: %.1f", camera.GetPitch(), camera.GetYaw());
+			for (const NamedBody& namedBody : namedBodies)
 			{
-				travelTarget = glm::vec3(0.0f);
-				travelZoom = DEFAULT_ZOOM;
-				isTravelling = true;
+				if (namedBody.body == followBody)
+					ImGui::Text("Following %s", namedBody.name.c_str());
 			}
+			if (ImGui::Button("Reset camera"))
+				MoveTo(lightSource, (float)OVERVIEW_ZOOM);
 			ImGui::TextWrapped("Trackpad: two finger scroll to orbit, pinch or Cmd + scroll to zoom, Shift + scroll to pan.");
 			ImGui::TextWrapped("Mouse: drag to orbit, right drag or Option + drag to pan, wheel or Shift + drag to zoom.");
-			ImGui::TextWrapped("W/A/S/D: move.");
+			ImGui::TextWrapped("W/A/S/D: move. Panning or moving stops following a body.");
 		}
 
 		if (ImGui::CollapsingHeader("Renderer"))
@@ -481,6 +643,12 @@ namespace SV
 		case DH::KeyCode::K_3:
 			polygonMode = DH::PolygonMode::Points;
 			break;
+		case DH::KeyCode::K_G:
+			showGrid = !showGrid;
+			break;
+		case DH::KeyCode::K_L:
+			showLabels = !showLabels;
+			break;
 		default:
 			break;
 		}
@@ -493,16 +661,28 @@ namespace SV
 
 		if (mIsViewportFocused && mMouseButtonDown != DH::MouseButton::None)
 		{
-			isTravelling = false;
 			const ImGuiIO& io = ImGui::GetIO();
 			const glm::vec2 delta = mDeltaMousePos / glm::vec2((float)mWindow->GetWidth(), (float)mWindow->GetHeight());
+
+			// Shift + drag zooms (dragging down zooms out). Camera3D's own Shift zoom moves the
+			// distance at a fixed speed with momentum, which crawls across the solar system, leaps
+			// past bodies up close and can zoom through them, so the zoom is applied here instead:
+			// exponentially (like scrolling) and within the zoom limits.
+			if (io.KeyShift)
+			{
+				ZoomBy(-delta.y * DRAG_ZOOM_SCALE);
+				return true;
+			}
 
 			// Option + drag pans, for trackpads where a right drag is awkward
 			DH::MouseButton button = mMouseButtonDown;
 			if (button == DH::MouseButton::Left && io.KeyAlt)
 				button = DH::MouseButton::Right;
+			// Panning moves the centre away from the body being followed (orbiting doesn't)
+			if (button == DH::MouseButton::Right)
+				StopFollowing();
 
-			camera.UpdateMovement(delta, button, mKeyDown, io.KeyShift ? DH::MOD_BIT_SHIFT : 0);
+			camera.UpdateMovement(delta, button);
 		}
 		return true;
 	}
@@ -510,8 +690,10 @@ namespace SV
 	void Application::ZoomBy(const float amount)
 	{
 		// Exponential, so each step covers the same fraction of the distance at any zoom
-		isTravelling = false;
-		camera.SetZoom(std::clamp(camera.GetZoom() * std::exp(-amount), MIN_ZOOM, MAX_ZOOM));
+		const float factor = std::exp(-amount);
+		if (isTravelling)
+			travelZoom = std::clamp(travelZoom * factor, GetMinZoom(), MAX_ZOOM);
+		camera.SetZoom(std::clamp(camera.GetZoom() * factor, GetMinZoom(), MAX_ZOOM));
 	}
 
 	bool Application::OnMouseScroll(DH::MouseScrollEvent& e)
@@ -533,12 +715,14 @@ namespace SV
 
 		// Trackpad. GLFW reports precise deltas at a tenth of a point; convert back to points and
 		// normalise by the window size like mouse drags
-		isTravelling = false;
 		const glm::vec2 delta = offset * 10.0f / glm::vec2((float)mWindow->GetWidth(), (float)mWindow->GetHeight());
 		if (io.KeySuper || io.KeyCtrl)
 			ZoomBy(offset.y * TRACKPAD_ZOOM_STEP);
 		else if (io.KeyShift)
+		{
+			StopFollowing();
 			camera.UpdateMovement(delta, DH::MouseButton::Right);
+		}
 		else
 			camera.UpdateMovement(delta * TRACKPAD_ORBIT_SCALE, DH::MouseButton::Left);
 		return true;

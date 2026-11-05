@@ -26,11 +26,9 @@ layout(location = 0) in vec3 vWorldPosition;
 layout(location = 1) in vec3 vNormal;
 layout(location = 2) in vec2 vTexCoord;
 
+// Premultiplied: rgb is the light the planet and its atmosphere send to the camera, a is how much
+// of what is behind them they hide
 layout(location = 0) out vec4 pixColour;
-
-// Lit surfaces: the diffuse map is a display image normalised to its brightest point. Scale it to
-// a plausible reflectance (Saturn's geometric albedo is about 0.5).
-const float LIT_SURFACE_ALBEDO = 0.55;
 
 float ApproximateLuminance(vec3 colour)
 {
@@ -153,7 +151,8 @@ void main()
     if ((flags & PLANET_LIT_SURFACE) == 0)
     {
         vec4 colour = ShadeEarthLike(cameraS, viewRayS, skyPointS, sunDirectionS, normalize(camera - skyPoint), flags);
-        pixColour = colour;
+        float alpha = clamp(colour.a, 0.0, 1.0);
+        pixColour = vec4(colour.rgb * alpha, alpha); // Premultiplied
         return;
     }
 
@@ -175,13 +174,22 @@ void main()
     uvDy.x -= round(uvDy.x);
     uv.x += uFrame.times.x * uPlanet.shape.w;
 
+    // The rings' shadow. It falls on the air above the surface as well as on the surface, so it
+    // also dims the light the atmosphere scatters (the shadow is taken at the surface point below).
+    vec3 ringShadow = vec3(1.0);
+    if ((flags & PLANET_HAS_RINGS) != 0)
+        ringShadow = RingShadow(ground, toSun, uPlanet.shape.y, uPlanet.shape.z, sunAngularRadius);
+
     if (!hitsGround)
     {
         // Sky: the limb of the atmosphere, which glows when lit from behind (forward scattering)
         vec3 transmittance;
-        vec3 radiance = ToneMap(GetSkyRadiance(atmosphere, transmittanceTexture, scatteringTexture, scatteringTexture,
-                                               cameraS, viewRayS, 0.0, sunDirectionS, transmittance));
-        pixColour = vec4(radiance, exp(ApproximateLuminance(radiance)) - 1.0);
+        vec3 radiance = ToneMap(ringShadow * GetSkyRadiance(atmosphere, transmittanceTexture, scatteringTexture,
+                                                            scatteringTexture, cameraS, viewRayS, 0.0, sunDirectionS,
+                                                            transmittance));
+        // The air adds its light and hides what is behind it by its opacity along the ray (faint
+        // glows stay visible, unlike with an opacity derived from their brightness)
+        pixColour = vec4(radiance, 1.0 - dot(transmittance, vec3(1.0 / 3.0)));
         return;
     }
 
@@ -202,13 +210,15 @@ void main()
     {
         float innerRadius = uPlanet.shape.y;
         float outerRadius = uPlanet.shape.z;
-        sunlight *= RingShadow(ground, toSun, innerRadius, outerRadius, sunAngularRadius);
+        sunlight *= ringShadow;
         ringshine = atmosphere.solar_irradiance *
                     RingshineIrradiance(ground, normal, toSun, innerRadius, outerRadius, polarRatio, sunAngularRadius);
     }
 
-    vec3 albedo = pow(textureGrad(uDiffuseMap, uv, uvDx, uvDy).rgb, vec3(2.2)) * LIT_SURFACE_ALBEDO;
+    // The diffuse map is a display image normalised to its brightest point: scale it to the
+    // planet's reflectance
+    vec3 albedo = pow(textureGrad(uDiffuseMap, uv, uvDx, uvDy).rgb, vec3(2.2)) * uPlanet.axes[0].w;
     vec3 surface = albedo / PI * (sunlight + ringshine);
 
-    pixColour = vec4(ToneMap(surface * viewTransmittance + inScattered), 1.0);
+    pixColour = vec4(ToneMap(surface * viewTransmittance + inScattered * ringShadow), 1.0);
 }
