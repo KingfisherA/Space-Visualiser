@@ -72,10 +72,4 @@ namespace SV::Atmosphere
 	public:
 		NeptuneAtmosphere();
 	};
-
-	class TitanAtmosphere : public IAtmosphere
-	{
-	public:
-		TitanAtmosphere();
-	};
 }

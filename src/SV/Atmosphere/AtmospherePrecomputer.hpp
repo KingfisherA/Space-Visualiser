@@ -188,16 +188,6 @@ namespace SV::Atmosphere
 			: width(width), exp_term(exp_term), exp_scale(exp_scale),
 			linear_term(linear_term), constant_term(constant_term) {
 		}
-		//
-		void operator=(const DensityProfileLayer& layer)
-		{
-			width = layer.width;
-			exp_term = layer.exp_term;
-			exp_scale = layer.exp_scale;
-			linear_term = layer.linear_term;
-			constant_term = layer.constant_term;
-		}
-		//
 		double width;
 		double exp_term;
 		double exp_scale;

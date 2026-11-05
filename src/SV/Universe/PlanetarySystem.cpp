@@ -1,4 +1,4 @@
-#include "Planetary System.h"
+#include "PlanetarySystem.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -16,11 +16,6 @@ namespace SV::Universe
 			throw std::invalid_argument("For a planetary system to be constructed, a valid StarRenderer and PlanetRenderer must be passed.");
 	}
 
-	double PlanetarySystem::CircularOrbitSpeed(const double centralMass, const double distance)
-	{
-		return std::sqrt(SV::Maths::Gravity::G * centralMass / (distance * METRES_PER_UNIT));
-	}
-
 	void PlanetarySystem::ZeroMomentum(const sRef<SV::CelestrialBody>& body)
 	{
 		glm::dvec3 momentum(0.0);
@@ -32,7 +27,7 @@ namespace SV::Universe
 		body->velocity = -momentum / body->mass;
 	}
 
-	PlanetarySystemI PlanetarySystem::Add(const sRef<SV::CelestrialBody>& body)
+	void PlanetarySystem::Add(const sRef<SV::CelestrialBody>& body)
 	{
 		switch (body->GetType())
 		{
@@ -47,29 +42,6 @@ namespace SV::Universe
 		}
 
 		celestrialBodies.push_back(body);
-		return celestrialBodies.size() - 1;
-	}
-
-	void PlanetarySystem::Remove(const PlanetarySystemI index)
-	{
-		Remove(sRef<SV::CelestrialBody>(celestrialBodies.at(index)));
-	}
-
-	void PlanetarySystem::Remove(const sRef<SV::CelestrialBody>& body)
-	{
-		switch (body->GetType())
-		{
-		case CelestrialBodyType::Planet:
-			pRenderer->Remove(std::static_pointer_cast<SV::Planet>(body));
-			break;
-		case CelestrialBodyType::Star:
-			sRenderer->Remove(std::static_pointer_cast<SV::Star>(body));
-			break;
-		default:
-			throw std::runtime_error("CelestrialBodyType is invalid");
-		}
-
-		std::erase(celestrialBodies, body);
 	}
 
 	void PlanetarySystem::Update(const double deltaTime)

@@ -32,14 +32,6 @@ namespace SV
 		{
 		}
 
-		Star(const double massIn, float radiusIn, float starTempIn, const glm::vec3& starColIn, const glm::vec3& position) :
-			CelestrialBody(CelestrialBodyType::Star, massIn, position),
-			radius(radiusIn),
-			starTemperature(starTempIn),
-			starColour(starColIn)
-		{
-		}
-
 		// The photosphere's colour: a blackbody at the star's temperature, tinted by starColour
 		[[nodiscard]] glm::vec3 GetPhotosphereColour() const { return BlackbodyColour(starTemperature) * starColour; }
 
@@ -55,7 +47,6 @@ namespace SV
 		{
 		public:
 			Sun() : Star(1.98847E30, 1.0f, 5772.0f, glm::vec3(1.0f)) {}
-			explicit Sun(const glm::vec3& posIn) : Star(1.98847E30, 1.0f, 5772.0f, glm::vec3(1.0f), posIn) {}
 		};
 	}
 

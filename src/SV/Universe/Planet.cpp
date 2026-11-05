@@ -236,11 +236,6 @@ namespace SV
 				  (float)(OUTER_KM / RADIUS_KM) };
 	}
 
-	// Titan has no surface map: its thick atmosphere is drawn over a black surface
-	Titan::Titan() : Planet(1.3452E23, make<SV::Atmosphere::TitanAtmosphere>())
-	{
-	}
-
 #pragma endregion
 
 #pragma region Planet New Renderer
@@ -456,6 +451,24 @@ namespace SV
 			if (mapsChanged)
 				UpdateMapBindings(*planet, bindings);
 		}
+	}
+
+	PlanetRenderer::MapLoadProgress PlanetRenderer::GetMapLoadProgress() const
+	{
+		MapLoadProgress progress;
+		for (const sRef<Planet>& planet : planets)
+		{
+			for (const sRef<AsyncTexture>* map : { &planet->GetDiffuseMap(), &planet->GetSpecularMap(), &planet->GetCloudsMap(),
+												   &planet->GetNightMap(), &planet->GetRingMap(), &planet->GetDustMap() })
+			{
+				if (*map == nullptr)
+					continue;
+				progress.total++;
+				if (!(*map)->IsPending())
+					progress.loaded++;
+			}
+		}
+		return progress;
 	}
 
 	void PlanetRenderer::RenderRings(DH::CommandList& cmd, const DH::PolygonMode polygonMode, const glm::vec3& cameraPosition, const bool isBack)

@@ -7,7 +7,7 @@
 #include <glm/glm.hpp>
 
 #include "Dahlia/Maths/Maths.h"
-#include "Planetary System.h"
+#include "PlanetarySystem.hpp"
 #include "Planet.hpp"
 #include "Star.hpp"
 

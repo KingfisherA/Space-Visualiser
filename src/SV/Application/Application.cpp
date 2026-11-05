@@ -2,13 +2,17 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdlib>
+#include <filesystem>
 #include <iostream>
+#include <system_error>
 #include <vector>
 
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtx/norm.hpp>
 #include <glm/gtx/transform.hpp>
 #include <imgui.h>
+#include <imgui_internal.h>
 
 #include "Dahlia/Events/KeyEvents.h"
 #include "Dahlia/Events/MouseEvents.h"
@@ -20,10 +24,11 @@
 #include "Dahlia/Graphics/Texture.h"
 #include "Dahlia/Maths/Geometry.h"
 #include "Dahlia/Platform/GPUContext.h"
+#include "SV/Application/SplashScreen.hpp"
 #include "SV/Graphics/AsyncTexture.hpp"
 #include "SV/Graphics/ShaderSources.hpp"
 #include "SV/Platform/Trackpad.hpp"
-#include "SV/Universe/Planetary System.h"
+#include "SV/Universe/PlanetarySystem.hpp"
 #include "SV/Universe/SolarSystem.hpp"
 
 namespace SV
@@ -92,6 +97,41 @@ namespace SV
 		constexpr double MAX_FRAME_TIME = 0.1;
 		constexpr double SECONDS_PER_DAY = 86400.0;
 
+		// The splash screen shows for at least this long, and stops waiting for textures after the
+		// longest time (planets are drawn black until their maps load)
+		constexpr double MIN_SPLASH_SECONDS = 1.5;
+		constexpr double MAX_SPLASH_SECONDS = 15.0;
+		// The default layout: the controls panel docked to the left of the viewport, with this
+		// fraction of the window's width
+		constexpr float CONTROLS_PANEL_FRACTION = 0.25f;
+
+		// Where ImGui keeps the window layout (imgui.ini): a per-user settings directory, so it is
+		// the same however Space Visualiser is launched (an app bundle is started in "/")
+		std::filesystem::path GetSettingsDirectory()
+		{
+			auto FromEnvironment = [](const char* name) -> std::filesystem::path
+			{
+#ifdef _MSC_VER
+#pragma warning(suppress : 4996) // getenv is fine: the value is copied straight away
+#endif
+				const char* value = std::getenv(name);
+				return value != nullptr ? std::filesystem::path(value) : std::filesystem::path();
+			};
+#if defined(__APPLE__)
+			const std::filesystem::path base = FromEnvironment("HOME") / "Library" / "Application Support";
+			const char* name = "Space Visualiser";
+#elif defined(_WIN32)
+			const std::filesystem::path base = FromEnvironment("APPDATA");
+			const char* name = "Space Visualiser";
+#else
+			std::filesystem::path base = FromEnvironment("XDG_CONFIG_HOME");
+			if (base.empty() && !FromEnvironment("HOME").empty())
+				base = FromEnvironment("HOME") / ".config";
+			const char* name = "space-visualiser";
+#endif
+			return base.empty() || !base.is_absolute() ? std::filesystem::current_path() : base / name;
+		}
+
 		// The top left of the viewport image in screen coordinates, inside the viewport's ImGui window
 		// (the image fills the window's content region at the framebuffer's size)
 		glm::vec2 GetViewportImageOrigin()
@@ -156,8 +196,19 @@ namespace SV
 		std::cout << "Space Visualiser running on " << mVersionStr << " (" << mVendorStr << ")\n";
 		std::cout << "Textures are loaded from \"" << GetTextureDirectory().string() << "\"\n";
 
+		// Keep the window layout in the settings directory, docking the windows on the first run
+		const std::filesystem::path settingsDirectory = GetSettingsDirectory();
+		std::error_code error;
+		std::filesystem::create_directories(settingsDirectory, error);
+		imguiIniPath = (settingsDirectory / "imgui.ini").string();
+		applyDefaultLayout = !std::filesystem::exists(imguiIniPath, error);
+		ImGui::GetIO().IniFilename = imguiIniPath.c_str();
+
 		camera.SetCentrePosition(glm::vec3(0.0f));
 		Trackpad::Install();
+
+		// The scene is created and loaded over the next few frames, behind the splash screen
+		splashScreen = umake<SplashScreen>();
 
 		// Shared scene resources
 		sceneContext.targetLayout = mViewportFramebuffer->GetLayout();
@@ -187,6 +238,11 @@ namespace SV
 		const unsigned char black[4] = { 0, 0, 0, 255 };
 		sceneContext.blackTexture = DH::Texture2D::Create({ 1, 1 }, black, DH::Format::RGBA8);
 
+		return true;
+	}
+
+	void Application::CreateScene()
+	{
 		// Grid
 		gridMesh = DH::GPUMesh::Create(CreateGridLines(1.0f, GRID_LINES));
 		DH::GraphicsPipelineDesc gridDesc;
@@ -226,8 +282,6 @@ namespace SV
 		solarSystem->SetRenderOrigin(cameraOrigin);
 		camera.UpdateCamera(0.0f);
 		UpdateProjectionMatrix();
-
-		return true;
 	}
 
 	void Application::OnDestroy()
@@ -236,6 +290,7 @@ namespace SV
 
 		// GPU resources must be released before Dahlia destroys the device
 		DH::GPUContext::Get()->WaitIdle();
+		splashScreen.reset();
 		namedBodies.clear();
 		lightSource.reset();
 		solarSystem.reset();
@@ -357,8 +412,49 @@ namespace SV
 		camera.UpdateCamera(deltaTime);
 	}
 
+	void Application::ClearViewport(DH::CommandList& cmd)
+	{
+		DH::RenderPassDesc pass;
+		pass.target = mViewportFramebuffer.get();
+		pass.clearColour = { 0.0f, 0.0f, 0.0f, 1.0f };
+		cmd.BeginRenderPass(pass);
+		cmd.EndRenderPass();
+	}
+
 	void Application::OnRender(DH::CommandList& cmd)
 	{
+		if (splashScreen != nullptr)
+		{
+			splashScreen->Update(mDeltaTime);
+			if (splashScreen->IsFinished())
+			{
+				// Its icon may still be in use by the frame in flight
+				DH::GPUContext::Get()->WaitIdle();
+				splashScreen.reset();
+			}
+		}
+
+		// Each slow loading step runs in its own frame, while the last frame (showing the splash
+		// screen and what it is waiting for) is on screen
+		switch (loadStage)
+		{
+		case LoadStage::Start:
+			loadStage = LoadStage::CreateScene;
+			ClearViewport(cmd);
+			return;
+		case LoadStage::CreateScene:
+			CreateScene();
+			loadStage = LoadStage::Precompute;
+			ClearViewport(cmd);
+			return;
+		case LoadStage::Precompute:
+			// PlanetRenderer::Prepare precomputes the atmospheres in this frame
+			loadStage = LoadStage::LoadTextures;
+			break;
+		default:
+			break;
+		}
+
 		// The first frame's delta covers start up, and the atmosphere precompute makes a long frame;
 		// clamp so the camera and simulation don't jump
 		const double frameTime = std::min(mDeltaTime, MAX_FRAME_TIME);
@@ -448,25 +544,101 @@ namespace SV
 
 	void Application::OnImGuiRender()
 	{
-		// GraphicsApp drew the viewport window this frame; reopen it to ask whether the cursor is
-		// over it, so scrolling and pinching work without clicking the viewport first, and to label
-		// the bodies over it
-		ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
-		if (ImGui::Begin(mViewportName.c_str()))
+		if (applyDefaultLayout)
 		{
-			isViewportHovered = ImGui::IsWindowHovered(ImGuiHoveredFlags_ChildWindows);
-			if (showLabels)
-				DrawLabels();
-			DrawCrosshair();
+			ApplyDefaultLayout();
+			applyDefaultLayout = false;
 		}
-		else
-		{
-			isViewportHovered = false;
-		}
-		ImGui::End();
-		ImGui::PopStyleVar();
 
-		RenderControlsPanel();
+		// The scene's interface, once the scene has been rendered
+		if (loadStage >= LoadStage::LoadTextures)
+		{
+			// GraphicsApp drew the viewport window this frame; reopen it to ask whether the cursor
+			// is over it, so scrolling and pinching work without clicking the viewport first, and to
+			// label the bodies over it
+			ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
+			if (ImGui::Begin(mViewportName.c_str()))
+			{
+				isViewportHovered = ImGui::IsWindowHovered(ImGuiHoveredFlags_ChildWindows);
+				if (showLabels)
+					DrawLabels();
+				DrawCrosshair();
+			}
+			else
+			{
+				isViewportHovered = false;
+			}
+			ImGui::End();
+			ImGui::PopStyleVar();
+
+			RenderControlsPanel();
+		}
+
+		if (splashScreen != nullptr)
+			DrawSplashScreen();
+	}
+
+	void Application::DrawSplashScreen()
+	{
+		// Progress through the loading steps, the textures taking the most time
+		float progress = 0.0f;
+		std::string status;
+		switch (loadStage)
+		{
+		case LoadStage::Start:
+		case LoadStage::CreateScene:
+			status = "Creating the solar system";
+			break;
+		case LoadStage::Precompute:
+			progress = 0.15f;
+			status = "Precomputing atmospheres";
+			break;
+		case LoadStage::LoadTextures:
+		{
+			const PlanetRenderer::MapLoadProgress maps = planetRenderer->GetMapLoadProgress();
+			const float fraction = maps.total > 0 ? (float)maps.loaded / (float)maps.total : 1.0f;
+			progress = 0.4f + 0.6f * fraction;
+			status = "Loading textures (" + std::to_string(maps.loaded) + " of " + std::to_string(maps.total) + ")";
+			if ((maps.loaded == maps.total && splashScreen->GetAge() >= MIN_SPLASH_SECONDS) ||
+				splashScreen->GetAge() >= MAX_SPLASH_SECONDS)
+			{
+				splashScreen->Dismiss();
+				loadStage = LoadStage::Loaded;
+			}
+			break;
+		}
+		case LoadStage::Loaded:
+			progress = 1.0f;
+			status = "Ready";
+			break;
+		}
+		splashScreen->Draw(progress, status);
+	}
+
+	void Application::ApplyDefaultLayout()
+	{
+		// Dahlia's dock space over the main window (the only root dock space)
+		ImGuiDockNode* dockSpace = nullptr;
+		for (const ImGuiStoragePair& pair : GImGui->DockContext.Nodes.Data)
+		{
+			auto* node = (ImGuiDockNode*)pair.val_p;
+			if (node != nullptr && node->IsDockSpace() && node->IsRootNode())
+				dockSpace = node;
+		}
+		if (dockSpace == nullptr)
+			return;
+
+		// The controls panel on the left, the viewport filling the rest
+		const ImGuiID id = dockSpace->ID;
+		const ImVec2 size = dockSpace->Size;
+		ImGui::DockBuilderRemoveNode(id);
+		ImGui::DockBuilderAddNode(id, ImGuiDockNodeFlags_DockSpace);
+		ImGui::DockBuilderSetNodeSize(id, size);
+		ImGuiID left = 0, right = 0;
+		ImGui::DockBuilderSplitNode(id, ImGuiDir_Left, CONTROLS_PANEL_FRACTION, &left, &right);
+		ImGui::DockBuilderDockWindow("Space Visualiser", left);
+		ImGui::DockBuilderDockWindow(mViewportName.c_str(), right);
+		ImGui::DockBuilderFinish(id);
 	}
 
 	void Application::DrawLabels()

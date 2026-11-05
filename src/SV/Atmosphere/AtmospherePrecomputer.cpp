@@ -177,8 +177,8 @@ namespace SV::Atmosphere
 		double solar_r = Interpolate(wavelengths, solar_irradiance, K_LAMBDA.r);
 		double solar_g = Interpolate(wavelengths, solar_irradiance, K_LAMBDA.g);
 		double solar_b = Interpolate(wavelengths, solar_irradiance, K_LAMBDA.b);
-		int dlambda = 1;
-		for (int lambda = kLambdaMin; lambda < kLambdaMax; lambda += dlambda) {
+		constexpr unsigned int dlambda = 1;
+		for (unsigned int lambda = kLambdaMin; lambda < kLambdaMax; lambda += dlambda) {
 			double x_bar = CieColorMatchingFunctionTableValue(lambda, 1);
 			double y_bar = CieColorMatchingFunctionTableValue(lambda, 2);
 			double z_bar = CieColorMatchingFunctionTableValue(lambda, 3);

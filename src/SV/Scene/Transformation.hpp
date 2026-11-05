@@ -11,19 +11,15 @@ namespace SV
 	class Transformation
 	{
 	public:
-		Transformation() = default;
-		explicit Transformation(const glm::vec3& posIn) : translation(posIn) { RecalculateTransformation(); }
 		virtual ~Transformation() = default;
 
 		void Translate(const glm::vec3& pos) { translation = pos; }
 		void Scale(const glm::vec3& scaleIn) { scaling = scaleIn; }
-		void IncreaseTranslation(const glm::vec3& pos) { translation += pos; }
 
 		[[nodiscard]] const glm::vec3& GetTranslation() const { return translation; }
 		[[nodiscard]] const glm::vec3& GetScale() const { return scaling; }
 
 		void Rotate(const glm::vec4& rotation) { rotations.push_back(rotation); }
-		void ClearRotations() { rotations.clear(); }
 
 		[[nodiscard]] glm::mat4 GetRotationMatrix() const
 		{

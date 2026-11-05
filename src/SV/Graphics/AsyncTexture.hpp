@@ -37,6 +37,8 @@ namespace SV
 		bool Poll();
 
 		[[nodiscard]] bool IsReady() const { return texture != nullptr; }
+		// Still loading or waiting to be uploaded: false once ready, or if it failed to load
+		[[nodiscard]] bool IsPending() const { return !generatedData.empty() || pendingImage.valid(); }
 		// nullptr until the texture is ready
 		[[nodiscard]] const sRef<DH::Texture2D>& GetTexture() const { return texture; }
 

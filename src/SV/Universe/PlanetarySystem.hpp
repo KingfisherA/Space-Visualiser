@@ -7,8 +7,6 @@
 
 namespace SV::Universe
 {
-	using PlanetarySystemI = size_t;
-
 	// Length of one unit of world space: Earth's mean radius. Velocities are in m/s.
 	constexpr double METRES_PER_UNIT = 6371000.0;
 	constexpr double KM_PER_UNIT = METRES_PER_UNIT / 1000.0;
@@ -18,16 +16,9 @@ namespace SV::Universe
 	class PlanetarySystem
 	{
 	public:
-		// Speed (m/s) of a circular orbit `distance` world units from a body of mass `centralMass` (kg)
-		[[nodiscard]] static double CircularOrbitSpeed(double centralMass, double distance);
-
 		PlanetarySystem(const sRef<SV::StarRenderer>& sRIn, const sRef<SV::PlanetRenderer>& pRIn);
 
-		PlanetarySystemI Add(const sRef<SV::CelestrialBody>& body);
-		void Remove(PlanetarySystemI index);
-		void Remove(const sRef<SV::CelestrialBody>& body);
-
-		[[nodiscard]] const sRef<SV::CelestrialBody>& Get(PlanetarySystemI index) const { return celestrialBodies.at(index); }
+		void Add(const sRef<SV::CelestrialBody>& body);
 		[[nodiscard]] const std::vector<sRef<SV::CelestrialBody>>& GetBodies() const { return celestrialBodies; }
 
 		// Sets `body`'s velocity so the system's total momentum is zero, keeping its centre of mass

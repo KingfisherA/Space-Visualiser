@@ -22,13 +22,15 @@ namespace SV
 	class CelestrialBody;
 	class StarRenderer;
 	class PlanetRenderer;
+	class SplashScreen;
 
 	namespace Universe
 	{
 		class PlanetarySystem;
 	}
 
-	// Space Visualiser: renders a planetary system into Dahlia's ImGui viewport
+	// Space Visualiser: renders a planetary system into Dahlia's ImGui viewport. The scene loads over
+	// the first few frames, behind a splash screen.
 	class Application final : public DH::GraphicsApp
 	{
 	public:
@@ -52,6 +54,23 @@ namespace SV
 			std::string name;
 			sRef<CelestrialBody> body;
 		};
+
+		// Each slow step of loading is given its own frame, so the splash screen can show progress
+		enum class LoadStage
+		{
+			Start,        // Showing the splash screen
+			CreateScene,  // Creating the pipelines and the solar system
+			Precompute,   // Precomputing the atmospheres (in PlanetRenderer::Prepare)
+			LoadTextures, // Rendering, while the planet maps load
+			Loaded        // The splash screen is fading out (or gone)
+		};
+
+		void CreateScene();
+		// Clears the viewport framebuffer, for frames before the scene is rendered
+		void ClearViewport(DH::CommandList& cmd);
+		void DrawSplashScreen();
+		// Docks the controls panel to the left of the viewport (when there is no saved layout)
+		void ApplyDefaultLayout();
 
 		void UpdateProjectionMatrix();
 		void UpdateCamera(float deltaTime);
@@ -102,6 +121,13 @@ namespace SV
 
 		// Whether the cursor is over the viewport window (updated each ImGui frame)
 		bool isViewportHovered = false;
+
+		LoadStage loadStage = LoadStage::Start;
+		uRef<SplashScreen> splashScreen;
+
+		// ImGui keeps a pointer to the path of its settings file
+		std::string imguiIniPath;
+		bool applyDefaultLayout = false;
 
 		// Smooth camera travel to a body ("Go to"), which the camera then follows
 		bool isTravelling = false;

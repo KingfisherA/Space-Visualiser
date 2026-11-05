@@ -133,12 +133,6 @@ namespace SV
 		Neptune();
 	};
 
-	class Titan : public Planet
-	{
-	public:
-		Titan();
-	};
-
 #pragma endregion
 
 	// Draws planets: the surface with its atmosphere in one pass over a spheroid, and rings as two
@@ -152,6 +146,14 @@ namespace SV
 		// Call each frame before the scene render pass: precomputes new atmospheres and picks up
 		// textures that have finished loading
 		void Prepare(DH::CommandList& cmd);
+
+		// Planet maps that have finished loading (or failed to), and how many there are
+		struct MapLoadProgress
+		{
+			size_t loaded = 0;
+			size_t total = 0;
+		};
+		[[nodiscard]] MapLoadProgress GetMapLoadProgress() const;
 
 		// Must be inside the scene render pass with the frame bind group bound at set 0
 		void Render(DH::CommandList& cmd, DH::PolygonMode polygonMode, const glm::vec3& cameraPosition);

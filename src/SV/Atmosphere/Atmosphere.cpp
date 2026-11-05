@@ -349,47 +349,4 @@ namespace SV::Atmosphere
 	}
 	//
 #pragma endregion
-//
-#pragma region Titan Atmosphere
-	//
-	TitanAtmosphere::TitanAtmosphere()
-	{
-		ScatteringData scatData;
-
-		scatData.kLambdaMin = 360;
-		scatData.kLambdaMax = 830;
-
-		std::array<double, 1> kSolarIrradiance{ 1.5 };
-		scatData.solarIrradiance = kSolarIrradiance;
-
-		std::array<double, 1>kRayleighExtinctionCoefficient{ 1.5e-6 };
-		scatData.rayleighExtinction = kRayleighExtinctionCoefficient;
-
-		scatData.kBottomRadius = 2574700.0;
-		scatData.kTopRadius = scatData.kBottomRadius + 595457.0;
-
-		constexpr double kRayleighScaleHeight = 30000.0; // Rayleigh layer height for density calculation
-		constexpr double kIOR = 1.00029433; //Refractive index of atmospheric gases at the upper atmosphere (nitrogen at 0.5876 micrometre wavelength at 0 celcius)
-		scatData.kRayleighScatteringCoefficient = AtmospherePrecomputer::CalculateRayleighCoefficient(kIOR);
-
-		scatData.kMieScaleHeight = 1200.0; //Mie layer height for density calculation
-		scatData.kMieAngstromAlpha = 0.0;
-		scatData.kMieAngstromBeta = 5.328e-3;
-		scatData.kMieSingleScatteringAlbedo = 0.9;
-		scatData.kMiePhaseFunctionG = 0.73;
-
-		scatData.kGroundAlbedo = 1.5;
-
-		scatData.rayleighDensity[0] = DensityProfileLayer(0.0, 1.0, -1.0 / kRayleighScaleHeight, 0.0, 0.0);
-		scatData.mieDensity[0] = DensityProfileLayer(0.0, 1.0, -1.0 / scatData.kMieScaleHeight, 0.0, 0.0);
-
-		scatData.absorptionDensity[0] = DensityProfileLayer(0.0, 1.0, -1.0 / ((scatData.kTopRadius - scatData.kBottomRadius) * 0.1), 0.0, 0.0);
-
-		atmoPrecomputer = make<AtmospherePrecomputer>(scatData, kLengthUnitInMeters);
-
-		surfaceAtmoIntensity = 0.9f;
-	}
-	//
-#pragma endregion
-//
 }
