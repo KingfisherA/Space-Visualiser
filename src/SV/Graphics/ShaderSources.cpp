@@ -45,6 +45,21 @@ namespace
 	const uint32_t kPlanetFrag[] =
 #include "Planet.frag.inc"
 		;
+	const uint32_t kGalaxyGlowVert[] =
+#include "GalaxyGlow.vert.inc"
+		;
+	const uint32_t kGalaxyGlowFrag[] =
+#include "GalaxyGlow.frag.inc"
+		;
+	const uint32_t kGalaxyStarsVert[] =
+#include "GalaxyStars.vert.inc"
+		;
+	const uint32_t kGalaxyStarsFrag[] =
+#include "GalaxyStars.frag.inc"
+		;
+	const uint32_t kGalaxyCompositeFrag[] =
+#include "GalaxyComposite.frag.inc"
+		;
 	const uint32_t kFullscreenVert[] =
 #include "Fullscreen.vert.inc"
 		;
@@ -80,6 +95,11 @@ namespace
 		{ "Rings.frag", kRingsFrag },
 		{ "Planet.vert", kPlanetVert },
 		{ "Planet.frag", kPlanetFrag },
+		{ "GalaxyGlow.vert", kGalaxyGlowVert },
+		{ "GalaxyGlow.frag", kGalaxyGlowFrag },
+		{ "GalaxyStars.vert", kGalaxyStarsVert },
+		{ "GalaxyStars.frag", kGalaxyStarsFrag },
+		{ "GalaxyComposite.frag", kGalaxyCompositeFrag },
 		{ "Fullscreen.vert", kFullscreenVert },
 		{ "Transmittance.frag", kTransmittanceFrag },
 		{ "DirectIrradiance.frag", kDirectIrradianceFrag },

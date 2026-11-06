@@ -30,6 +30,8 @@ function(sv_add_executable TARGET)
     Scene/Transformation.hpp
     Universe/CelestrialBody.hpp
     Universe/Coordinates.hpp
+    Universe/Galaxy.cpp
+    Universe/Galaxy.hpp
     Universe/Moon.cpp
     Universe/Moon.hpp
     Universe/MoonData.cpp
@@ -69,6 +71,11 @@ function(sv_add_executable TARGET)
       ${SV_SHADER_DIR}/Rings.frag
       ${SV_SHADER_DIR}/Planet.vert
       ${SV_SHADER_DIR}/Planet.frag
+      ${SV_SHADER_DIR}/GalaxyGlow.vert
+      ${SV_SHADER_DIR}/GalaxyGlow.frag
+      ${SV_SHADER_DIR}/GalaxyStars.vert
+      ${SV_SHADER_DIR}/GalaxyStars.frag
+      ${SV_SHADER_DIR}/GalaxyComposite.frag
       ${SV_SHADER_DIR}/Precompute/Fullscreen.vert
       ${SV_SHADER_DIR}/Precompute/Transmittance.frag
       ${SV_SHADER_DIR}/Precompute/DirectIrradiance.frag

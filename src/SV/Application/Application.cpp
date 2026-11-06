@@ -6,7 +6,9 @@
 #include <cstdlib>
 #include <filesystem>
 #include <iostream>
+#include <limits>
 #include <system_error>
+#include <utility>
 #include <vector>
 
 #include <glm/gtc/matrix_transform.hpp>
@@ -29,6 +31,7 @@
 #include "SV/Graphics/AsyncTexture.hpp"
 #include "SV/Graphics/ShaderSources.hpp"
 #include "SV/Platform/Trackpad.hpp"
+#include "SV/Universe/Galaxy.hpp"
 #include "SV/Universe/MoonData.hpp"
 #include "SV/Universe/PlanetarySystem.hpp"
 #include "SV/Universe/SolarSystem.hpp"
@@ -85,6 +88,26 @@ namespace SV
 		// "Reset camera" zoom: the inner solar system, around the Sun
 		constexpr double OVERVIEW_ZOOM = 4.0 * Universe::AU_IN_UNITS;
 
+		// The galaxy test works in parsecs: zoom limits, the near plane as a fraction of the zoom,
+		// and how far past the galactic centre anything is drawn (each galaxy's first view is in its
+		// GalaxyPreset)
+		constexpr float GALAXY_MIN_ZOOM = 20.0f;
+		constexpr float GALAXY_MAX_ZOOM = 500000.0f;
+		constexpr float GALAXY_NEAR_PLANE_FRACTION = 1e-3f;
+		constexpr float GALAXY_EXTENT = 60000.0f;
+
+		// Camera3D can only be turned by input, which it eases out over the following frames, so
+		// turn it with one impulse and run the easing to its end: the angle turned is the impulse's
+		// velocity times dt / (1 - decay)
+		void TurnCamera(DH::Camera3D& camera, const float pitchDegrees, const float yawDegrees)
+		{
+			constexpr float DT = 1.0f / 60.0f;
+			const float scale = (1.0f - camera.GetDecayFactor()) / (DT * camera.GetPitchYawAcc());
+			camera.UpdateMovement(glm::vec2(yawDegrees * scale, -pitchDegrees * scale), DH::MouseButton::Left);
+			for (int i = 0; i < 400; i++)
+				camera.UpdateCamera(DT);
+		}
+
 		// The crosshair at the camera's orbit centre, in pixels: the length of each arm, the gap
 		// between the arms and the centre, and the lines' thickness
 		constexpr float CROSSHAIR_ARM = 8.0f;
@@ -97,6 +120,12 @@ namespace SV
 		constexpr float LABEL_DOT_RADIUS = 2.5f;
 		constexpr float LABEL_MAX_DISC_FRACTION = 0.25f;
 		constexpr float LABEL_PADDING = 3.0f;
+
+		// Selecting a body by clicking it: bodies smaller than this on screen (pixels, as a radius)
+		// are picked within it, and the selected body is ringed this far outside its disc
+		constexpr float PICK_RADIUS_PIXELS = 6.0f;
+		constexpr float SELECTION_RING_GAP = 4.0f;
+		constexpr const char* BODY_MENU = "BodyMenu";
 
 		// The radius of everything drawn of a body's sphere: its atmosphere's top for planets and moons
 		float GetOuterRadius(const CelestrialBody& body)
@@ -331,6 +360,7 @@ namespace SV
 		// GPU resources must be released before Dahlia destroys the device
 		DH::GPUContext::Get()->WaitIdle();
 		splashScreen.reset();
+		galaxyRenderer.reset();
 		namedBodies.clear();
 		lightSource.reset();
 		solarSystem.reset();
@@ -354,6 +384,14 @@ namespace SV
 		// Fit the near and far planes to the bodies (in render coordinates, around the camera), so
 		// the depth buffer's precision is spent where the nearest body is
 		const glm::vec3& eye = camera.GetActualPosition();
+		if (showGalaxyTest)
+		{
+			// Nothing is depth tested, so the planes need only take in the whole galaxy
+			const float nearPlane = std::max(GALAXY_NEAR_PLANE_FRACTION * camera.GetZoom(), MIN_NEAR_PLANE);
+			const float farPlane = glm::length(eye + glm::vec3(cameraOrigin)) + GALAXY_EXTENT;
+			projectionMatrix = glm::perspective(glm::radians(GetGalaxyPreset(galaxyType).fieldOfView), width / height, nearPlane, farPlane);
+			return;
+		}
 		float nearest = camera.GetZoom(), farthest = camera.GetZoom();
 		if (solarSystem != nullptr)
 		{
@@ -379,6 +417,7 @@ namespace SV
 	void Application::MoveTo(const sRef<CelestrialBody>& body, const float zoom)
 	{
 		travelBody = body;
+		travelBodyPosition = body->GetPosition();
 		travelZoom = zoom;
 		isTravelling = true;
 		followBody = nullptr;
@@ -392,8 +431,15 @@ namespace SV
 
 	float Application::GetMinZoom() const
 	{
+		if (showGalaxyTest)
+			return GALAXY_MIN_ZOOM;
 		const sRef<CelestrialBody>& body = isTravelling ? travelBody : followBody;
 		return body != nullptr ? std::max(MIN_ZOOM, MIN_ZOOM_PER_RADIUS * GetOuterRadius(*body)) : MIN_ZOOM;
+	}
+
+	float Application::GetMaxZoom() const
+	{
+		return showGalaxyTest ? GALAXY_MAX_ZOOM : MAX_ZOOM;
 	}
 
 	void Application::UpdateCamera(const float deltaTime)
@@ -421,9 +467,13 @@ namespace SV
 
 		if (isTravelling)
 		{
-			// Towards the body (which may be moving), zooming in proportion
+			// Carried along with the body, then towards it, zooming in proportion. Easing towards a
+			// moving body alone would trail it by a distance proportional to its speed (tens of its
+			// radii at higher time scales), never arriving.
 			const double t = 1.0 - std::pow(1.0 - TRAVEL_RATE, deltaTime * 60.0);
 			const glm::dvec3& target = travelBody->GetPosition();
+			cameraOrigin += target - travelBodyPosition;
+			travelBodyPosition = target;
 			cameraOrigin = glm::mix(cameraOrigin, target, t);
 			const float zoom = (float)std::exp(glm::mix(std::log((double)camera.GetZoom()), std::log((double)travelZoom), t));
 
@@ -446,7 +496,7 @@ namespace SV
 				cameraOrigin = followBody->GetPosition();
 			// Never inside the body being followed or past the solar system (travel eases into its
 			// own zoom, so is left alone)
-			camera.SetZoom(std::clamp(camera.GetZoom(), GetMinZoom(), MAX_ZOOM));
+			camera.SetZoom(std::clamp(camera.GetZoom(), GetMinZoom(), GetMaxZoom()));
 		}
 
 		camera.UpdateCamera(deltaTime);
@@ -505,7 +555,8 @@ namespace SV
 		if (simulateGravity)
 			solarSystem->Update(frameTime * daysPerSecond * SECONDS_PER_DAY);
 		UpdateCamera(deltaTime);
-		solarSystem->SetRenderOrigin(cameraOrigin);
+		if (!showGalaxyTest)
+			solarSystem->SetRenderOrigin(cameraOrigin);
 		UpdateProjectionMatrix();
 
 		const glm::mat4& view = camera.GetViewMatrix();
@@ -519,6 +570,11 @@ namespace SV
 		frame.sun = glm::vec4(lightSource->GetTranslation(), lightSource->GetScale().x);
 		frame.times = glm::vec4((float)animationTime, (float)animationTime * 0.05f, 0.0f, 0.0f);
 		frame.display = glm::vec4(exposure, 0.0f, 0.0f, 0.0f);
+		if (showGalaxyTest)
+		{
+			RenderGalaxyTest(cmd, frame);
+			return;
+		}
 		SetOccluders(frame);
 		frameUniformBuffer->Update(&frame, sizeof(frame));
 
@@ -601,10 +657,22 @@ namespace SV
 			ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
 			if (ImGui::Begin(mViewportName.c_str()))
 			{
-				isViewportHovered = ImGui::IsWindowHovered(ImGuiHoveredFlags_ChildWindows);
-				if (showLabels)
-					DrawLabels();
-				DrawCrosshair();
+				// (Not over the popups opened from it, such as a body's menu)
+				isViewportHovered = ImGui::IsWindowHovered(ImGuiHoveredFlags_ChildWindows | ImGuiHoveredFlags_NoPopupHierarchy);
+				labelRects.clear();
+				if (showGalaxyTest)
+				{
+					selectedBody.reset();
+					if (showLabels)
+						DrawGalaxyLabels();
+				}
+				else
+				{
+					if (showLabels)
+						DrawLabels();
+					DrawCrosshair();
+					UpdateBodySelection();
+				}
 			}
 			else
 			{
@@ -772,11 +840,115 @@ namespace SV
 			if (overlaps)
 				continue;
 			placed.push_back(rect);
+			labelRects.push_back({ glm::vec4(rect.x, rect.y, rect.z, rect.w), i });
 
 			const ImU32 labelColour = namedBody.parent.empty() ? colour : moonColour;
 			if (discRadius < LABEL_DOT_RADIUS)
 				drawList->AddCircleFilled(ImVec2(point.x, point.y), namedBody.parent.empty() ? LABEL_DOT_RADIUS : LABEL_DOT_RADIUS * 0.7f, labelColour);
 			drawList->AddText(ImVec2(point.x + offset, point.y - fontSize * 0.5f), labelColour, namedBody.name.c_str());
+		}
+	}
+
+	std::optional<size_t> Application::PickBody(const glm::vec2 point) const
+	{
+		// The ray through the point, in render coordinates (in doubles: bodies far from the camera
+		// are tiny next to their distances)
+		const glm::vec2 ndc(point.x * 2.0f - 1.0f, 1.0f - point.y * 2.0f);
+		const glm::dvec3 eye(camera.GetActualPosition());
+		const glm::dvec3 direction = glm::normalize(glm::dvec3(glm::mat3(camera.GetInverseViewMatrix()) *
+			glm::vec3(ndc.x / projectionMatrix[0][0], ndc.y / projectionMatrix[1][1], -1.0f)));
+		// The size of a pixel per unit of distance
+		const double pixelAngle = 2.0 / (projectionMatrix[1][1] * (double)mViewportFramebuffer->GetHeight());
+
+		// The first sphere the ray enters, each grown to at least PICK_RADIUS_PIXELS on screen, so a
+		// small moon in front of its planet is picked by clicking near it, but not one behind it
+		std::optional<size_t> picked;
+		double nearest = std::numeric_limits<double>::max();
+		for (size_t i = 0; i < namedBodies.size(); i++)
+		{
+			const CelestrialBody& body = *namedBodies[i].body;
+			const glm::dvec3 toCentre = glm::dvec3(body.GetTranslation()) - eye;
+			const double distance = glm::length(toCentre);
+			const double radius = std::max((double)GetOuterRadius(body), PICK_RADIUS_PIXELS * pixelAngle * distance);
+			const double along = glm::dot(toCentre, direction);
+			const double missSquared = glm::length2(toCentre - along * direction);
+			if (missSquared > radius * radius)
+				continue;
+			const double halfChord = std::sqrt(radius * radius - missSquared);
+			if (along + halfChord <= 0.0)
+				continue; // Behind the camera
+			const double entry = std::max(along - halfChord, 0.0);
+			if (entry < nearest)
+			{
+				nearest = entry;
+				picked = i;
+			}
+		}
+		return picked;
+	}
+
+	void Application::UpdateBodySelection()
+	{
+		const glm::vec2 origin = GetViewportImageOrigin();
+		const glm::vec2 size((float)mViewportFramebuffer->GetWidth(), (float)mViewportFramebuffer->GetHeight());
+		const ImGuiIO& io = ImGui::GetIO();
+		auto OverImage = [&](const ImVec2& p)
+		{
+			return p.x >= origin.x && p.y >= origin.y && p.x < origin.x + size.x && p.y < origin.y + size.y;
+		};
+
+		// A click (not a drag, which turns the camera) that starts and ends over the viewport selects
+		// the body under the cursor: by its label if one is there, otherwise along the ray. (Popups
+		// opened from the viewport, such as the body's menu, count as over it unless excluded.)
+		if (ImGui::IsWindowHovered(ImGuiHoveredFlags_ChildWindows | ImGuiHoveredFlags_NoPopupHierarchy) && ImGui::IsMouseReleased(ImGuiMouseButton_Left) &&
+			!ImGui::IsMouseDragPastThreshold(ImGuiMouseButton_Left) && OverImage(io.MouseClickedPos[ImGuiMouseButton_Left]) &&
+			OverImage(io.MousePos) && size.x > 0.0f && size.y > 0.0f)
+		{
+			const glm::vec2 mouse(io.MousePos.x, io.MousePos.y);
+			selectedBody.reset();
+			for (const auto& [rect, index] : labelRects)
+			{
+				if (mouse.x >= rect.x && mouse.x <= rect.z && mouse.y >= rect.y && mouse.y <= rect.w)
+				{
+					selectedBody = index;
+					break;
+				}
+			}
+			if (!selectedBody)
+				selectedBody = PickBody((mouse - origin) / size);
+			if (selectedBody)
+				ImGui::OpenPopup(BODY_MENU);
+		}
+
+		if (!selectedBody || !ImGui::IsPopupOpen(BODY_MENU))
+		{
+			selectedBody.reset();
+			return;
+		}
+		const NamedBody& namedBody = namedBodies[*selectedBody];
+
+		// Ring the selected body while its menu is open (a dark outline under a light line)
+		const glm::vec4 clip = viewProjection * glm::vec4(namedBody.body->GetTranslation(), 1.0f);
+		if (clip.w > 0.0f)
+		{
+			const glm::vec2 ndc = glm::vec2(clip) / clip.w;
+			const ImVec2 centre(origin.x + (ndc.x * 0.5f + 0.5f) * size.x, origin.y + (0.5f - ndc.y * 0.5f) * size.y);
+			const float discRadius = GetOuterRadius(*namedBody.body) / clip.w * projectionMatrix[1][1] * size.y * 0.5f;
+			const float ringRadius = std::max(discRadius, LABEL_DOT_RADIUS) + SELECTION_RING_GAP;
+			ImDrawList* drawList = ImGui::GetWindowDrawList();
+			drawList->AddCircle(centre, ringRadius, IM_COL32(0, 0, 0, 140), 0, 3.5f);
+			drawList->AddCircle(centre, ringRadius, IM_COL32(235, 235, 235, 230), 0, 1.5f);
+		}
+
+		if (ImGui::BeginPopup(BODY_MENU))
+		{
+			ImGui::TextUnformatted(namedBody.name.c_str());
+			if (!namedBody.parent.empty())
+				ImGui::TextDisabled("Moon of %s", namedBody.parent.c_str());
+			ImGui::Separator();
+			if (ImGui::MenuItem("Go to object"))
+				MoveTo(namedBody.body, GO_TO_ZOOM * GetOuterRadius(*namedBody.body));
+			ImGui::EndPopup();
 		}
 	}
 
@@ -827,6 +999,155 @@ namespace SV
 		}
 	}
 
+	Application::CameraState Application::GetGalaxyOverview(const GalaxyType type)
+	{
+		const GalaxyPreset& preset = GetGalaxyPreset(type);
+		CameraState state;
+		state.camera.SetZoom(preset.overviewZoom);
+		TurnCamera(state.camera, preset.overviewPitch, preset.overviewYaw);
+		return state;
+	}
+
+	void Application::SetGalaxyType(const GalaxyType type)
+	{
+		galaxyType = type;
+		galaxyRenderer->parameters = GetGalaxyPreset(type).parameters;
+		galaxyRenderer->Regenerate();
+		const CameraState overview = GetGalaxyOverview(type);
+		camera = overview.camera;
+		cameraOrigin = overview.origin;
+		UpdateProjectionMatrix();
+	}
+
+	void Application::SetGalaxyTest(const bool enabled)
+	{
+		if (enabled == showGalaxyTest)
+			return;
+		if (enabled && galaxyRenderer == nullptr)
+			galaxyRenderer = umake<GalaxyRenderer>(sceneContext, GetGalaxyPreset(galaxyType).parameters);
+
+		// Each view keeps its own camera, so switching back returns to where it was
+		CameraState shown{ camera, cameraOrigin, followBody, isTravelling, travelBody, travelZoom };
+		camera = otherCameraState.camera;
+		cameraOrigin = otherCameraState.origin;
+		followBody = otherCameraState.followBody;
+		isTravelling = otherCameraState.isTravelling;
+		travelBody = otherCameraState.travelBody;
+		travelZoom = otherCameraState.travelZoom;
+		otherCameraState = std::move(shown);
+
+		showGalaxyTest = enabled;
+		UpdateProjectionMatrix();
+	}
+
+	void Application::RenderGalaxyTest(DH::CommandList& cmd, FrameUniforms& frame)
+	{
+		// Nothing casts shadows, and the Sun isn't drawn
+		frame.occluderCount = glm::vec4(0.0f);
+		frameUniformBuffer->Update(&frame, sizeof(frame));
+
+		// The solar system's textures keep loading while it is hidden
+		planetRenderer->Prepare(cmd);
+
+		const float fieldOfView = glm::radians(GetGalaxyPreset(galaxyType).fieldOfView);
+		const float pixelAngle = 2.0f * std::tan(fieldOfView * 0.5f) / (float)std::max<size_t>(mViewportFramebuffer->GetHeight(), 1);
+		galaxyRenderer->Render(cmd, *mViewportFramebuffer, GalaxyView{ glm::vec3(-cameraOrigin), pixelAngle });
+	}
+
+	void Application::RenderGalaxyControls()
+	{
+		if (!ImGui::CollapsingHeader("Galaxy", ImGuiTreeNodeFlags_DefaultOpen))
+			return;
+
+		GalaxyParameters& p = galaxyRenderer->parameters;
+		ImGui::Checkbox("Show labels (L)", &showLabels);
+		ImGui::SliderFloat("Brightness", &p.brightness, 0.05f, 50.0f, "%.2f", ImGuiSliderFlags_Logarithmic);
+		ImGui::SliderFloat("Star brightness", &p.starBrightness, 0.01f, 100.0f, "%.2f", ImGuiSliderFlags_Logarithmic);
+		ImGui::SliderFloat("Bulge glow", &p.bulgeGlow, 0.0f, 10.0f);
+		ImGui::SliderFloat("Disc glow", &p.discGlow, 0.0f, 10.0f);
+		ImGui::SliderFloat("Arm glow", &p.armGlow, 0.0f, 5.0f);
+		ImGui::SliderFloat("Nebulae", &p.nebulaGlow, 0.0f, 5.0f);
+		ImGui::SetItemTooltip("Brightness of the H II regions (glowing hydrogen) along the arms");
+		if (!p.companions.empty())
+			ImGui::SliderFloat("Companions", &p.companionGlow, 0.0f, 5.0f);
+		ImGui::SliderFloat("Dust", &p.dustDepth, 0.0f, 10.0f);
+		ImGui::SetItemTooltip("Optical depth of the dust seen face-on through an arm (0 for none)");
+		ImGui::SliderFloat("Dust thickness", &p.dustScaleHeight, 20.0f, 500.0f, "%.0f pc");
+
+		// The glow follows these straight away; the stars are placed again when a slider is let go
+		ImGui::SeparatorText("Shape");
+		bool regenerate = false;
+		auto Reshape = [&regenerate]() { regenerate |= ImGui::IsItemDeactivatedAfterEdit(); };
+		ImGui::SliderFloat("Bar angle", &p.barAngle, 0.0f, 90.0f, "%.0f deg");
+		Reshape();
+		ImGui::SetItemTooltip("From the +x axis (in the Milky Way, the line between the Sun and the galactic centre)");
+		ImGui::SliderFloat("Bar share", &p.barShare, 0.0f, 1.0f);
+		Reshape();
+		ImGui::SetItemTooltip("The bar's share of the central light (the rest is in a round bulge)");
+		ImGui::SliderFloat("Bar length", &p.barHalfLength, 1000.0f, 8000.0f, "%.0f pc");
+		Reshape();
+		ImGui::SliderInt("Arms", &p.armCount, 2, 8);
+		Reshape();
+		ImGui::SliderFloat("Arm pitch", &p.armPitch, 5.0f, 30.0f, "%.1f deg");
+		Reshape();
+		ImGui::SliderFloat("Arm start", &p.armRadius, 500.0f, 10000.0f, "%.0f pc");
+		Reshape();
+		ImGui::SetItemTooltip("Where the major arms leave the ends of the bar");
+		ImGui::SliderFloat("Minor arms", &p.minorArmStrength, 0.0f, 1.0f);
+		Reshape();
+		ImGui::SetItemTooltip("The minor arms' young stars, relative to the major arms'");
+		ImGui::SliderFloat("Arm width", &p.armWidth, 100.0f, 1500.0f, "%.0f pc");
+		Reshape();
+		ImGui::SliderFloat("Disc scale length", &p.discScaleLength, 1000.0f, 8000.0f, "%.0f pc");
+		Reshape();
+		ImGui::SliderFloat("Ring radius", &p.ringRadius, 1000.0f, 20000.0f, "%.0f pc");
+		Reshape();
+		ImGui::SliderFloat("Ring strength", &p.ringStrength, 0.0f, 3.0f);
+		Reshape();
+		ImGui::SetItemTooltip("A ring of young stars, nebulae and dust, relative to the arms (0 for none)");
+		ImGui::SliderFloat("Disc thickness", &p.discScaleHeight, 50.0f, 1000.0f, "%.0f pc");
+		Reshape();
+		ImGui::SliderInt("Stars", &p.starCount, 1000, 2000000, "%d", ImGuiSliderFlags_Logarithmic);
+		Reshape();
+
+		if (ImGui::Button("Defaults"))
+		{
+			p = GetGalaxyPreset(galaxyType).parameters;
+			regenerate = true;
+		}
+		ImGui::SameLine();
+		ImGui::TextDisabled("%zu stars", galaxyRenderer->GetStarCount());
+
+		if (regenerate)
+			galaxyRenderer->Regenerate();
+	}
+
+	void Application::DrawGalaxyLabels()
+	{
+		const glm::vec2 origin = GetViewportImageOrigin();
+		const glm::vec2 size((float)mViewportFramebuffer->GetWidth(), (float)mViewportFramebuffer->GetHeight());
+		ImDrawList* drawList = ImGui::GetWindowDrawList();
+		const float fontSize = ImGui::GetFontSize();
+
+		std::vector<GalaxyMarker> labels = GetGalaxyPreset(galaxyType).markers;
+		for (const GalaxyCompanion& companion : galaxyRenderer->parameters.companions)
+		{
+			if (!companion.name.empty())
+				labels.push_back({ companion.name, companion.position });
+		}
+		for (const auto& [name, position] : labels)
+		{
+			const glm::vec4 clip = viewProjection * glm::vec4(position - glm::vec3(cameraOrigin), 1.0f);
+			if (clip.w <= 0.0f)
+				continue;
+			const glm::vec2 ndc = glm::vec2(clip) / clip.w;
+			const glm::vec2 point = origin + glm::vec2(ndc.x * 0.5f + 0.5f, 0.5f - ndc.y * 0.5f) * size;
+			const ImU32 colour = IM_COL32(220, 220, 220, 210);
+			drawList->AddCircle(ImVec2(point.x, point.y), LABEL_DOT_RADIUS * 1.6f, colour, 0, 1.5f);
+			drawList->AddText(ImVec2(point.x + LABEL_DOT_RADIUS * 1.6f + 4.0f, point.y - fontSize * 0.5f), colour, name.c_str());
+		}
+	}
+
 	void Application::RenderControlsPanel()
 	{
 		if (!ImGui::Begin("Space Visualiser"))
@@ -837,30 +1158,58 @@ namespace SV
 
 		if (ImGui::CollapsingHeader("Scene", ImGuiTreeNodeFlags_DefaultOpen))
 		{
-			ImGui::DragFloat("Exposure (-/=)", &exposure, 0.1f, 0.0f, 100.0f);
-			ImGui::SliderFloat("H-alpha emission", &starRenderer->hydrogenEmission, 0.0f, 4.0f);
-			ImGui::SliderFloat("Solar flares", &starRenderer->solarFlares, 0.0f, 2.0f);
-			ImGui::SetItemTooltip("Brightness of the flares on the Sun's surface and in the loops over its limb (0 for none)");
-			ImGui::SliderFloat("Sun flare", &starRenderer->flareIntensity, 0.0f, 2.0f);
-			ImGui::SetItemTooltip("The Sun's glare and lens flare when it is far away (0 for none)");
-			ImGui::SliderFloat("Faint ring gain", &planetRenderer->diffuseRingGain, 0.0f, 3000.0f, "%.0f",
-							   ImGuiSliderFlags_Logarithmic);
+			bool galaxyTest = showGalaxyTest;
+			if (ImGui::Checkbox("Galaxy test", &galaxyTest))
+				SetGalaxyTest(galaxyTest);
+			ImGui::SetItemTooltip("Show only a galaxy, in place of the solar system");
+			if (showGalaxyTest)
+			{
+				const GalaxyPreset& current = GetGalaxyPreset(galaxyType);
+				if (ImGui::BeginCombo("Galaxy", current.name.c_str()))
+				{
+					for (size_t i = 0; i < (size_t)GalaxyType::Count; i++)
+					{
+						const GalaxyType type = (GalaxyType)i;
+						const bool selected = type == galaxyType;
+						if (ImGui::Selectable(GetGalaxyPreset(type).name.c_str(), selected) && !selected)
+							SetGalaxyType(type);
+						if (selected)
+							ImGui::SetItemDefaultFocus();
+					}
+					ImGui::EndCombo();
+				}
+			}
 
-			int mode = (int)polygonMode;
-			const char* modes[] = { "Solid (1)", "Wireframe (2)", "Points (3)" };
-			if (ImGui::Combo("Render style", &mode, modes, 3))
-				polygonMode = (DH::PolygonMode)mode;
+			if (!showGalaxyTest)
+			{
+				ImGui::DragFloat("Exposure (-/=)", &exposure, 0.1f, 0.0f, 100.0f);
+				ImGui::SliderFloat("H-alpha emission", &starRenderer->hydrogenEmission, 0.0f, 4.0f);
+				ImGui::SliderFloat("Solar flares", &starRenderer->solarFlares, 0.0f, 2.0f);
+				ImGui::SetItemTooltip("Brightness of the flares on the Sun's surface and in the loops over its limb (0 for none)");
+				ImGui::SliderFloat("Sun flare", &starRenderer->flareIntensity, 0.0f, 2.0f);
+				ImGui::SetItemTooltip("The Sun's glare and lens flare when it is far away (0 for none)");
+				ImGui::SliderFloat("Faint ring gain", &planetRenderer->diffuseRingGain, 0.0f, 3000.0f, "%.0f",
+								   ImGuiSliderFlags_Logarithmic);
 
-			ImGui::Checkbox("Show grid (G)", &showGrid);
-			ImGui::SameLine();
-			ImGui::Checkbox("Show labels (L)", &showLabels);
-			ImGui::Checkbox("Simulate gravity", &simulateGravity);
-			ImGui::SameLine();
-			ImGui::TextDisabled("%s", FormatDate(solarSystem->GetTime()).c_str());
-			ImGui::SliderFloat("Time scale", &daysPerSecond, 0.001f, 100.0f, "%.3g days/s", ImGuiSliderFlags_Logarithmic);
+				int mode = (int)polygonMode;
+				const char* modes[] = { "Solid (1)", "Wireframe (2)", "Points (3)" };
+				if (ImGui::Combo("Render style", &mode, modes, 3))
+					polygonMode = (DH::PolygonMode)mode;
+
+				ImGui::Checkbox("Show grid (G)", &showGrid);
+				ImGui::SameLine();
+				ImGui::Checkbox("Show labels (L)", &showLabels);
+				ImGui::Checkbox("Simulate gravity", &simulateGravity);
+				ImGui::SameLine();
+				ImGui::TextDisabled("%s", FormatDate(solarSystem->GetTime()).c_str());
+				ImGui::SliderFloat("Time scale", &daysPerSecond, 0.001f, 100.0f, "%.3g days/s", ImGuiSliderFlags_Logarithmic);
+			}
 		}
 
-		if (ImGui::CollapsingHeader("Bodies", ImGuiTreeNodeFlags_DefaultOpen))
+		if (showGalaxyTest)
+			RenderGalaxyControls();
+
+		if (!showGalaxyTest && ImGui::CollapsingHeader("Bodies", ImGuiTreeNodeFlags_DefaultOpen))
 		{
 			auto GoToButton = [this](const NamedBody& namedBody)
 			{
@@ -925,9 +1274,19 @@ namespace SV
 
 		if (ImGui::CollapsingHeader("Camera", ImGuiTreeNodeFlags_DefaultOpen))
 		{
-			const glm::dvec3 centre = (cameraOrigin + glm::dvec3(camera.GetCentrePosition())) / Universe::AU_IN_UNITS;
-			ImGui::Text("Centre (AU): X=%.4f, Y=%.4f, Z=%.4f", centre.x, centre.y, centre.z);
-			ImGui::Text("Zoom: %.3g Earth radii (%.3g AU)", camera.GetZoom(), camera.GetZoom() / Universe::AU_IN_UNITS);
+			const glm::dvec3 centre = cameraOrigin + glm::dvec3(camera.GetCentrePosition());
+			if (showGalaxyTest)
+			{
+				const glm::dvec3 kpc = centre / 1000.0;
+				ImGui::Text("Centre (kpc): X=%.3f, Y=%.3f, Z=%.3f", kpc.x, kpc.y, kpc.z);
+				ImGui::Text("Zoom: %.3g kpc", camera.GetZoom() / 1000.0f);
+			}
+			else
+			{
+				const glm::dvec3 au = centre / Universe::AU_IN_UNITS;
+				ImGui::Text("Centre (AU): X=%.4f, Y=%.4f, Z=%.4f", au.x, au.y, au.z);
+				ImGui::Text("Zoom: %.3g Earth radii (%.3g AU)", camera.GetZoom(), camera.GetZoom() / Universe::AU_IN_UNITS);
+			}
 			ImGui::Text("Pitch: %.1f, Yaw: %.1f", camera.GetPitch(), camera.GetYaw());
 			for (const NamedBody& namedBody : namedBodies)
 			{
@@ -935,7 +1294,18 @@ namespace SV
 					ImGui::Text("Following %s", namedBody.name.c_str());
 			}
 			if (ImGui::Button("Reset camera"))
-				MoveTo(lightSource, (float)OVERVIEW_ZOOM);
+			{
+				if (showGalaxyTest)
+				{
+					const CameraState overview = GetGalaxyOverview(galaxyType);
+					camera = overview.camera;
+					cameraOrigin = overview.origin;
+				}
+				else
+				{
+					MoveTo(lightSource, (float)OVERVIEW_ZOOM);
+				}
+			}
 			ImGui::TextWrapped("Trackpad: two finger scroll to orbit, pinch or Cmd + scroll to zoom, Shift + scroll to pan.");
 			ImGui::TextWrapped("Mouse: drag to orbit, right drag or Option + drag to pan, wheel or Shift + drag to zoom.");
 			ImGui::TextWrapped("W/A/S/D: move. Panning or moving stops following a body.");
@@ -1023,8 +1393,8 @@ namespace SV
 		// Exponential, so each step covers the same fraction of the distance at any zoom
 		const float factor = std::exp(-amount);
 		if (isTravelling)
-			travelZoom = std::clamp(travelZoom * factor, GetMinZoom(), MAX_ZOOM);
-		camera.SetZoom(std::clamp(camera.GetZoom() * factor, GetMinZoom(), MAX_ZOOM));
+			travelZoom = std::clamp(travelZoom * factor, GetMinZoom(), GetMaxZoom());
+		camera.SetZoom(std::clamp(camera.GetZoom() * factor, GetMinZoom(), GetMaxZoom()));
 	}
 
 	bool Application::OnMouseScroll(DH::MouseScrollEvent& e)
