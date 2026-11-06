@@ -93,6 +93,17 @@ namespace SV
 		}
 	}
 
+	std::array<glm::vec4, BLACKBODY_TABLE_SIZE> BlackbodyTable()
+	{
+		std::array<glm::vec4, BLACKBODY_TABLE_SIZE> table{};
+		for (size_t i = 0; i < BLACKBODY_TABLE_SIZE; i++)
+		{
+			const float t = (float)i / (float)(BLACKBODY_TABLE_SIZE - 1);
+			table[i] = glm::vec4(BlackbodyColour(BLACKBODY_TABLE_MIN * std::pow(BLACKBODY_TABLE_MAX / BLACKBODY_TABLE_MIN, t)), 0.0f);
+		}
+		return table;
+	}
+
 	glm::vec3 BlackbodyColour(const float temperature)
 	{
 		// Planck's law integrated against the colour matching functions

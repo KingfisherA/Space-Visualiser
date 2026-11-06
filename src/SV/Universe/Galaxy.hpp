@@ -109,6 +109,11 @@ namespace SV
 		MilkyWay,
 		Whirlpool,
 		Andromeda,
+		RoseGalaxy,
+		Pinwheel,
+		Ngc1300,
+		Triangulum,
+		Sombrero,
 		Count
 	};
 

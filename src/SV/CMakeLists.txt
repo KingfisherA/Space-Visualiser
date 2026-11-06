@@ -21,14 +21,20 @@ function(sv_add_executable TARGET)
     Atmosphere/AtmospherePrecomputer.hpp
     Graphics/AsyncTexture.cpp
     Graphics/AsyncTexture.hpp
+    Graphics/BloomCompositor.cpp
+    Graphics/BloomCompositor.hpp
     Graphics/ModalPipeline.cpp
     Graphics/ModalPipeline.hpp
+    Graphics/NoiseVolume.cpp
+    Graphics/NoiseVolume.hpp
     Graphics/SceneContext.hpp
     Graphics/ShaderSources.cpp
     Graphics/ShaderSources.hpp
     Platform/Trackpad.hpp
     Scene/Transformation.hpp
     Universe/CelestrialBody.hpp
+    Universe/CompactObject.cpp
+    Universe/CompactObject.hpp
     Universe/Coordinates.hpp
     Universe/Galaxy.cpp
     Universe/Galaxy.hpp
@@ -36,6 +42,8 @@ function(sv_add_executable TARGET)
     Universe/Moon.hpp
     Universe/MoonData.cpp
     Universe/MoonData.hpp
+    Universe/Nebula.cpp
+    Universe/Nebula.hpp
     Universe/Planet.cpp
     Universe/Planet.hpp
     Universe/PlanetarySystem.cpp
@@ -76,6 +84,11 @@ function(sv_add_executable TARGET)
       ${SV_SHADER_DIR}/GalaxyStars.vert
       ${SV_SHADER_DIR}/GalaxyStars.frag
       ${SV_SHADER_DIR}/GalaxyComposite.frag
+      ${SV_SHADER_DIR}/CompactObject.frag
+      ${SV_SHADER_DIR}/Nebula.frag
+      ${SV_SHADER_DIR}/BloomComposite.frag
+      ${SV_SHADER_DIR}/BloomDownsample.frag
+      ${SV_SHADER_DIR}/BloomBlur.frag
       ${SV_SHADER_DIR}/Precompute/Fullscreen.vert
       ${SV_SHADER_DIR}/Precompute/Transmittance.frag
       ${SV_SHADER_DIR}/Precompute/DirectIrradiance.frag

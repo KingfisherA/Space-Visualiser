@@ -18,6 +18,7 @@
 #include "Dahlia/Graphics/Texture.h"
 #include "Dahlia/Maths/Geometry.h"
 #include "Dahlia/Platform/GPUContext.h"
+#include "SV/Graphics/NoiseVolume.hpp"
 #include "SV/Graphics/ShaderSources.hpp"
 #include "Star.hpp"
 
@@ -65,12 +66,6 @@ namespace SV
 		// The glow is smooth, so it is raymarched at this fraction of the viewport's resolution
 		constexpr float GLOW_RESOLUTION = 0.5f;
 		constexpr DH::Format HDR_FORMAT = DH::Format::RGBA16F;
-
-		// The noise volume (tileable fBm): its size in voxels, and the periods of its octaves (in
-		// lattice cells across it, powers of two) and how much each is weaker than the last
-		constexpr uint32_t NOISE_SIZE = 128;
-		constexpr std::array<uint32_t, 5> NOISE_PERIODS = { 4, 8, 16, 32, 64 };
-		constexpr float NOISE_PERSISTENCE = 0.5f;
 
 		// The nebulae's colour: H-alpha red with a little H-beta and [O III]
 		constexpr glm::vec3 NEBULA_COLOUR{ 1.0f, 0.2f, 0.4f };
@@ -249,105 +244,6 @@ namespace SV
 
 			std::array<glm::vec3, 256> colours{};
 		};
-
-		// Four independent channels of tileable gradient noise fBm, each equalised to spread evenly
-		// over [0, 1] (so thresholds in the shaders cover predictable fractions), RGBA8, x fastest
-		std::vector<unsigned char> CreateNoiseVolume()
-		{
-			constexpr uint32_t N = NOISE_SIZE;
-			constexpr size_t VOXELS = (size_t)N * N * N;
-			std::vector<unsigned char> data(VOXELS * 4, 0);
-
-			auto Mix = [](uint32_t h)
-			{
-				h ^= h >> 16;
-				h *= 0x7feb352du;
-				h ^= h >> 15;
-				h *= 0x846ca68bu;
-				h ^= h >> 16;
-				return h;
-			};
-
-			auto CreateChannel = [&](const uint32_t channel)
-			{
-				std::vector<float> values(VOXELS, 0.0f);
-				std::vector<glm::vec3> gradients;
-				float amplitude = 1.0f;
-				for (size_t octave = 0; octave < NOISE_PERIODS.size(); octave++)
-				{
-					// A random unit gradient at each lattice point, wrapping every `period` cells
-					const uint32_t period = NOISE_PERIODS[octave];
-					const uint32_t mask = period - 1;
-					gradients.resize((size_t)period * period * period);
-					const uint32_t seed = Mix(channel * 64u + (uint32_t)octave + 1u);
-					for (size_t i = 0; i < gradients.size(); i++)
-					{
-						const uint32_t h = Mix((uint32_t)i ^ seed);
-						const float z = (float)(h & 0xffffu) / 65535.0f * 2.0f - 1.0f;
-						const float angle = (float)(h >> 16) / 65535.0f * 2.0f * PI;
-						const float radius = std::sqrt(std::max(1.0f - z * z, 0.0f));
-						gradients[i] = { radius * std::cos(angle), radius * std::sin(angle), z };
-					}
-					auto Gradient = [&](const uint32_t x, const uint32_t y, const uint32_t z)
-					{
-						return gradients[((size_t)(z & mask) * period + (y & mask)) * period + (x & mask)];
-					};
-
-					const float scale = (float)period / (float)N;
-					size_t index = 0;
-					for (uint32_t z = 0; z < N; z++)
-					{
-						for (uint32_t y = 0; y < N; y++)
-						{
-							for (uint32_t x = 0; x < N; x++)
-							{
-								const glm::vec3 position = glm::vec3((float)x, (float)y, (float)z) * scale;
-								const glm::vec3 cellPosition = glm::floor(position);
-								const glm::uvec3 cell(cellPosition);
-								const glm::vec3 f = position - cellPosition;
-								const glm::vec3 w = f * f * f * (f * (f * 6.0f - 15.0f) + 10.0f);
-								float corners[8];
-								for (uint32_t corner = 0; corner < 8; corner++)
-								{
-									const glm::uvec3 offset(corner & 1u, (corner >> 1) & 1u, corner >> 2);
-									corners[corner] = glm::dot(Gradient(cell.x + offset.x, cell.y + offset.y, cell.z + offset.z), f - glm::vec3(offset));
-								}
-								const float y0 = glm::mix(glm::mix(corners[0], corners[1], w.x), glm::mix(corners[2], corners[3], w.x), w.y);
-								const float y1 = glm::mix(glm::mix(corners[4], corners[5], w.x), glm::mix(corners[6], corners[7], w.x), w.y);
-								values[index++] += amplitude * glm::mix(y0, y1, w.z);
-							}
-						}
-					}
-					amplitude *= NOISE_PERSISTENCE;
-				}
-
-				// Equalise: replace each value by the fraction of values below it
-				constexpr size_t BINS = 4096;
-				const auto [lowest, highest] = std::minmax_element(values.begin(), values.end());
-				const float low = *lowest, range = std::max(*highest - low, 1e-6f);
-				auto Bin = [&](const float value) { return std::min((size_t)((value - low) / range * (float)BINS), BINS - 1); };
-				std::vector<size_t> counts(BINS, 0);
-				for (const float value : values)
-					counts[Bin(value)]++;
-				std::vector<unsigned char> levels(BINS);
-				size_t below = 0;
-				for (size_t bin = 0; bin < BINS; bin++)
-				{
-					levels[bin] = (unsigned char)std::lround(((float)below + 0.5f * (float)counts[bin]) / (float)VOXELS * 255.0f);
-					below += counts[bin];
-				}
-				for (size_t i = 0; i < VOXELS; i++)
-					data[i * 4 + channel] = levels[Bin(values[i])];
-			};
-
-			// The channels are independent: make them at the same time
-			std::array<std::thread, 4> threads;
-			for (uint32_t channel = 0; channel < 4; channel++)
-				threads[channel] = std::thread(CreateChannel, channel);
-			for (std::thread& thread : threads)
-				thread.join();
-			return data;
-		}
 	}
 
 	GalaxyRenderer::GalaxyRenderer(const SceneContext& contextIn, const GalaxyParameters& parametersIn) :
@@ -359,13 +255,8 @@ namespace SV
 		const GalaxyUniforms uniforms{};
 		uniformBuffer = DH::Buffer::Create({ sizeof(GalaxyUniforms), DH::BufferUsage::Uniform, DH::BufferMemory::Dynamic }, &uniforms);
 
-		const std::vector<unsigned char> noise = CreateNoiseVolume();
-		noiseTexture = DH::Texture3D::Create({ NOISE_SIZE, NOISE_SIZE, NOISE_SIZE }, noise.data(), DH::Format::RGBA8);
-		DH::SamplerDesc noiseDesc;
-		noiseDesc.addressU = DH::AddressMode::Repeat;
-		noiseDesc.addressV = DH::AddressMode::Repeat;
-		noiseDesc.addressW = DH::AddressMode::Repeat;
-		noiseSampler = DH::Sampler::Create(noiseDesc);
+		noiseTexture = GetNoiseVolume();
+		noiseSampler = CreateNoiseSampler();
 
 		// Set 1 of the glow and star shaders: the galaxy's parameters and the noise
 		galaxyLayout = DH::BindGroupLayout::Create({
@@ -823,11 +714,228 @@ namespace SV
 			preset.fieldOfView = 15.0f;
 			return preset;
 		}
+
+		// Arp 273: UGC 1810, a large spiral pulled by the close passage of its smaller companion UGC
+		// 1813 into a rose: tightly wound arms, studded with pink nebulae and blue clusters, and an
+		// outer arm looping round it like a ring. UGC 1813 lies below it, nearly edge-on, bright with
+		// young stars at its centre, joined to UGC 1810 by a faint bridge of stars pulled out between them.
+		GalaxyPreset RoseGalaxy()
+		{
+			GalaxyPreset preset;
+			preset.name = "Rose Galaxy (Arp 273)";
+			GalaxyParameters& p = preset.parameters;
+			p.barAngle = 20.0f;
+			p.barHalfLength = 1800.0f;
+			p.barWidthRatio = 0.55f;
+			p.barHeightRatio = 0.45f;
+			p.bulgeRadius = 600.0f;
+			p.barShare = 0.2f;
+			p.armCount = 2;
+			p.armPitch = 11.0f;
+			p.armRadius = 2500.0f;
+			p.armWidth = 650.0f;
+			p.minorArmStrength = 0.8f;
+			p.ringRadius = 15000.0f;
+			p.ringWidth = 1400.0f;
+			p.ringStrength = 1.0f;
+			p.discScaleLength = 5000.0f;
+			p.discScaleHeight = 300.0f;
+			p.discRadius = 21000.0f;
+			p.youngScaleHeight = 90.0f;
+			p.dustScaleHeight = 110.0f;
+			p.dustLaneOffset = 280.0f;
+			p.bulgeGlow = 4.0f;
+			p.discGlow = 0.7f;
+			p.armGlow = 2.0f;
+			p.nebulaGlow = 2.0f;
+			p.dustDepth = 1.5f;
+			p.bulgeTemperature = 4500.0f;
+			p.discTemperature = 5200.0f;
+			p.youngTemperature = 19000.0f;
+			p.starCount = 300000;
+
+			// UGC 1813 (in front of and below UGC 1810, from the first view), drawn out along its
+			// disc, and the bridge of stars between them
+			const glm::vec3 companion(6000.0f, -5000.0f, 29000.0f);
+			const glm::vec3 edge(3000.0f, 0.0f, 17000.0f);
+			p.companions = {
+				{ "UGC 1813", companion, 1000.0f, glm::vec3(3500.0f, 300.0f, -800.0f), 0.7f, 7000.0f, 1.2f },
+				{ "", 0.5f * (edge + companion), 1100.0f, 0.35f * (companion - edge), 0.12f, 9000.0f, 0.0f },
+			};
+			preset.markers = { { "UGC 1810", glm::vec3(0.0f) } };
+			preset.overviewPitch = 55.0f;
+			preset.overviewYaw = 0.0f;
+			preset.overviewZoom = 160000.0f;
+			preset.fieldOfView = 30.0f;
+			return preset;
+		}
+
+		// M101: a large, face-on spiral (about 50 kpc across) with a small bulge and many loosely
+		// wound arms, crowded with giant H II regions
+		GalaxyPreset Pinwheel()
+		{
+			GalaxyPreset preset;
+			preset.name = "Pinwheel (M101)";
+			GalaxyParameters& p = preset.parameters;
+			p.barAngle = 0.0f;
+			p.barHalfLength = 1200.0f;
+			p.barWidthRatio = 0.6f;
+			p.barHeightRatio = 0.5f;
+			p.bulgeRadius = 350.0f;
+			p.barShare = 0.1f;
+			p.armCount = 4;
+			p.armPitch = 24.0f;
+			p.armRadius = 2000.0f;
+			p.armWidth = 750.0f;
+			p.minorArmStrength = 0.8f;
+			p.discScaleLength = 6000.0f;
+			p.discScaleHeight = 300.0f;
+			p.discRadius = 26000.0f;
+			p.dustLaneOffset = 250.0f;
+			p.bulgeGlow = 2.0f;
+			p.discGlow = 0.5f;
+			p.armGlow = 2.2f;
+			p.nebulaGlow = 1.8f;
+			p.dustDepth = 3.0f;
+			p.bulgeTemperature = 4600.0f;
+			p.discTemperature = 5300.0f;
+			p.youngTemperature = 20000.0f;
+			p.starCount = 350000;
+			preset.markers = { { "Nucleus", glm::vec3(0.0f) } };
+			preset.overviewPitch = 90.0f;
+			preset.overviewYaw = 0.0f;
+			preset.overviewZoom = 125000.0f;
+			preset.fieldOfView = 30.0f;
+			return preset;
+		}
+
+		// NGC 1300: the archetypal barred spiral. A long bar, with dust lanes along its leading
+		// edges, and two grand design arms sweeping from its ends half way round the galaxy.
+		GalaxyPreset Ngc1300()
+		{
+			GalaxyPreset preset;
+			preset.name = "NGC 1300";
+			GalaxyParameters& p = preset.parameters;
+			p.barAngle = 35.0f;
+			p.barHalfLength = 6500.0f;
+			p.barWidthRatio = 0.2f;
+			p.barHeightRatio = 0.2f;
+			p.bulgeRadius = 500.0f;
+			p.barShare = 0.85f;
+			p.armCount = 2;
+			p.armPitch = 20.0f;
+			p.armRadius = 6500.0f;
+			p.armWidth = 750.0f;
+			p.minorArmStrength = 0.1f;
+			p.discScaleLength = 5000.0f;
+			p.discScaleHeight = 300.0f;
+			p.discRadius = 17000.0f;
+			p.dustLaneOffset = 250.0f;
+			p.bulgeGlow = 4.0f;
+			p.discGlow = 0.35f;
+			p.armGlow = 3.0f;
+			p.nebulaGlow = 1.0f;
+			p.dustDepth = 3.0f;
+			p.bulgeTemperature = 4400.0f;
+			p.discTemperature = 5000.0f;
+			p.youngTemperature = 17000.0f;
+			preset.markers = { { "Nucleus", glm::vec3(0.0f) } };
+			preset.overviewPitch = 55.0f;
+			preset.overviewYaw = 0.0f;
+			preset.overviewZoom = 75000.0f;
+			preset.fieldOfView = 30.0f;
+			return preset;
+		}
+
+		// M33: a small (18 kpc), nearly bulgeless spiral with patchy, loosely wound arms and bright H
+		// II regions, seen 54 degrees from face-on
+		GalaxyPreset Triangulum()
+		{
+			GalaxyPreset preset;
+			preset.name = "Triangulum (M33)";
+			GalaxyParameters& p = preset.parameters;
+			p.barAngle = 0.0f;
+			p.barHalfLength = 500.0f;
+			p.barWidthRatio = 0.6f;
+			p.barHeightRatio = 0.5f;
+			p.bulgeRadius = 150.0f;
+			p.barShare = 0.0f;
+			p.armCount = 2;
+			p.armPitch = 26.0f;
+			p.armRadius = 900.0f;
+			p.armWidth = 650.0f;
+			p.minorArmStrength = 0.7f;
+			p.discScaleLength = 1800.0f;
+			p.discScaleHeight = 250.0f;
+			p.discRadius = 9500.0f;
+			p.youngScaleHeight = 100.0f;
+			p.dustScaleHeight = 120.0f;
+			p.dustLaneOffset = 150.0f;
+			p.bulgeGlow = 1.2f;
+			p.discGlow = 1.0f;
+			p.armGlow = 1.6f;
+			p.nebulaGlow = 2.2f;
+			p.dustDepth = 2.0f;
+			p.bulgeTemperature = 4800.0f;
+			p.discTemperature = 5600.0f;
+			p.youngTemperature = 20000.0f;
+			preset.markers = { { "Nucleus", glm::vec3(0.0f) } };
+			preset.overviewPitch = 36.0f;
+			preset.overviewYaw = 0.0f;
+			preset.overviewZoom = 42000.0f;
+			preset.fieldOfView = 30.0f;
+			return preset;
+		}
+
+		// M104: a huge, bright bulge of old stars, cut across by a ring of dust in its thin disc,
+		// seen just 6 degrees from edge-on: the brim of the hat
+		GalaxyPreset Sombrero()
+		{
+			GalaxyPreset preset;
+			preset.name = "Sombrero (M104)";
+			GalaxyParameters& p = preset.parameters;
+			p.barAngle = 0.0f;
+			p.barHalfLength = 1500.0f;
+			p.barWidthRatio = 0.8f;
+			p.barHeightRatio = 0.7f;
+			p.bulgeRadius = 1300.0f;
+			p.barShare = 0.0f;
+			p.armCount = 2;
+			p.armPitch = 6.0f;
+			p.armRadius = 5000.0f;
+			p.armWidth = 500.0f;
+			p.minorArmStrength = 0.5f;
+			p.ringRadius = 8500.0f;
+			p.ringWidth = 900.0f;
+			p.ringStrength = 1.5f;
+			p.discScaleLength = 5000.0f;
+			p.discScaleHeight = 250.0f;
+			p.discRadius = 15000.0f;
+			p.youngScaleHeight = 80.0f;
+			p.dustScaleHeight = 150.0f;
+			p.dustLaneOffset = 200.0f;
+			p.bulgeGlow = 10.0f;
+			p.discGlow = 0.9f;
+			p.armGlow = 0.15f;
+			p.nebulaGlow = 0.1f;
+			p.dustDepth = 8.0f;
+			p.bulgeTemperature = 4300.0f;
+			p.discTemperature = 4700.0f;
+			p.youngTemperature = 9000.0f;
+			p.brightness = 0.5f;
+			preset.markers = { { "Nucleus", glm::vec3(0.0f) } };
+			preset.overviewPitch = 6.0f;
+			preset.overviewYaw = 0.0f;
+			preset.overviewZoom = 65000.0f;
+			preset.fieldOfView = 25.0f;
+			return preset;
+		}
 	}
 
 	const GalaxyPreset& GetGalaxyPreset(const GalaxyType type)
 	{
-		static const std::array<GalaxyPreset, (size_t)GalaxyType::Count> presets = { MilkyWay(), Whirlpool(), Andromeda() };
+		static const std::array<GalaxyPreset, (size_t)GalaxyType::Count> presets = { MilkyWay(), Whirlpool(), Andromeda(), RoseGalaxy(),
+																								 Pinwheel(), Ngc1300(), Triangulum(), Sombrero() };
 		return presets[std::min((size_t)type, presets.size() - 1)];
 	}
 }

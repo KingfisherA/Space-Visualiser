@@ -1,4 +1,5 @@
 #pragma once
+#include <array>
 #include <optional>
 #include <string>
 #include <utility>
@@ -22,8 +23,11 @@ namespace DH
 namespace SV
 {
 	class CelestrialBody;
+	class CompactObjectRenderer;
 	class GalaxyRenderer;
 	enum class GalaxyType;
+	class NebulaRenderer;
+	enum class NebulaType;
 	class StarRenderer;
 	class PlanetRenderer;
 	class SplashScreen;
@@ -35,7 +39,8 @@ namespace SV
 
 	// Space Visualiser: renders a planetary system into Dahlia's ImGui viewport. The scene loads over
 	// the first few frames, behind a splash screen. The galaxy test shows a galaxy (the Milky Way,
-	// the Whirlpool or Andromeda) in place of the solar system.
+	// the Whirlpool or Andromeda) in place of the solar system, the black hole and pulsar tests a
+	// black hole or a neutron star, and the nebula test a nebula (the Crab or Orion).
 	class Application final : public DH::GraphicsApp
 	{
 	public:
@@ -71,11 +76,21 @@ namespace SV
 			Loaded        // The splash screen is fading out (or gone)
 		};
 
-		// Where the camera is and what it is doing, kept for the view not being shown (the solar system's
-		// during the galaxy test, and the galaxy's otherwise)
+		// What the viewport shows
+		enum class SceneMode
+		{
+			SolarSystem,
+			Galaxy,   // The galaxy test: only a galaxy, in parsecs around its centre
+			BlackHole, // The black hole test: only a black hole, in Schwarzschild radii around it
+			Pulsar,    // The pulsar test: only a neutron star, in Schwarzschild radii around it
+			Nebula,    // The nebula test: only a nebula, in parsecs around its centre
+			Count
+		};
+
+		// Where the camera is and what it is doing, kept for each scene while it isn't shown
 		struct CameraState
 		{
-			DH::Camera3D camera;
+			DH::Camera3D camera = DH::Camera3D();
 			glm::dvec3 origin{ 0.0 };
 			sRef<CelestrialBody> followBody;
 			bool isTravelling = false;
@@ -117,9 +132,8 @@ namespace SV
 		// Marks the camera's orbit centre over the viewport (inside its ImGui window)
 		void DrawCrosshair();
 
-		// Shows the galaxy in place of the solar system (or back again), swapping the camera to the
-		// other view's
-		void SetGalaxyTest(bool enabled);
+		// Shows another scene, swapping the camera to where it was in that scene
+		void SetSceneMode(SceneMode mode);
 		// Shows another galaxy: its parameters and stars, from its first view
 		void SetGalaxyType(GalaxyType type);
 		// A galaxy's first view (and "Reset camera"): the whole galaxy, as it is usually seen
@@ -129,6 +143,28 @@ namespace SV
 		// Marks the galaxy's centre, companions and (in the Milky Way) the Sun over the viewport
 		// during the galaxy test (inside its ImGui window)
 		void DrawGalaxyLabels();
+
+		// The black hole's or pulsar's first view (and "Reset camera"): just above the disc (for
+		// the black hole, as in Interstellar)
+		[[nodiscard]] static CameraState GetCompactObjectOverview(SceneMode mode);
+		// The renderer of the black hole or pulsar test (whichever is shown)
+		[[nodiscard]] CompactObjectRenderer& GetCompactObjectRenderer() const;
+		void RenderCompactObjectTest(DH::CommandList& cmd, FrameUniforms& frame, double deltaTime);
+		void RenderCompactObjectControls();
+
+		// Shows another nebula: its parameters, from its first view
+		void SetNebulaType(NebulaType type);
+		// A nebula's first view (and "Reset camera"): the whole nebula, as it is usually seen
+		[[nodiscard]] static CameraState GetNebulaOverview(NebulaType type);
+		void RenderNebulaTest(DH::CommandList& cmd, FrameUniforms& frame, double deltaTime);
+		void RenderNebulaControls();
+		// Names the nebula's stars over the viewport (inside its ImGui window)
+		void DrawNebulaLabels();
+
+		// The current scene's first view (for "Reset camera" in the test scenes)
+		[[nodiscard]] CameraState GetTestOverview() const;
+		// The angle a pixel of the viewport subtends (radians) with a field of view (degrees)
+		[[nodiscard]] float GetPixelAngle(float fieldOfView) const;
 
 		// The camera works in render coordinates: world positions relative to cameraOrigin (kept at
 		// the camera's centre each frame), which keeps them small enough for floats
@@ -161,12 +197,18 @@ namespace SV
 		bool showGrid = true;
 		bool showLabels = true;
 
-		// The galaxy test: only the galaxy is drawn, and the camera works in parsecs around the
-		// galactic centre. The renderer is created the first time the test is shown.
-		bool showGalaxyTest = false;
+		// The scene shown, and the camera of each scene (the one shown's is out of date). The test
+		// scenes' renderers are created the first time they are shown.
+		SceneMode sceneMode = SceneMode::SolarSystem;
 		GalaxyType galaxyType{}; // The Milky Way
 		uRef<GalaxyRenderer> galaxyRenderer;
-		CameraState otherCameraState = GetGalaxyOverview(galaxyType);
+		uRef<CompactObjectRenderer> blackHoleRenderer;
+		uRef<CompactObjectRenderer> pulsarRenderer;
+		NebulaType nebulaType{}; // The Crab
+		uRef<NebulaRenderer> nebulaRenderer;
+		std::array<CameraState, (size_t)SceneMode::Count> sceneCameras{
+			CameraState{}, GetGalaxyOverview(galaxyType), GetCompactObjectOverview(SceneMode::BlackHole),
+			GetCompactObjectOverview(SceneMode::Pulsar), GetNebulaOverview(nebulaType) };
 
 		// Whether the cursor is over the viewport window (updated each ImGui frame)
 		bool isViewportHovered = false;

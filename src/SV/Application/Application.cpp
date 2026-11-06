@@ -31,8 +31,10 @@
 #include "SV/Graphics/AsyncTexture.hpp"
 #include "SV/Graphics/ShaderSources.hpp"
 #include "SV/Platform/Trackpad.hpp"
+#include "SV/Universe/CompactObject.hpp"
 #include "SV/Universe/Galaxy.hpp"
 #include "SV/Universe/MoonData.hpp"
+#include "SV/Universe/Nebula.hpp"
 #include "SV/Universe/PlanetarySystem.hpp"
 #include "SV/Universe/SolarSystem.hpp"
 
@@ -95,6 +97,22 @@ namespace SV
 		constexpr float GALAXY_MAX_ZOOM = 500000.0f;
 		constexpr float GALAXY_NEAR_PLANE_FRACTION = 1e-3f;
 		constexpr float GALAXY_EXTENT = 60000.0f;
+
+		// The black hole and pulsar tests work in Schwarzschild radii: zoom limits (outside the
+		// horizon or the star), the field of view (degrees) and the first views (just above the
+		// disc: for the black hole, as in Interstellar)
+		constexpr float BLACK_HOLE_MIN_ZOOM = 2.0f;
+		constexpr float PULSAR_MIN_ZOOM = 4.0f;
+		constexpr float COMPACT_OBJECT_MAX_ZOOM = 1000.0f;
+		constexpr float COMPACT_OBJECT_FOV = 50.0f;
+		constexpr float BLACK_HOLE_OVERVIEW_ZOOM = 22.0f;
+		constexpr float BLACK_HOLE_OVERVIEW_PITCH = 3.0f;
+		constexpr float PULSAR_OVERVIEW_ZOOM = 45.0f;
+		constexpr float PULSAR_OVERVIEW_PITCH = 12.0f;
+
+		// The nebula test works in parsecs (each nebula's first view is in its NebulaPreset)
+		constexpr float NEBULA_MIN_ZOOM = 0.2f;
+		constexpr float NEBULA_MAX_ZOOM = 300.0f;
 
 		// Camera3D can only be turned by input, which it eases out over the following frames, so
 		// turn it with one impulse and run the easing to its end: the angle turned is the impulse's
@@ -361,6 +379,9 @@ namespace SV
 		DH::GPUContext::Get()->WaitIdle();
 		splashScreen.reset();
 		galaxyRenderer.reset();
+		blackHoleRenderer.reset();
+		pulsarRenderer.reset();
+		nebulaRenderer.reset();
 		namedBodies.clear();
 		lightSource.reset();
 		solarSystem.reset();
@@ -384,7 +405,14 @@ namespace SV
 		// Fit the near and far planes to the bodies (in render coordinates, around the camera), so
 		// the depth buffer's precision is spent where the nearest body is
 		const glm::vec3& eye = camera.GetActualPosition();
-		if (showGalaxyTest)
+		if (sceneMode == SceneMode::BlackHole || sceneMode == SceneMode::Pulsar || sceneMode == SceneMode::Nebula)
+		{
+			// Only the frame's camera is used (each pixel's ray is traced or marched), so the planes are nominal
+			const float fieldOfView = sceneMode == SceneMode::Nebula ? GetNebulaPreset(nebulaType).fieldOfView : COMPACT_OBJECT_FOV;
+			projectionMatrix = glm::perspective(glm::radians(fieldOfView), width / height, MIN_NEAR_PLANE, 10.0f * GetMaxZoom());
+			return;
+		}
+		if (sceneMode == SceneMode::Galaxy)
 		{
 			// Nothing is depth tested, so the planes need only take in the whole galaxy
 			const float nearPlane = std::max(GALAXY_NEAR_PLANE_FRACTION * camera.GetZoom(), MIN_NEAR_PLANE);
@@ -431,15 +459,32 @@ namespace SV
 
 	float Application::GetMinZoom() const
 	{
-		if (showGalaxyTest)
+		if (sceneMode == SceneMode::Galaxy)
 			return GALAXY_MIN_ZOOM;
+		if (sceneMode == SceneMode::BlackHole)
+			return BLACK_HOLE_MIN_ZOOM;
+		if (sceneMode == SceneMode::Pulsar)
+			return PULSAR_MIN_ZOOM;
+		if (sceneMode == SceneMode::Nebula)
+			return NEBULA_MIN_ZOOM;
 		const sRef<CelestrialBody>& body = isTravelling ? travelBody : followBody;
 		return body != nullptr ? std::max(MIN_ZOOM, MIN_ZOOM_PER_RADIUS * GetOuterRadius(*body)) : MIN_ZOOM;
 	}
 
 	float Application::GetMaxZoom() const
 	{
-		return showGalaxyTest ? GALAXY_MAX_ZOOM : MAX_ZOOM;
+		switch (sceneMode)
+		{
+		case SceneMode::Galaxy:
+			return GALAXY_MAX_ZOOM;
+		case SceneMode::BlackHole:
+		case SceneMode::Pulsar:
+			return COMPACT_OBJECT_MAX_ZOOM;
+		case SceneMode::Nebula:
+			return NEBULA_MAX_ZOOM;
+		default:
+			return MAX_ZOOM;
+		}
 	}
 
 	void Application::UpdateCamera(const float deltaTime)
@@ -555,7 +600,7 @@ namespace SV
 		if (simulateGravity)
 			solarSystem->Update(frameTime * daysPerSecond * SECONDS_PER_DAY);
 		UpdateCamera(deltaTime);
-		if (!showGalaxyTest)
+		if (sceneMode == SceneMode::SolarSystem)
 			solarSystem->SetRenderOrigin(cameraOrigin);
 		UpdateProjectionMatrix();
 
@@ -570,9 +615,19 @@ namespace SV
 		frame.sun = glm::vec4(lightSource->GetTranslation(), lightSource->GetScale().x);
 		frame.times = glm::vec4((float)animationTime, (float)animationTime * 0.05f, 0.0f, 0.0f);
 		frame.display = glm::vec4(exposure, 0.0f, 0.0f, 0.0f);
-		if (showGalaxyTest)
+		if (sceneMode == SceneMode::Galaxy)
 		{
 			RenderGalaxyTest(cmd, frame);
+			return;
+		}
+		if (sceneMode == SceneMode::BlackHole || sceneMode == SceneMode::Pulsar)
+		{
+			RenderCompactObjectTest(cmd, frame, frameTime);
+			return;
+		}
+		if (sceneMode == SceneMode::Nebula)
+		{
+			RenderNebulaTest(cmd, frame, frameTime);
 			return;
 		}
 		SetOccluders(frame);
@@ -660,11 +715,13 @@ namespace SV
 				// (Not over the popups opened from it, such as a body's menu)
 				isViewportHovered = ImGui::IsWindowHovered(ImGuiHoveredFlags_ChildWindows | ImGuiHoveredFlags_NoPopupHierarchy);
 				labelRects.clear();
-				if (showGalaxyTest)
+				if (sceneMode != SceneMode::SolarSystem)
 				{
 					selectedBody.reset();
-					if (showLabels)
+					if (sceneMode == SceneMode::Galaxy && showLabels)
 						DrawGalaxyLabels();
+					if (sceneMode == SceneMode::Nebula && showLabels)
+						DrawNebulaLabels();
 				}
 				else
 				{
@@ -1019,24 +1076,30 @@ namespace SV
 		UpdateProjectionMatrix();
 	}
 
-	void Application::SetGalaxyTest(const bool enabled)
+	void Application::SetSceneMode(const SceneMode mode)
 	{
-		if (enabled == showGalaxyTest)
+		if (mode == sceneMode)
 			return;
-		if (enabled && galaxyRenderer == nullptr)
+		if (mode == SceneMode::Galaxy && galaxyRenderer == nullptr)
 			galaxyRenderer = umake<GalaxyRenderer>(sceneContext, GetGalaxyPreset(galaxyType).parameters);
+		if (mode == SceneMode::BlackHole && blackHoleRenderer == nullptr)
+			blackHoleRenderer = umake<CompactObjectRenderer>(sceneContext, GetBlackHolePreset());
+		if (mode == SceneMode::Pulsar && pulsarRenderer == nullptr)
+			pulsarRenderer = umake<CompactObjectRenderer>(sceneContext, GetPulsarPreset());
+		if (mode == SceneMode::Nebula && nebulaRenderer == nullptr)
+			nebulaRenderer = umake<NebulaRenderer>(sceneContext, GetNebulaPreset(nebulaType).parameters);
 
-		// Each view keeps its own camera, so switching back returns to where it was
-		CameraState shown{ camera, cameraOrigin, followBody, isTravelling, travelBody, travelZoom };
-		camera = otherCameraState.camera;
-		cameraOrigin = otherCameraState.origin;
-		followBody = otherCameraState.followBody;
-		isTravelling = otherCameraState.isTravelling;
-		travelBody = otherCameraState.travelBody;
-		travelZoom = otherCameraState.travelZoom;
-		otherCameraState = std::move(shown);
+		// Each scene keeps its own camera, so switching back returns to where it was
+		sceneCameras[(size_t)sceneMode] = CameraState{ camera, cameraOrigin, followBody, isTravelling, travelBody, travelZoom };
+		const CameraState& shown = sceneCameras[(size_t)mode];
+		camera = shown.camera;
+		cameraOrigin = shown.origin;
+		followBody = shown.followBody;
+		isTravelling = shown.isTravelling;
+		travelBody = shown.travelBody;
+		travelZoom = shown.travelZoom;
 
-		showGalaxyTest = enabled;
+		sceneMode = mode;
 		UpdateProjectionMatrix();
 	}
 
@@ -1148,6 +1211,229 @@ namespace SV
 		}
 	}
 
+	Application::CameraState Application::GetCompactObjectOverview(const SceneMode mode)
+	{
+		const bool isPulsar = mode == SceneMode::Pulsar;
+		CameraState state;
+		state.camera.SetZoom(isPulsar ? PULSAR_OVERVIEW_ZOOM : BLACK_HOLE_OVERVIEW_ZOOM);
+		TurnCamera(state.camera, isPulsar ? PULSAR_OVERVIEW_PITCH : BLACK_HOLE_OVERVIEW_PITCH, 0.0f);
+		return state;
+	}
+
+	CompactObjectRenderer& Application::GetCompactObjectRenderer() const
+	{
+		return sceneMode == SceneMode::Pulsar ? *pulsarRenderer : *blackHoleRenderer;
+	}
+
+	float Application::GetPixelAngle(const float fieldOfView) const
+	{
+		return 2.0f * std::tan(glm::radians(fieldOfView) * 0.5f) / (float)std::max<size_t>(mViewportFramebuffer->GetHeight(), 1);
+	}
+
+	Application::CameraState Application::GetTestOverview() const
+	{
+		switch (sceneMode)
+		{
+		case SceneMode::Galaxy:
+			return GetGalaxyOverview(galaxyType);
+		case SceneMode::Nebula:
+			return GetNebulaOverview(nebulaType);
+		default:
+			return GetCompactObjectOverview(sceneMode);
+		}
+	}
+
+	void Application::RenderCompactObjectTest(DH::CommandList& cmd, FrameUniforms& frame, const double deltaTime)
+	{
+		// Nothing casts shadows, and the Sun isn't drawn
+		frame.occluderCount = glm::vec4(0.0f);
+		frameUniformBuffer->Update(&frame, sizeof(frame));
+
+		// The solar system's textures keep loading while it is hidden
+		planetRenderer->Prepare(cmd);
+
+		CompactObjectRenderer& renderer = GetCompactObjectRenderer();
+		renderer.Update(deltaTime);
+		renderer.Render(cmd, *mViewportFramebuffer, CompactObjectView{ glm::vec3(-cameraOrigin), GetPixelAngle(COMPACT_OBJECT_FOV) });
+	}
+
+	void Application::RenderCompactObjectControls()
+	{
+		CompactObjectParameters& p = GetCompactObjectRenderer().parameters;
+		const bool isPulsar = p.type == CompactObjectType::NeutronStar;
+		if (!ImGui::CollapsingHeader(isPulsar ? "Pulsar" : "Black hole", ImGuiTreeNodeFlags_DefaultOpen))
+			return;
+
+		ImGui::SliderFloat("Brightness", &p.brightness, 0.05f, 20.0f, "%.2f", ImGuiSliderFlags_Logarithmic);
+		ImGui::SliderFloat("Bloom", &p.bloom, 0.0f, 2.0f);
+		ImGui::SetItemTooltip("The glow around the brightest light, as scattered in a camera's lens");
+		ImGui::SliderFloat("Time scale", &p.timeScale, 0.0f, 50.0f, "%.1f", ImGuiSliderFlags_Logarithmic);
+		ImGui::SetItemTooltip("How fast the disc turns and the jets flow (the time light takes to cross a Schwarzschild radius, per second)");
+		ImGui::SliderFloat("Gravitational redshift", &p.gravitationalRedshift, 0.0f, 1.0f);
+		ImGui::SetItemTooltip("Light from close to the %s loses energy climbing out of its gravity (0 for none)",
+							  isPulsar ? "neutron star" : "black hole");
+
+		if (isPulsar)
+		{
+			ImGui::SeparatorText("Neutron star");
+			ImGui::SliderFloat("Spin period", &p.spinPeriod, 0.1f, 10.0f, "%.2f s", ImGuiSliderFlags_Logarithmic);
+			ImGui::SetItemTooltip("Real seconds per turn (real pulsars turn in milliseconds to seconds)");
+			ImGui::SliderFloat("Magnetic tilt", &p.magneticTilt, 0.0f, 90.0f, "%.0f deg");
+			ImGui::SetItemTooltip("Between the spin and magnetic axes: the beams sweep round a cone this wide, and the pulsar flashes as one passes the camera");
+			ImGui::SliderFloat("Star brightness", &p.starBrightness, 0.05f, 20.0f, "%.2f", ImGuiSliderFlags_Logarithmic);
+			ImGui::SliderFloat("Hot spots", &p.hotSpotBrightness, 0.0f, 30.0f, "%.1f");
+			ImGui::SetItemTooltip("The magnetic poles, where gas falling along the field lines lands");
+			ImGui::SliderFloat("Hot spot size", &p.hotSpotSize, 2.0f, 40.0f, "%.0f deg");
+			ImGui::SliderFloat("Beam brightness", &p.beamBrightness, 0.0f, 10.0f, "%.2f");
+			ImGui::SetItemTooltip("The beams of radiation from the magnetic poles (radio to X-rays, in false colour)");
+			ImGui::SliderFloat("Beam width", &p.beamWidth, 1.0f, 30.0f, "%.1f deg");
+			ImGui::SliderFloat("Beam length", &p.beamLength, 5.0f, 200.0f, "%.0f r_s");
+			ImGui::SliderFloat("Magnetosphere", &p.magnetosphere, 0.0f, 3.0f, "%.2f");
+			ImGui::SetItemTooltip("Plasma glowing along the closed magnetic field lines (0 for none)");
+			ImGui::SliderFloat("Star radius", &p.starRadius, 1.6f, 6.0f, "%.2f r_s");
+			ImGui::SetItemTooltip("12 km for 1.4 solar masses is 2.9 Schwarzschild radii. Light bends round it, so more than half of it is seen.");
+		}
+
+		ImGui::SeparatorText("Accretion disc");
+		ImGui::Checkbox("Show disc", &p.showDisc);
+		ImGui::BeginDisabled(!p.showDisc);
+		ImGui::SliderFloat("Doppler beaming", &p.dopplerBeaming, 0.0f, 1.0f);
+		ImGui::SetItemTooltip("The side of the disc turning towards the camera is brighter and bluer, the other side dimmer and redder.\n"
+							  "0 shows the disc as if it weren't moving (as Interstellar did), 1 as it would be seen.");
+		ImGui::SliderFloat("Temperature", &p.discTemperature, 2000.0f, 30000.0f, "%.0f K", ImGuiSliderFlags_Logarithmic);
+		ImGui::SetItemTooltip("The disc's hottest gas, just outside its inner edge, as it is emitted");
+		ImGui::SliderFloat("Disc brightness", &p.discBrightness, 0.05f, 20.0f, "%.2f", ImGuiSliderFlags_Logarithmic);
+		ImGui::SliderFloat("Opacity", &p.discOpacity, 0.0f, 1.0f);
+		ImGui::SliderFloat("Turbulence", &p.discTurbulence, 0.0f, 1.0f);
+		ImGui::SliderFloat("Inner radius", &p.discInnerRadius, 1.5f, 20.0f, "%.2f r_s");
+		ImGui::SetItemTooltip(isPulsar ? "Where the star's magnetic field takes over from the disc" :
+										 "3 Schwarzschild radii is the innermost stable orbit, inside which gas falls in");
+		ImGui::SliderFloat("Outer radius", &p.discOuterRadius, 4.0f, 60.0f, "%.1f r_s");
+		ImGui::EndDisabled();
+
+		ImGui::SeparatorText("Jets");
+		ImGui::Checkbox("Show jets", &p.showJets);
+		ImGui::SetItemTooltip("Relativistic jets from the poles of the spin axis, glowing in X-rays (shown in false colour)");
+		ImGui::BeginDisabled(!p.showJets);
+		ImGui::SliderFloat("Jet brightness", &p.jetBrightness, 0.01f, 10.0f, "%.2f", ImGuiSliderFlags_Logarithmic);
+		ImGui::SliderFloat("Jet speed", &p.jetSpeed, 0.0f, 0.99f, "%.2f c");
+		ImGui::SetItemTooltip("The jets' gas's speed: the faster, the brighter the jet coming towards the camera and the fainter the other");
+		ImGui::SliderFloat("Opening angle", &p.jetOpeningAngle, 0.5f, 15.0f, "%.1f deg");
+		ImGui::SliderFloat("Jet length", &p.jetLength, 10.0f, 200.0f, "%.0f r_s");
+		ImGui::EndDisabled();
+
+		ImGui::SeparatorText("Sky");
+		ImGui::SliderFloat("Stars", &p.starFieldBrightness, 0.0f, 10.0f, "%.2f");
+		ImGui::SliderFloat("Sky glow", &p.skyBrightness, 0.0f, 5.0f, "%.2f");
+		ImGui::SliderFloat("Resolution", &p.renderScale, 0.25f, 1.0f, "%.2f");
+		ImGui::SetItemTooltip("The fraction of the viewport's resolution the light rays are traced at");
+
+		if (ImGui::Button("Defaults"))
+			p = isPulsar ? GetPulsarPreset() : GetBlackHolePreset();
+	}
+
+	Application::CameraState Application::GetNebulaOverview(const NebulaType type)
+	{
+		const NebulaPreset& preset = GetNebulaPreset(type);
+		CameraState state;
+		state.camera.SetZoom(preset.overviewZoom);
+		TurnCamera(state.camera, preset.overviewPitch, preset.overviewYaw);
+		return state;
+	}
+
+	void Application::SetNebulaType(const NebulaType type)
+	{
+		nebulaType = type;
+		nebulaRenderer->parameters = GetNebulaPreset(type).parameters;
+		const CameraState overview = GetNebulaOverview(type);
+		camera = overview.camera;
+		cameraOrigin = overview.origin;
+		UpdateProjectionMatrix();
+	}
+
+	void Application::RenderNebulaTest(DH::CommandList& cmd, FrameUniforms& frame, const double deltaTime)
+	{
+		// Nothing casts shadows, and the Sun isn't drawn
+		frame.occluderCount = glm::vec4(0.0f);
+		frameUniformBuffer->Update(&frame, sizeof(frame));
+
+		// The solar system's textures keep loading while it is hidden
+		planetRenderer->Prepare(cmd);
+
+		nebulaRenderer->Update(deltaTime);
+		const float pixelAngle = GetPixelAngle(GetNebulaPreset(nebulaType).fieldOfView);
+		nebulaRenderer->Render(cmd, *mViewportFramebuffer, NebulaView{ glm::vec3(-cameraOrigin), pixelAngle });
+	}
+
+	void Application::RenderNebulaControls()
+	{
+		if (!ImGui::CollapsingHeader("Nebula", ImGuiTreeNodeFlags_DefaultOpen))
+			return;
+
+		NebulaParameters& p = nebulaRenderer->parameters;
+		const bool isRemnant = p.kind == NebulaKind::SupernovaRemnant;
+		ImGui::Checkbox("Show labels (L)", &showLabels);
+		ImGui::SliderFloat("Brightness", &p.brightness, 0.05f, 20.0f, "%.2f", ImGuiSliderFlags_Logarithmic);
+		ImGui::SliderFloat("Bloom", &p.bloom, 0.0f, 2.0f);
+
+		ImGui::SeparatorText("Emission");
+		ImGui::Checkbox("Hubble palette", &p.hubblePalette);
+		ImGui::SetItemTooltip("Show the emission lines as in many of Hubble's images: [S II] as red, hydrogen as green and [O III] as blue.\n"
+							  "Otherwise they are shown in their own colours.");
+		ImGui::SliderFloat("Hydrogen", &p.hydrogen, 0.0f, 3.0f);
+		ImGui::SetItemTooltip("H-alpha (red) and H-beta (blue-green), from hydrogen atoms recombining");
+		ImGui::SliderFloat("Oxygen", &p.oxygen, 0.0f, 3.0f);
+		ImGui::SetItemTooltip("[O III] (green-blue), from doubly ionised oxygen: where the light ionising the gas is hardest");
+		ImGui::SliderFloat("Nitrogen and sulphur", &p.sulphur, 0.0f, 3.0f);
+		ImGui::SetItemTooltip("[N II] and [S II] (deep red)");
+		if (p.kind != NebulaKind::Pillars)
+		{
+			ImGui::SliderFloat(isRemnant ? "Synchrotron" : "Scattered starlight", &p.continuum, 0.0f, 3.0f);
+			ImGui::SetItemTooltip(isRemnant ? "The blue-white glow of electrons spiralling in the magnetic field, spun up by the pulsar"
+											: "The stars' light scattered off the dust (blue)");
+		}
+		ImGui::SliderFloat("Dust", &p.dust, 0.0f, 4.0f);
+		ImGui::SetItemTooltip("How much the dust dims (and reddens) what is behind it");
+
+		ImGui::SeparatorText("Structure");
+		ImGui::SliderFloat("Detail", &p.detail, 0.1f, 1.0f, "%.2f", ImGuiSliderFlags_Logarithmic);
+		ImGui::SetItemTooltip("Larger for finer structure in the gas");
+		ImGui::SliderFloat("Turbulence", &p.turbulence, 0.0f, 2.0f, "%.2f pc");
+		if (isRemnant)
+		{
+			ImGui::SliderFloat("Filaments", &p.filaments, 0.0f, 3.0f);
+			ImGui::SliderFloat("Filament sharpness", &p.filamentSharpness, 2.0f, 30.0f, "%.0f");
+		}
+		ImGui::SliderFloat("Stars", &p.starFieldBrightness, 0.0f, 10.0f, "%.2f");
+		ImGui::SliderFloat("Resolution", &p.renderScale, 0.25f, 1.0f, "%.2f");
+		ImGui::SetItemTooltip("The fraction of the viewport's resolution the gas is raymarched at");
+
+		if (ImGui::Button("Defaults"))
+			p = GetNebulaPreset(nebulaType).parameters;
+	}
+
+	void Application::DrawNebulaLabels()
+	{
+		const glm::vec2 origin = GetViewportImageOrigin();
+		const glm::vec2 size((float)mViewportFramebuffer->GetWidth(), (float)mViewportFramebuffer->GetHeight());
+		ImDrawList* drawList = ImGui::GetWindowDrawList();
+		const float fontSize = ImGui::GetFontSize();
+		for (const NebulaStar& star : nebulaRenderer->parameters.stars)
+		{
+			if (star.name.empty())
+				continue;
+			const glm::vec4 clip = viewProjection * glm::vec4(star.position - glm::vec3(cameraOrigin), 1.0f);
+			if (clip.w <= 0.0f)
+				continue;
+			const glm::vec2 ndc = glm::vec2(clip) / clip.w;
+			const glm::vec2 point = origin + glm::vec2(ndc.x * 0.5f + 0.5f, 0.5f - ndc.y * 0.5f) * size;
+			const ImU32 colour = IM_COL32(220, 220, 220, 210);
+			const float ringRadius = LABEL_DOT_RADIUS * 2.5f;
+			drawList->AddCircle(ImVec2(point.x, point.y), ringRadius, colour, 0, 1.5f);
+			drawList->AddText(ImVec2(point.x + ringRadius + 4.0f, point.y - fontSize * 0.5f), colour, star.name.c_str());
+		}
+	}
+
 	void Application::RenderControlsPanel()
 	{
 		if (!ImGui::Begin("Space Visualiser"))
@@ -1158,14 +1444,16 @@ namespace SV
 
 		if (ImGui::CollapsingHeader("Scene", ImGuiTreeNodeFlags_DefaultOpen))
 		{
-			bool galaxyTest = showGalaxyTest;
-			if (ImGui::Checkbox("Galaxy test", &galaxyTest))
-				SetGalaxyTest(galaxyTest);
-			ImGui::SetItemTooltip("Show only a galaxy, in place of the solar system");
-			if (showGalaxyTest)
+			constexpr const char* SCENE_NAMES[] = { "Solar System", "Galaxy Test", "Black Hole Test", "Pulsar Test", "Nebula Test" };
+			static_assert(std::size(SCENE_NAMES) == (size_t)SceneMode::Count);
+			int mode = (int)sceneMode;
+			if (ImGui::Combo("Scene##Mode", &mode, SCENE_NAMES, (int)SceneMode::Count))
+				SetSceneMode((SceneMode)mode);
+			ImGui::SetItemTooltip("The tests show only a galaxy, a black hole, a pulsar or a nebula, in place of the solar system");
+			if (sceneMode == SceneMode::Galaxy)
 			{
 				const GalaxyPreset& current = GetGalaxyPreset(galaxyType);
-				if (ImGui::BeginCombo("Galaxy", current.name.c_str()))
+				if (ImGui::BeginCombo("Galaxy##Preset", current.name.c_str()))
 				{
 					for (size_t i = 0; i < (size_t)GalaxyType::Count; i++)
 					{
@@ -1179,8 +1467,25 @@ namespace SV
 					ImGui::EndCombo();
 				}
 			}
+			if (sceneMode == SceneMode::Nebula)
+			{
+				const NebulaPreset& current = GetNebulaPreset(nebulaType);
+				if (ImGui::BeginCombo("Nebula##Preset", current.name.c_str()))
+				{
+					for (size_t i = 0; i < (size_t)NebulaType::Count; i++)
+					{
+						const NebulaType type = (NebulaType)i;
+						const bool selected = type == nebulaType;
+						if (ImGui::Selectable(GetNebulaPreset(type).name.c_str(), selected) && !selected)
+							SetNebulaType(type);
+						if (selected)
+							ImGui::SetItemDefaultFocus();
+					}
+					ImGui::EndCombo();
+				}
+			}
 
-			if (!showGalaxyTest)
+			if (sceneMode == SceneMode::SolarSystem)
 			{
 				ImGui::DragFloat("Exposure (-/=)", &exposure, 0.1f, 0.0f, 100.0f);
 				ImGui::SliderFloat("H-alpha emission", &starRenderer->hydrogenEmission, 0.0f, 4.0f);
@@ -1206,10 +1511,14 @@ namespace SV
 			}
 		}
 
-		if (showGalaxyTest)
+		if (sceneMode == SceneMode::Galaxy)
 			RenderGalaxyControls();
+		if (sceneMode == SceneMode::BlackHole || sceneMode == SceneMode::Pulsar)
+			RenderCompactObjectControls();
+		if (sceneMode == SceneMode::Nebula)
+			RenderNebulaControls();
 
-		if (!showGalaxyTest && ImGui::CollapsingHeader("Bodies", ImGuiTreeNodeFlags_DefaultOpen))
+		if (sceneMode == SceneMode::SolarSystem && ImGui::CollapsingHeader("Bodies", ImGuiTreeNodeFlags_DefaultOpen))
 		{
 			auto GoToButton = [this](const NamedBody& namedBody)
 			{
@@ -1275,11 +1584,21 @@ namespace SV
 		if (ImGui::CollapsingHeader("Camera", ImGuiTreeNodeFlags_DefaultOpen))
 		{
 			const glm::dvec3 centre = cameraOrigin + glm::dvec3(camera.GetCentrePosition());
-			if (showGalaxyTest)
+			if (sceneMode == SceneMode::Galaxy)
 			{
 				const glm::dvec3 kpc = centre / 1000.0;
 				ImGui::Text("Centre (kpc): X=%.3f, Y=%.3f, Z=%.3f", kpc.x, kpc.y, kpc.z);
 				ImGui::Text("Zoom: %.3g kpc", camera.GetZoom() / 1000.0f);
+			}
+			else if (sceneMode == SceneMode::Nebula)
+			{
+				ImGui::Text("Centre (pc): X=%.2f, Y=%.2f, Z=%.2f", centre.x, centre.y, centre.z);
+				ImGui::Text("Zoom: %.3g pc", camera.GetZoom());
+			}
+			else if (sceneMode == SceneMode::BlackHole || sceneMode == SceneMode::Pulsar)
+			{
+				ImGui::Text("Centre (Schwarzschild radii): X=%.2f, Y=%.2f, Z=%.2f", centre.x, centre.y, centre.z);
+				ImGui::Text("Zoom: %.3g Schwarzschild radii", camera.GetZoom());
 			}
 			else
 			{
@@ -1295,9 +1614,9 @@ namespace SV
 			}
 			if (ImGui::Button("Reset camera"))
 			{
-				if (showGalaxyTest)
+				if (sceneMode != SceneMode::SolarSystem)
 				{
-					const CameraState overview = GetGalaxyOverview(galaxyType);
+					const CameraState overview = GetTestOverview();
 					camera = overview.camera;
 					cameraOrigin = overview.origin;
 				}

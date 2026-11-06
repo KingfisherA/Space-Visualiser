@@ -1,4 +1,6 @@
 #pragma once
+#include <array>
+#include <cstddef>
 #include <vector>
 
 #include <glm/glm.hpp>
@@ -20,6 +22,13 @@ namespace SV
 
 	// Colour of a blackbody at the given temperature (K): linear sRGB with a luminance of 1
 	glm::vec3 BlackbodyColour(float temperature);
+
+	// BlackbodyColour at this many temperatures, spaced evenly in log temperature between the two
+	// (K), for shaders to look up (mirrors BLACKBODY_* in Shaders/Include/Procedural.glsl)
+	constexpr size_t BLACKBODY_TABLE_SIZE = 32;
+	constexpr float BLACKBODY_TABLE_MIN = 1000.0f;
+	constexpr float BLACKBODY_TABLE_MAX = 40000.0f;
+	[[nodiscard]] std::array<glm::vec4, BLACKBODY_TABLE_SIZE> BlackbodyTable();
 
 	class Star : public CelestrialBody
 	{
