@@ -17,8 +17,11 @@ Sources:
     Umbriel, Titania and Oberon (Galileo, Viking and Voyager 2)
   USGS Astrogeology mosaics (asc-pds-services.s3.us-west-2.amazonaws.com/mosaic/), made for
     NASA's Planetary Data System: the Moon (LRO WAC), Europa, Ganymede and Callisto (Voyager and
-    Galileo SSI), Mimas, Enceladus, Tethys, Dione, Rhea, Iapetus and Titan (Cassini ISS) and
-    Triton (Voyager 2)
+    Galileo SSI), Mimas, Enceladus, Tethys, Dione, Rhea, Iapetus and Titan (Cassini ISS),
+    Triton (Voyager 2), and the dwarf planet Pluto and its moon Charon (New Horizons LORRI and
+    MVIC, 2017)
+
+Pluto's map is written to <texture dir>/Solar System/Pluto/Pluto <W>x<H>.jpg, as it is not a moon.
 """
 import os
 import struct
@@ -60,6 +63,8 @@ MAPS = {
     'Titania':   ('Uranus',  'nasa3d:Uranus - Titania', 0, (1024, 512), 0.35, None),
     'Oberon':    ('Uranus',  'nasa3d:Uranus - Oberon', 0, (1024, 512), 0.3, None),
     'Triton':    ('Neptune', 'usgs:Triton_Voyager2_ClrMosaic_GlobalFill_600m.tif', 0, (1536, 768), 0.75, (1.0, 0.93, 0.88)),
+    'Pluto':     ('Pluto',   'usgs:Pluto_NewHorizons_Global_Mosaic_300m_Jul2017_8bit.tif', 180, (1536, 768), 0.55, 'pluto'),
+    'Charon':    ('Pluto',   'usgs:Charon_NewHorizons_Global_Mosaic_300m_Jul2017_8bit.tif', 180, (1024, 512), 0.41, 'charon'),
 }
 # Pixels to trim (at twice the map's size) from the edges of the imaged area, where Voyager's views of
 # the Uranian moons and Triton darken towards the terminator
@@ -213,7 +218,10 @@ def make(name, cache, out_dir):
         from PIL import ImageFilter
         coverage = np.asarray(Image.fromarray(coverage.astype(np.float32)).filter(ImageFilter.MinFilter(ERODE[name])))
     if coverage.min() < 0.999:
-        image = fill(image, coverage)
+        # Filled with the map repeated either side, so the fill wraps around in longitude (without
+        # a seam where the map's edges meet)
+        w = image.shape[1]
+        image = fill(np.concatenate([image] * 3, axis=1), np.concatenate([coverage] * 3, axis=1))[:, w:2 * w]
     # East-positive, centred on longitude 0
     image = np.roll(image, int(round(-centre / 360.0 * image.shape[1])), axis=1)
     image = np.clip(resize(image, size), 0.0, 1.0)
@@ -223,7 +231,21 @@ def make(name, cache, out_dir):
     # Decode to linear reflectance. The greyscale mosaics are close to linear in reflectance already
     # (calibrated I/F); the colour mosaics and the NASA 3D maps are display images.
     linear = image if (image.ndim == 2 and not source.startswith('nasa3d:')) else image ** 2.2
-    if tint == 'iapetus':
+    if tint == 'pluto':
+        # Grey to colour by brightness (New Horizons MVIC): the dark equatorial belt (Cthulhu) is
+        # red-brown tholins, the middle tones of the north tan, and the nitrogen ice of Sputnik
+        # Planitia a pale cream
+        t = np.clip(linear / np.percentile(linear, 99.5), 0, 1)[..., None]
+        dark, middle, bright = np.array([0.42, 0.22, 0.12]), np.array([0.9, 0.72, 0.52]), np.array([1.0, 0.96, 0.9])
+        colour = np.where(t < 0.5, dark + (middle - dark) * (t / 0.5), middle + (bright - middle) * ((t - 0.5) / 0.5))
+        linear = linear[..., None] * colour
+    elif tint == 'charon':
+        # Grey, but for the red-brown cap around the north pole (Mordor Macula)
+        latitude = np.linspace(90, -90, linear.shape[0])[:, None, None]
+        cap = np.clip((latitude - 58) / 14, 0, 1)
+        colour = np.array([1.0, 0.97, 0.94]) * (1 - cap) + np.array([0.8, 0.55, 0.42]) * cap
+        linear = linear[..., None] * colour
+    elif tint == 'iapetus':
         # Grey to the dark material's reddish brown, in proportion to darkness
         brown = np.array([0.55, 0.38, 0.27])
         t = np.clip(linear / np.percentile(linear, 99.5), 0, 1)[..., None]
@@ -240,7 +262,8 @@ def make(name, cache, out_dir):
     luminance = linear @ np.array([0.2126, 0.7152, 0.0722])
     brightest = BRIGHTEST[name] if mean_albedo is None else mean_albedo / luminance.mean()
     out = Image.fromarray((linear ** (1 / 2.2) * 255 + 0.5).astype(np.uint8))
-    path = os.path.join(out_dir, 'Solar System', planet, 'Moons', f'{name} {size[0]}x{size[1]}.jpg')
+    folder = os.path.join(out_dir, 'Solar System', planet) if name == planet else os.path.join(out_dir, 'Solar System', planet, 'Moons')
+    path = os.path.join(folder, f'{name} {size[0]}x{size[1]}.jpg')
     os.makedirs(os.path.dirname(path), exist_ok=True)
     out.save(path, quality=92)
     print(f'{name:10s} {path}  albedo scale {brightest:.3f}', flush=True)

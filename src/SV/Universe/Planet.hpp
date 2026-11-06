@@ -135,6 +135,19 @@ namespace SV
 		Neptune();
 	};
 
+	// Pluto, the dwarf planet, mapped by New Horizons. It and its largest moon Charon keep the same
+	// faces turned to each other, so it is turned to Charon (see FaceMoon) rather than spun.
+	class Pluto : public Planet
+	{
+	public:
+		Pluto();
+
+		// Turns the prime meridian (longitude 0, which faces Charon) to Charon at `offset` from
+		// Pluto, with the axis along Charon's orbit's pole (its angular momentum: Pluto's north
+		// pole, by the right-hand rule the IAU uses for dwarf planets)
+		void FaceMoon(const glm::dvec3& offset, const glm::dvec3& orbitPole);
+	};
+
 #pragma endregion
 
 	// Draws planets: the surface with its atmosphere in one pass over a spheroid, and rings as two

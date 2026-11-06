@@ -18,6 +18,7 @@
 #include "Dahlia/Graphics/Texture.h"
 #include "Dahlia/Maths/Geometry.h"
 #include "Dahlia/Platform/GPUContext.h"
+#include "SV/Graphics/BloomCompositor.hpp"
 #include "SV/Graphics/NoiseVolume.hpp"
 #include "SV/Graphics/ShaderSources.hpp"
 #include "Star.hpp"
@@ -42,6 +43,7 @@ namespace SV
 			glm::vec4 view;
 			glm::vec4 shape;
 			glm::vec4 ring;
+			glm::vec4 hole;
 			std::array<glm::vec4, MAX_COMPANIONS> companionCentre;
 			std::array<glm::vec4, MAX_COMPANIONS> companionStretch;
 			std::array<glm::vec4, MAX_COMPANIONS> companionColour;
@@ -530,7 +532,45 @@ namespace SV
 
 	void GalaxyRenderer::Render(DH::CommandList& cmd, DH::Framebuffer& target, const GalaxyView& view)
 	{
-		EnsureTargets(target.GetWidth(), target.GetHeight());
+		RenderLayers(cmd, target.GetWidth(), target.GetHeight(), view);
+
+		// Both, tone mapped into the target
+		DH::RenderPassDesc pass;
+		pass.target = &target;
+		pass.clearColour = { 0.0f, 0.0f, 0.0f, 1.0f };
+		cmd.BeginRenderPass(pass);
+		cmd.BindPipeline(*compositePipeline);
+		cmd.BindGroup(0, *context.frameGroup);
+		cmd.BindGroup(1, *compositeGroup);
+		cmd.PushConstants(CompositePushConstants{ glm::vec4(parameters.brightness, 0.0f, 0.0f, 0.0f) });
+		cmd.Draw(3);
+		cmd.EndRenderPass();
+	}
+
+	void GalaxyRenderer::AddTo(DH::CommandList& cmd, const float scale)
+	{
+		if (addPipeline == nullptr)
+		{
+			DH::GraphicsPipelineDesc addDesc;
+			addDesc.vertexShader = Shaders::Create("Fullscreen.vert");
+			addDesc.fragmentShader = Shaders::Create("GalaxyComposite.frag");
+			addDesc.depth = { false, false, DH::CompareOp::Always };
+			addDesc.blend = DH::BlendPreset::AdditiveOne;
+			addDesc.targetLayout = BloomCompositor::GetSceneLayout();
+			addDesc.bindGroupLayouts = { context.frameLayout, compositeLayout };
+			addDesc.pushConstantSize = sizeof(CompositePushConstants);
+			addPipeline = DH::GraphicsPipeline::Create(addDesc);
+		}
+		cmd.BindPipeline(*addPipeline);
+		cmd.BindGroup(0, *context.frameGroup);
+		cmd.BindGroup(1, *compositeGroup);
+		cmd.PushConstants(CompositePushConstants{ glm::vec4(scale, 1.0f, 0.0f, 0.0f) });
+		cmd.Draw(3);
+	}
+
+	void GalaxyRenderer::RenderLayers(DH::CommandList& cmd, const size_t width, const size_t height, const GalaxyView& view)
+	{
+		EnsureTargets(width, height);
 
 		const GalaxyParameters& p = parameters;
 		const float luminance = glm::dot(NEBULA_COLOUR, glm::vec3(0.2126f, 0.7152f, 0.0722f));
@@ -548,6 +588,7 @@ namespace SV
 			glm::vec4(view.pixelAngle, p.starBrightness, p.nebulaGlow, 0.0f),
 			glm::vec4(p.minorArmStrength, p.barShare, 0.0f, 0.0f),
 			glm::vec4(p.ringRadius, p.ringWidth, p.ringStrength, 0.0f),
+			glm::vec4(view.holeCentre, view.holeRadius),
 			{}, {}, {}
 		};
 		const size_t companionCount = std::min(p.companions.size(), MAX_COMPANIONS);
@@ -585,18 +626,6 @@ namespace SV
 			cmd.BindVertexBuffer(1, *starBuffer);
 			quadMesh->Draw(cmd, (uint32_t)starCount);
 		}
-		cmd.EndRenderPass();
-
-		// Both, tone mapped into the target
-		pass.target = &target;
-		pass.clearColour = { 0.0f, 0.0f, 0.0f, 1.0f };
-		pass.depthLoadOp = DH::LoadOp::Clear;
-		cmd.BeginRenderPass(pass);
-		cmd.BindPipeline(*compositePipeline);
-		cmd.BindGroup(0, *context.frameGroup);
-		cmd.BindGroup(1, *compositeGroup);
-		cmd.PushConstants(CompositePushConstants{ glm::vec4(p.brightness, 0.0f, 0.0f, 0.0f) });
-		cmd.Draw(3);
 		cmd.EndRenderPass();
 	}
 

@@ -66,6 +66,9 @@ namespace
 	const uint32_t kNebulaFrag[] =
 #include "Nebula.frag.inc"
 		;
+	const uint32_t kStarSystemFrag[] =
+#include "StarSystem.frag.inc"
+		;
 	const uint32_t kBloomCompositeFrag[] =
 #include "BloomComposite.frag.inc"
 		;
@@ -74,6 +77,18 @@ namespace
 		;
 	const uint32_t kBloomBlurFrag[] =
 #include "BloomBlur.frag.inc"
+		;
+	const uint32_t kUniversePointsVert[] =
+#include "UniversePoints.vert.inc"
+		;
+	const uint32_t kUniversePointsFrag[] =
+#include "UniversePoints.frag.inc"
+		;
+	const uint32_t kUniverseSpritesVert[] =
+#include "UniverseSprites.vert.inc"
+		;
+	const uint32_t kUniverseSpritesFrag[] =
+#include "UniverseSprites.frag.inc"
 		;
 	const uint32_t kFullscreenVert[] =
 #include "Fullscreen.vert.inc"
@@ -117,9 +132,14 @@ namespace
 		{ "GalaxyComposite.frag", kGalaxyCompositeFrag },
 		{ "CompactObject.frag", kCompactObjectFrag },
 		{ "Nebula.frag", kNebulaFrag },
+		{ "StarSystem.frag", kStarSystemFrag },
 		{ "BloomComposite.frag", kBloomCompositeFrag },
 		{ "BloomDownsample.frag", kBloomDownsampleFrag },
 		{ "BloomBlur.frag", kBloomBlurFrag },
+		{ "UniversePoints.vert", kUniversePointsVert },
+		{ "UniversePoints.frag", kUniversePointsFrag },
+		{ "UniverseSprites.vert", kUniverseSpritesVert },
+		{ "UniverseSprites.frag", kUniverseSpritesFrag },
 		{ "Fullscreen.vert", kFullscreenVert },
 		{ "Transmittance.frag", kTransmittanceFrag },
 		{ "DirectIrradiance.frag", kDirectIrradianceFrag },

@@ -15,6 +15,14 @@ namespace DH
 
 namespace SV
 {
+	// How the composite meets what is already in the target
+	enum class CompositeMode
+	{
+		Replace, // Overwrites it
+		Blend,   // Fades over it (by the opacity)
+		Add      // Adds to it (times the opacity), for light over a scene
+	};
+
 	// The last stage of the test scenes: they render HDR radiance into its scene target, which it
 	// blooms (downsampled and blurred at three scales, each wider) and tone maps into a viewport
 	// framebuffer
@@ -33,7 +41,8 @@ namespace SV
 
 		// Outside a render pass, after the scene target has been rendered; ends with `target`
 		// rendered. `bloom` is the bloom's brightness relative to the scene's.
-		void Composite(DH::CommandList& cmd, DH::Framebuffer& target, float exposure, float bloom);
+		void Composite(DH::CommandList& cmd, DH::Framebuffer& target, float exposure, float bloom,
+					   CompositeMode mode = CompositeMode::Replace, float opacity = 1.0f);
 
 	private:
 		static constexpr size_t BLOOM_LEVELS = 3;
@@ -61,6 +70,6 @@ namespace SV
 
 		sRef<DH::GraphicsPipeline> downsamplePipeline;
 		sRef<DH::GraphicsPipeline> blurPipeline;
-		sRef<DH::GraphicsPipeline> compositePipeline;
+		std::array<sRef<DH::GraphicsPipeline>, 3> compositePipelines; // By CompositeMode
 	};
 }

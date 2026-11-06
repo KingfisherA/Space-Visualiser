@@ -50,6 +50,8 @@ namespace SV
 			{ "Titania", "Solar System/Uranus/Moons/Titania 1024x512.jpg", 0.832f },
 			{ "Oberon", "Solar System/Uranus/Moons/Oberon 1024x512.jpg", 1.398f },
 			{ "Triton", "Solar System/Neptune/Moons/Triton 1536x768.jpg", 2.104f },
+			// New Horizons
+			{ "Charon", "Solar System/Pluto/Moons/Charon 1024x512.jpg", 0.884f },
 		};
 
 		// The colour of a moon without a map (most have only been seen as points of light): the
@@ -265,8 +267,10 @@ namespace SV
 	void Moon::Orient(const glm::dvec3& offset, const glm::dvec3& orbitPole)
 	{
 		// North is the pole on the north side of the ecliptic (as the IAU defines it for moons), so
-		// moons on retrograde orbits (Triton, and Uranus' tipped over system) turn backwards
-		const glm::dvec3 north = orbitPole.y >= 0.0 ? orbitPole : -orbitPole;
+		// moons on retrograde orbits (Triton, and Uranus' tipped over system) turn backwards. Pluto's
+		// moons' north poles, like Pluto's, are by the right-hand rule (as their maps are).
+		const bool rightHanded = std::strcmp(data.planet, "Pluto") == 0;
+		const glm::dvec3 north = orbitPole.y >= 0.0 || rightHanded ? orbitPole : -orbitPole;
 		glm::dvec3 forward;
 		if (data.synchronous || !hasOrientation)
 		{

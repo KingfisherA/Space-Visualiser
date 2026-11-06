@@ -91,6 +91,54 @@ python3 Tools/Textures/make_moon_maps.py <download cache> "Data Files/Textures"
 
 The other 435 moons have only been seen as points of light, and are drawn in plain colours.
 
+### Star, galaxy, nebula and pulsar catalogues
+
+Zooming out of the solar system shows the universe around it, built from published catalogues:
+
+- **Stars:** about 110,000 stars from the HYG database. They come into view as you leave the solar
+  system.
+- **The Milky Way:** the galaxy model, placed and turned to match the real galaxy, with
+  Sagittarius A\* at its centre.
+- **Pulsars, magnetars and neutron stars:** the ATNF Pulsar Catalogue.
+- **X-ray binaries:** neutron stars and stellar black holes feeding on a companion star.
+- **Nebulae:** planetary nebulae, H II regions and supernova remnants, each at its measured
+  distance.
+- **Other galaxies:** about 44,000 galaxies, from the Local Group (Andromeda, Triangulum and the
+  Magellanic Clouds) out to about 300 Mpc.
+
+Close up, the galaxy, nebula, black hole and pulsar renderers of the test scenes take over:
+
+- Andromeda, Triangulum, the Whirlpool, the Pinwheel, the Sombrero, NGC 1300 and the Rose Galaxy;
+- the Crab, Orion and Eagle nebulae;
+- any black hole or neutron star you go to.
+
+The catalogues aren't in the repository. Space Visualiser loads them from `Data Files/Catalogues`
+by default (choose another folder with `-DSV_CATALOGUE_DIR=...` or `--catalogues <dir>`).
+Download them with:
+
+```sh
+python3 Tools/Catalogues/download_catalogues.py
+```
+
+This needs only Python 3 and downloads about 60 MB. It saves each file as published (VizieR
+tables with only the columns used), and the app parses them when it starts. The sources are:
+
+| File              | Catalogue                                                                                   |
+|-------------------|---------------------------------------------------------------------------------------------|
+| `hygdata_v41.csv` | HYG database v4.1 ([astronexus](https://github.com/astronexus/HYG-Database))                |
+| `psrcat.db`       | ATNF Pulsar Catalogue (Manchester et al. 2005)                                              |
+| `hmxb.tsv`        | Galactic high-mass X-ray binaries (Fortin et al. 2023)                                      |
+| `lmxb.tsv`        | Galactic low-mass X-ray binaries (Avakyan et al. 2023)                                      |
+| `ungc.tsv`        | Updated Nearby Galaxy Catalog (Karachentsev et al. 2013)                                    |
+| `2mrs.tsv`        | 2MASS Redshift Survey (Huchra et al. 2012), at distances from the redshifts                 |
+| `NGC.csv`         | OpenNGC ([mattiaverga](https://github.com/mattiaverga/OpenNGC)): common names, position angles |
+| `pne.tsv`         | Planetary nebulae with Gaia distances (Chornay & Walton 2021)                               |
+| `hii.tsv`         | WISE catalogue of Galactic H II regions (Anderson et al. 2014)                              |
+| `snr.tsv`         | Galactic supernova remnants with distances (Ranasinghe & Leahy 2023)                        |
+| `clusters.tsv`    | Open clusters with Gaia distances (Hunt & Reffert 2023): distances for nebulae they light   |
+
+Without the catalogues, the solar system is drawn on a black sky as before.
+
 ### Moon orbits
 
 `src/SV/Universe/MoonData.cpp` holds the orbits and sizes of all 455 known moons of the planets.
@@ -144,6 +192,7 @@ Inkscape) to regenerate them.
 ./build/SV/SV --opengl        # OpenGL 4.1
 ./build/SV/SV --vulkan        # Vulkan 1.3
 ./build/SV/SV --data <dir>    # Load the textures from <dir>
+./build/SV/SV --catalogues <dir>  # Load the catalogues from <dir>
 ```
 
 The window layout is saved to `imgui.ini` in a per-user settings folder:
@@ -165,6 +214,13 @@ or `~/.config/space-visualiser` elsewhere. Delete it to restore the default layo
 Use **Go to** in the Bodies panel to fly to a body and follow it. Panning or moving stops
 following it.
 
+To go somewhere in the universe:
+- search by name in the Universe panel (stars, nebulae, galaxies, pulsars and black holes);
+- or use its shortcuts;
+- or click a label in the viewport.
+
+Close up, a black hole or neutron star is shown by the black hole or pulsar renderer.
+
 ## Repository layout
 
 ```
@@ -175,4 +231,5 @@ Shaders/                Shaders (Vulkan GLSL, compiled to SPIR-V and embedded at
 Icons/                  Space Visualiser icon (SVG source, generated .icns and .png)
 Scripts/                Helper scripts (icon generation)
 Tools/Textures/         Texture preparation scripts
+Tools/Catalogues/       Catalogue download script
 ```

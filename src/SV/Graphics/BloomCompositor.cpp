@@ -27,13 +27,16 @@ namespace SV
 		struct CompositePushConstants
 		{
 			glm::vec4 params; // x = exposure, y = bloom, zw = 1 / the target's size
+			glm::vec4 blend;  // x = alpha, y = colour scale
 		};
 
 		constexpr DH::Format HDR_FORMAT = DH::Format::RGBA16F;
 		// Each bloom level is a quarter of the size (across and down) of the one above
 		constexpr size_t BLOOM_REDUCTION = 4;
-		// The blur's taps are spaced this many texels apart (wider, softer glow)
-		constexpr float BLOOM_SPREAD = 1.5f;
+		// Each level is blurred (across then down) this many times, for a wider, softer glow. (The
+		// blur's taps sit between pairs of texels to sample both, so spreading them out would skip
+		// texels and leave a grid in the glow.)
+		constexpr int BLUR_PASSES = 2;
 	}
 
 	DH::RenderTargetLayout BloomCompositor::GetSceneLayout()
@@ -70,11 +73,16 @@ namespace SV
 		compositeDesc.vertexShader = Shaders::Create("Fullscreen.vert");
 		compositeDesc.fragmentShader = Shaders::Create("BloomComposite.frag");
 		compositeDesc.depth = { false, false, DH::CompareOp::Always };
-		compositeDesc.blend = DH::BlendPreset::None;
 		compositeDesc.targetLayout = context.targetLayout;
 		compositeDesc.bindGroupLayouts = { compositeLayout };
 		compositeDesc.pushConstantSize = sizeof(CompositePushConstants);
-		compositePipeline = DH::GraphicsPipeline::Create(compositeDesc);
+		for (const auto& [mode, blend] : { std::pair{ CompositeMode::Replace, DH::BlendPreset::None },
+										   std::pair{ CompositeMode::Blend, DH::BlendPreset::Alpha },
+										   std::pair{ CompositeMode::Add, DH::BlendPreset::AdditiveOne } })
+		{
+			compositeDesc.blend = blend;
+			compositePipelines[(size_t)mode] = DH::GraphicsPipeline::Create(compositeDesc);
+		}
 	}
 
 	BloomCompositor::~BloomCompositor() = default;
@@ -121,7 +129,8 @@ namespace SV
 		return *sceneTarget;
 	}
 
-	void BloomCompositor::Composite(DH::CommandList& cmd, DH::Framebuffer& target, const float exposure, const float bloom)
+	void BloomCompositor::Composite(DH::CommandList& cmd, DH::Framebuffer& target, const float exposure, const float bloom,
+									const CompositeMode mode, const float opacity)
 	{
 		DH::RenderPassDesc pass;
 		pass.clearColour = glm::vec4(0.0f);
@@ -144,8 +153,11 @@ namespace SV
 		{
 			Pass(*level.result, *downsamplePipeline, *sourceGroup, 1.0f / glm::vec2((float)source->GetWidth(), (float)source->GetHeight()));
 			const glm::vec2 texel = 1.0f / glm::vec2((float)level.result->GetWidth(), (float)level.result->GetHeight());
-			Pass(*level.across, *blurPipeline, *level.resultGroup, glm::vec2(texel.x * BLOOM_SPREAD, 0.0f));
-			Pass(*level.result, *blurPipeline, *level.acrossGroup, glm::vec2(0.0f, texel.y * BLOOM_SPREAD));
+			for (int blur = 0; blur < BLUR_PASSES; blur++)
+			{
+				Pass(*level.across, *blurPipeline, *level.resultGroup, glm::vec2(texel.x, 0.0f));
+				Pass(*level.result, *blurPipeline, *level.acrossGroup, glm::vec2(0.0f, texel.y));
+			}
 			source = level.result.get();
 			sourceGroup = level.resultGroup.get();
 		}
@@ -153,11 +165,15 @@ namespace SV
 		// The scene and its bloom, tone mapped into the target
 		pass.target = &target;
 		pass.clearColour = { 0.0f, 0.0f, 0.0f, 1.0f };
+		pass.colourLoadOp = mode == CompositeMode::Replace ? DH::LoadOp::Clear : DH::LoadOp::Load;
 		pass.depthLoadOp = DH::LoadOp::Clear;
 		cmd.BeginRenderPass(pass);
-		cmd.BindPipeline(*compositePipeline);
+		cmd.BindPipeline(*compositePipelines[(size_t)mode]);
 		cmd.BindGroup(0, *compositeGroup);
-		cmd.PushConstants(CompositePushConstants{ glm::vec4(exposure, bloom, 1.0f / (float)target.GetWidth(), 1.0f / (float)target.GetHeight()) });
+		const glm::vec4 output = mode == CompositeMode::Blend ? glm::vec4(opacity, 1.0f, 0.0f, 0.0f)
+								 : mode == CompositeMode::Add ? glm::vec4(1.0f, opacity, 0.0f, 0.0f)
+															  : glm::vec4(1.0f);
+		cmd.PushConstants(CompositePushConstants{ glm::vec4(exposure, bloom, 1.0f / (float)target.GetWidth(), 1.0f / (float)target.GetHeight()), output });
 		cmd.Draw(3);
 		cmd.EndRenderPass();
 	}

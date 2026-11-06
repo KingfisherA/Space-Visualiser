@@ -32,6 +32,8 @@ function(sv_add_executable TARGET)
     Graphics/ShaderSources.hpp
     Platform/Trackpad.hpp
     Scene/Transformation.hpp
+    Universe/Catalogue.cpp
+    Universe/Catalogue.hpp
     Universe/CelestrialBody.hpp
     Universe/CompactObject.cpp
     Universe/CompactObject.hpp
@@ -54,6 +56,10 @@ function(sv_add_executable TARGET)
     Universe/SolarSystem.hpp
     Universe/Star.cpp
     Universe/Star.hpp
+    Universe/StarSystem.cpp
+    Universe/StarSystem.hpp
+    Universe/UniverseRenderer.cpp
+    Universe/UniverseRenderer.hpp
   )
 
   # Trackpad scrolling and pinch gestures (AppKit)
@@ -86,9 +92,14 @@ function(sv_add_executable TARGET)
       ${SV_SHADER_DIR}/GalaxyComposite.frag
       ${SV_SHADER_DIR}/CompactObject.frag
       ${SV_SHADER_DIR}/Nebula.frag
+      ${SV_SHADER_DIR}/StarSystem.frag
       ${SV_SHADER_DIR}/BloomComposite.frag
       ${SV_SHADER_DIR}/BloomDownsample.frag
       ${SV_SHADER_DIR}/BloomBlur.frag
+      ${SV_SHADER_DIR}/UniversePoints.vert
+      ${SV_SHADER_DIR}/UniversePoints.frag
+      ${SV_SHADER_DIR}/UniverseSprites.vert
+      ${SV_SHADER_DIR}/UniverseSprites.frag
       ${SV_SHADER_DIR}/Precompute/Fullscreen.vert
       ${SV_SHADER_DIR}/Precompute/Transmittance.frag
       ${SV_SHADER_DIR}/Precompute/DirectIrradiance.frag
@@ -105,6 +116,7 @@ function(sv_add_executable TARGET)
   target_compile_definitions(${TARGET} PRIVATE
     SV_VERSION="${PROJECT_VERSION}"
     SV_DEFAULT_DATA_DIR="${SV_DATA_DIR}"
+    SV_DEFAULT_CATALOGUE_DIR="${SV_CATALOGUE_DIR}"
   )
   target_compile_options(${TARGET} PRIVATE
     $<$<CXX_COMPILER_ID:Clang,AppleClang,GNU>:-Wall -Wextra>

@@ -13,6 +13,7 @@ namespace SV::Universe
 	namespace
 	{
 		constexpr double SECONDS_PER_DAY = 86400.0;
+		constexpr int CHARON_NAIF_ID = 901;
 	}
 
 	PlanetarySystem::PlanetarySystem(const sRef<SV::StarRenderer>& sRIn, const sRef<SV::PlanetRenderer>& pRIn) :
@@ -84,6 +85,12 @@ namespace SV::Universe
 			const double step = 360.0 / std::max(std::abs(orbit.moon->GetData().meanLongitudeRate), 1e-6) / 200.0;
 			const glm::dvec3 pole = glm::cross(offset, orbit.moon->GetOrbitOffset(days + step));
 			orbit.moon->Orient(offset, glm::normalize(pole));
+			// Pluto keeps its face to Charon, as Charon does to it
+			if (orbit.moon->GetData().naifId == CHARON_NAIF_ID)
+			{
+				if (auto* pluto = dynamic_cast<SV::Pluto*>(orbit.planet.get()))
+					pluto->FaceMoon(offset, glm::normalize(pole));
+			}
 			orbit.moon->position = offset; // Relative to the planet for now
 			pull[orbit.planet.get()] += orbit.moon->GetMass() * offset;
 		}

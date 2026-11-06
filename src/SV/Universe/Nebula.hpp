@@ -154,6 +154,9 @@ namespace SV
 		void Render(DH::CommandList& cmd, DH::Framebuffer& target, const NebulaView& view);
 
 		NebulaParameters parameters;
+		// How it is composited into the target (over the universe, as a close-up)
+		CompositeMode compositeMode = CompositeMode::Replace;
+		float opacity = 1.0f;
 
 	private:
 		SceneContext context;

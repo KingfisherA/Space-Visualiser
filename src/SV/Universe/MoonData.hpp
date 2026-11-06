@@ -36,5 +36,5 @@ namespace SV::Universe
 	constexpr double MOON_ELEMENT_EPOCH = 9496.5;
 
 	// Every moon of the planets JPL lists, ordered by planet then distance from it
-	extern const std::array<MoonData, 455> MOON_DATA;
+	extern const std::array<MoonData, 460> MOON_DATA;
 }

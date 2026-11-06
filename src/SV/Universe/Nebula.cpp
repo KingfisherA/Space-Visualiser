@@ -253,6 +253,6 @@ namespace SV
 		cmd.Draw(3);
 		cmd.EndRenderPass();
 
-		compositor.Composite(cmd, target, p.brightness, p.bloom);
+		compositor.Composite(cmd, target, p.brightness, p.bloom, compositeMode, opacity);
 	}
 }

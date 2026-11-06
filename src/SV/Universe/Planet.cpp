@@ -34,6 +34,10 @@ namespace SV
 
 		using Rings::Band;
 		using Rings::Gaussian;
+
+		// The reflectance of the brightest point of Pluto's map, for its mean albedo of 0.55 (see
+		// Tools/Textures/make_moon_maps.py)
+		constexpr float PLUTO_ALBEDO_SCALE = 1.398f;
 	}
 
 	Mercury::Mercury() : Planet(3.3011E23, make<SV::Atmosphere::MercuryAtmosphere>())
@@ -236,6 +240,29 @@ namespace SV
 			});
 		rings = { (float)(52000.0 / RADIUS_KM), (float)(64000.0 / RADIUS_KM), (float)(40000.0 / RADIUS_KM),
 				  (float)(OUTER_KM / RADIUS_KM) };
+	}
+
+	Pluto::Pluto() : Planet(1.3030E22, make<SV::Atmosphere::PlutoAtmosphere>())
+	{
+		// The New Horizons LORRI and MVIC global mosaic (USGS Astrogeology), coloured by its
+		// brightness from the reddish tholins of the dark areas to the pale nitrogen ice of Sputnik
+		// Planitia (see Tools/Textures/make_moon_maps.py). The south was in the dark of its long
+		// winter during the flyby and is filled in.
+		diffuseMap = make<AsyncTexture>("Solar System/Pluto/Pluto 1536x768.jpg");
+		// Turned by FaceMoon instead
+		rotationSpeed = 0.0f;
+		litSurface = true;
+		surfaceAlbedo = PLUTO_ALBEDO_SCALE;
+	}
+
+	void Pluto::FaceMoon(const glm::dvec3& offset, const glm::dvec3& orbitPole)
+	{
+		glm::dvec3 forward = offset - orbitPole * glm::dot(offset, orbitPole);
+		if (glm::dot(forward, forward) < 1e-30)
+			return;
+		forward = glm::normalize(forward);
+		const glm::dvec3 east = glm::cross(orbitPole, forward);
+		SetOrientation(glm::mat3(glm::vec3(east), glm::vec3(orbitPole), glm::vec3(forward)));
 	}
 
 #pragma endregion

@@ -1,6 +1,9 @@
 """Generates src/SV/Universe/MoonData.cpp: the orbits and sizes of every known moon of the planets.
 
-usage: make_moon_data.py <cache dir> <output .cpp>
+usage: make_moon_data.py <cache dir> <output .cpp> [planet ...]
+
+With planets named, only their moons are fetched and fitted again; the other moons are kept as
+they are in the existing output.
 
 1. Downloads JPL's tables of satellite mean elements and physical parameters
    (ssd.jpl.nasa.gov/sats/elem/, /sats/phys_par/).
@@ -43,19 +46,28 @@ OFFSETS = [0.0] + [s * 0.05 * 2 ** k for k in range(17) for s in (1, -1)]
 # that is slightly out can't wrap the phase before it is corrected
 STAGES = [0.8, 3.2, 12.8, 51.2, 204.8, 819.2, 3276.8]
 
-PLANETS = {'Earth': '399', 'Mars': '499', 'Jupiter': '599', 'Saturn': '699', 'Uranus': '799', 'Neptune': '899'}
+# Pluto is a dwarf planet, but its system (Charon, Nix, Hydra, Kerberos and Styx) is in JPL's tables
+PLANETS = {'Earth': '399', 'Mars': '499', 'Jupiter': '599', 'Saturn': '699', 'Uranus': '799', 'Neptune': '899',
+           'Pluto': '999'}
 # North poles (IAU 2015) for JPL's "equatorial" frames. Uranus' satellites use its positive pole (by
 # the right-hand rule), the opposite of its IAU north pole.
 POLES = {'Earth': (0.0, 90.0), 'Mars': (317.68143, 52.88650), 'Jupiter': (268.056595, 64.495303),
-         'Saturn': (40.589, 83.537), 'Uranus': (77.311, 15.175), 'Neptune': (299.36, 43.46)}
+         'Saturn': (40.589, 83.537), 'Uranus': (77.311, 15.175), 'Neptune': (299.36, 43.46),
+         'Pluto': (132.993, -6.163)}
 ECLIPTIC_POLE = (270.0, 90.0 - 84381.448 / 3600)
 G = 6.6743e-20  # km^3 kg^-1 s^-2
 
 # Moons without a radius from JPL: from their absolute magnitude V(1,0) and albedo where known,
 # otherwise a typical size for the planet's small irregular moons (most are 1 to 4 km across)
-DEFAULT_RADIUS_KM = {'Earth': 1.0, 'Mars': 1.0, 'Jupiter': 1.5, 'Saturn': 2.0, 'Uranus': 5.0, 'Neptune': 15.0}
+DEFAULT_RADIUS_KM = {'Earth': 1.0, 'Mars': 1.0, 'Jupiter': 1.5, 'Saturn': 2.0, 'Uranus': 5.0, 'Neptune': 15.0,
+                     'Pluto': 5.0}
 # Moons that don't rotate synchronously, though their orbits are regular
-NOT_SYNCHRONOUS = {'Hyperion', 'Phoebe', 'Nereid'}
+# (Pluto's small moons tumble chaotically, pulled about by the Pluto-Charon binary: Showalter and
+# Hamilton 2015)
+NOT_SYNCHRONOUS = {'Hyperion', 'Phoebe', 'Nereid', 'Styx', 'Nix', 'Kerberos', 'Hydra'}
+# Geometric albedos Horizons doesn't give: Pluto's moons from New Horizons (Buie et al. 2013,
+# Weaver et al. 2016)
+ALBEDO = {'Charon': 0.41, 'Styx': 0.65, 'Nix': 0.56, 'Kerberos': 0.56, 'Hydra': 0.83}
 
 
 def get(url, path):
@@ -231,10 +243,10 @@ def display_name(name):
     return f'S/{match.group(1)} {match.group(2)} {match.group(3)}' if match else name
 
 
-def main(cache, output):
+def main(cache, output, only=()):
     elements = table_rows(get('https://ssd.jpl.nasa.gov/sats/elem/', os.path.join(cache, 'elem.html')))
     physical = table_rows(get('https://ssd.jpl.nasa.gov/sats/phys_par/', os.path.join(cache, 'phys.html')))
-    rows = [r for r in elements if len(r) == 20 and r[0] != 'ID' and r[1] in PLANETS]
+    rows = [r for r in elements if len(r) == 20 and r[0] != 'ID' and r[1] in PLANETS and (not only or r[1] in only)]
     by_code = {}
     for r in rows:
         by_code.setdefault(r[3], []).append(r)
@@ -264,7 +276,7 @@ def main(cache, output):
         # Moons with elements on the ecliptic are the irregulars, captured on distant, inclined orbits
         # (the Moon's elements are on the ecliptic too, as the Sun perturbs it most)
         regular = kind != 'ecliptic' or planet == 'Earth'
-        albedo = info.get('albedo') or (0.5 if planet == 'Saturn' and regular else 0.06)
+        albedo = ALBEDO.get(name) or info.get('albedo') or (0.5 if planet == 'Saturn' and regular else 0.06)
         radius = radius_table.get(code) or info.get('radius')
         estimated = radius is None
         if radius is None and 'h' in info:
@@ -280,12 +292,22 @@ def main(cache, output):
                           node0=node0 % 360, nodeRate=orbit['rates'][1], error=orbit['error']))
         print(f"{name:14s} {planet:8s} error {'-' if orbit['error'] is None else '%.3f deg' % (orbit['error'] / DEG)}", flush=True)
 
-    order = list(PLANETS)
-    moons.sort(key=lambda m: (order.index(m['planet']), m['a']))
-    write(moons, output)
+    kept = kept_lines(output, only) if only else []
+    write(moons, kept, output)
 
 
-def write(moons, output):
+def kept_lines(output, only):
+    """The existing output's lines for the moons of planets not being regenerated, with each moon's
+    planet and semi-major axis (for ordering)"""
+    kept = []
+    for line in open(output).read().splitlines():
+        match = re.match(r'\t\t\{ "[^"]*", "([^"]+)", ', line)
+        if match and match.group(1) not in only:
+            kept.append((match.group(1), float(line.split(', ')[11]), line))
+    return kept
+
+
+def write(moons, kept, output):
     lines = [
         '// Generated by Tools/Moons/make_moon_data.py from JPL\'s planetary satellite mean elements and',
         '// physical parameters (ssd.jpl.nasa.gov/sats/) and positions from JPL Horizons. Do not edit.',
@@ -298,18 +320,22 @@ def write(moons, output):
         '\t\t// reference plane pole (RA, Dec), a (km), e, i, mean longitude, its rate (deg/day), argument of periapsis,',
         '\t\t// its rate, ascending node, its rate, worst fit error 2017-2035 (deg, -1 for none)',
     ]
+    entries = list(kept)
     for m in moons:
         error = -1.0 if m['error'] is None else m['error'] / DEG
-        lines.append(
+        entries.append((m['planet'], m['a'],
             f"\t\t{{ \"{m['name']}\", \"{m['planet']}\", {m['code']}, {m['radius']:.4g}, {str(m['estimated']).lower()}, "
             f"{m['mass']:.4e}, {m['albedo']:.3g}, {str(m['synchronous']).lower()}, {str(m['regular']).lower()}, "
             f"{m['pole'][0]:.6f}, {m['pole'][1]:.6f}, {m['a']:.10g}, {m['e']:.6f}, {m['i']:.6f}, "
             f"{m['L0']:.6f}, {m['n']:.12g}, {m['w0']:.6f}, {m['wRate']:.10g}, {m['node0']:.6f}, {m['nodeRate']:.10g}, "
-            f"{error:.3g} }},")
-    lines += ['\t} };', '}', '']
+            f"{error:.3g} }},"))
+    order = list(PLANETS)
+    entries.sort(key=lambda e: (order.index(e[0]), e[1]))
+    lines[6] = f'\tconst std::array<MoonData, {len(entries)}> MOON_DATA = {{ {{'
+    lines += [e[2] for e in entries] + ['\t} };', '}', '']
     open(output, 'w').write('\n'.join(lines))
-    print('wrote', len(moons), 'moons to', output)
+    print('wrote', len(entries), 'moons to', output)
 
 
 if __name__ == '__main__':
-    main(*sys.argv[1:3])
+    main(sys.argv[1], sys.argv[2], tuple(sys.argv[3:]))

@@ -383,6 +383,51 @@ namespace SV::Atmosphere
 
 		atmoPrecomputer = make<AtmospherePrecomputer>(scatData, kLengthUnitInMeters);
 	}
+
+	PlutoAtmosphere::PlutoAtmosphere()
+	{
+		ScatteringData scatData;
+		scatData.kLambdaMin = 360;
+		scatData.kLambdaMax = 830;
+
+		const std::array<double, 1> solarIrradiance{ DisplaySolarIrradiance(39.48) };
+		scatData.solarIrradiance = solarIrradiance;
+		const std::array<double, 1> absorptionExtinction{ 0.0 };
+		scatData.rayleighExtinction = absorptionExtinction;
+
+		// The haze reaches over 200 km up (New Horizons counted about 20 layers in it)
+		scatData.kBottomRadius = 1188300.0;
+		scatData.kTopRadius = scatData.kBottomRadius + 350000.0;
+
+		// The haze: aggregates of tiny (10 nm) tholin grains, which scatter blue light far more
+		// than red (hence its blue glow, which New Horizons saw around the limb), over a scale
+		// height of about 50 km (Gladstone et al. 2016, Cheng et al. 2017). The grains are so small
+		// that they scatter much as gas does, so the haze is drawn as Rayleigh scattering: with a
+		// vertical optical depth of about 0.06 in blue light (the top of the estimates), ten times
+		// that along the limb, it rings Pluto in blue from any angle. Its nitrogen (11 microbar)
+		// scatters next to nothing beside it.
+		constexpr double kHazeScaleHeight = 50000.0;
+		constexpr double kHazeBlueOpticalDepth = 0.06;
+		constexpr double kBlueMicrometres = 0.44;
+		scatData.kRayleighScatteringCoefficient = kHazeBlueOpticalDepth / kHazeScaleHeight * std::pow(kBlueMicrometres, 4.0);
+		scatData.rayleighDensity[0] = DensityProfileLayer(0.0, 1.0, -1.0 / kHazeScaleHeight, 0.0, 0.0);
+
+		// Next to no Mie scattering (none at all would divide by zero in the shaders)
+		scatData.kMieScaleHeight = kHazeScaleHeight;
+		scatData.kMieAngstromAlpha = 0.0;
+		scatData.kMieAngstromBeta = 1e-6;
+		scatData.kMieSingleScatteringAlbedo = 0.9;
+		scatData.kMiePhaseFunctionG = 0.7;
+		scatData.mieDensity[0] = DensityProfileLayer(0.0, 1.0, -1.0 / scatData.kMieScaleHeight, 0.0, 0.0);
+
+		// The nitrogen and methane ices (scaled by lambda^-4 in ProcessAtmosphericData)
+		scatData.kGroundAlbedo = 0.06;
+		// The haze reaches far above the surface for Pluto's size, so the Sun lights it from well
+		// past the terminator
+		scatData.kMaxSunZenithAngle = 145.0;
+
+		atmoPrecomputer = make<AtmospherePrecomputer>(scatData, kLengthUnitInMeters);
+	}
 	//
 #pragma endregion
 	//

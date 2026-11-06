@@ -1,6 +1,8 @@
 #include "Application.hpp"
 
 #include <algorithm>
+#include <cctype>
+#include <chrono>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -37,6 +39,7 @@
 #include "SV/Universe/Nebula.hpp"
 #include "SV/Universe/PlanetarySystem.hpp"
 #include "SV/Universe/SolarSystem.hpp"
+#include "SV/Universe/StarSystem.hpp"
 
 namespace SV
 {
@@ -70,7 +73,8 @@ namespace SV
 
 		// About 300 m: the smallest moons are a kilometre or two across
 		constexpr float MIN_ZOOM = 5e-5f;
-		constexpr float MAX_ZOOM = 3.0e6f; // About 128 AU
+		// Out past the most distant galaxies of the catalogues (1.5 Gpc)
+		constexpr float MAX_ZOOM = (float)(1.5e9 * PARSEC_IN_UNITS);
 		// Closest zoom to the body being followed, in its radii
 		constexpr float MIN_ZOOM_PER_RADIUS = 1.1f;
 
@@ -89,6 +93,28 @@ namespace SV
 		constexpr float TRAVEL_RATE = 0.11f;
 		// "Reset camera" zoom: the inner solar system, around the Sun
 		constexpr double OVERVIEW_ZOOM = 4.0 * Universe::AU_IN_UNITS;
+		// Travelling further than this (AU) zooms out on the way, to this fraction of the distance
+		// left, so the destination stays in view rather than rushing past
+		constexpr double FAR_TRAVEL = 1000.0;
+		constexpr double FAR_TRAVEL_ZOOM = 0.6;
+		constexpr double FAR_TRAVEL_RATE = 0.045; // As TRAVEL_RATE
+
+		// The universe: the solar system is drawn while the camera is within SOLAR_SYSTEM_EXTENT of
+		// the Sun (AU), and the Sun drawn as a star of the universe from SUN_POINT_START (its glare
+		// fading out as it does)
+		constexpr double SUN_POINT_START = 2000.0;
+		constexpr double SOLAR_SYSTEM_EXTENT = 20000.0;
+		// Universe landmarks: at most this many labels (see UniverseRenderer::GetProminence for which),
+		// or this many inside the solar system (around its own labels)
+		constexpr size_t MAX_LANDMARK_LABELS = 60;
+		constexpr size_t MAX_SKY_LABELS = 20;
+		// Clicking the sky picks a landmark within this many pixels
+		constexpr float LANDMARK_PICK_PIXELS = 10.0f;
+		constexpr const char* LANDMARK_MENU = "LandmarkMenu";
+		// "Go to" a landmark: the zoom (in its radii, or parsecs for points)
+		constexpr double LANDMARK_ZOOM_RADII = 3.0;
+		constexpr double LANDMARK_POINT_ZOOM = 2.0;
+		constexpr size_t MAX_SEARCH_RESULTS = 200;
 
 		// The galaxy test works in parsecs: zoom limits, the near plane as a fraction of the zoom,
 		// and how far past the galactic centre anything is drawn (each galaxy's first view is in its
@@ -113,6 +139,14 @@ namespace SV
 		// The nebula test works in parsecs (each nebula's first view is in its NebulaPreset)
 		constexpr float NEBULA_MIN_ZOOM = 0.2f;
 		constexpr float NEBULA_MAX_ZOOM = 300.0f;
+
+		// The star test works in solar radii: zoom limits (outside the body followed, at least
+		// STAR_MIN_ZOOM_PER_RADIUS of its radius from its centre), and the field of view (degrees)
+		constexpr float STAR_MIN_ZOOM = 0.002f;
+		constexpr float STAR_MIN_ZOOM_PER_RADIUS = 1.15f;
+		constexpr float STAR_MAX_ZOOM = 2.0e6f;
+		constexpr float STAR_FOV = 45.0f;
+		constexpr double SOLAR_RADII_PER_AU = 215.032;
 
 		// Camera3D can only be turned by input, which it eases out over the following frames, so
 		// turn it with one impulse and run the easing to its end: the angle turned is the impulse's
@@ -359,16 +393,20 @@ namespace SV
 		// Start at Earth
 		for (const NamedBody& namedBody : namedBodies)
 		{
-			if (namedBody.name == "Earth")
+			if (namedBody.name == (std::getenv("SV_START") ? std::getenv("SV_START") : "Earth")) // DEBUGHOOK
 			{
 				followBody = namedBody.body;
 				cameraOrigin = followBody->GetPosition();
-				camera.SetZoom(GO_TO_ZOOM * followBody->GetScale().x);
+				camera.SetZoom((std::getenv("SV_ZOOM") ? (float)std::atof(std::getenv("SV_ZOOM")) : GO_TO_ZOOM) * followBody->GetScale().x);
+				if (std::getenv("SV_TURN")) { float p = 0, y = 0; std::sscanf(std::getenv("SV_TURN"), "%f,%f", &p, &y); TurnCamera(camera, p, y); }
 			}
 		}
 		solarSystem->SetRenderOrigin(cameraOrigin);
 		camera.UpdateCamera(0.0f);
 		UpdateProjectionMatrix();
+
+		// The catalogues (stars, galaxies, nebulae and pulsars) load in the background
+		pendingCatalogue = std::async(std::launch::async, []() { return LoadCatalogue(GetCatalogueDirectory()); });
 	}
 
 	void Application::OnDestroy()
@@ -378,10 +416,15 @@ namespace SV
 		// GPU resources must be released before Dahlia destroys the device
 		DH::GPUContext::Get()->WaitIdle();
 		splashScreen.reset();
+		if (pendingCatalogue.valid())
+			pendingCatalogue.wait();
+		universeRenderer.reset();
+		catalogue.reset();
 		galaxyRenderer.reset();
 		blackHoleRenderer.reset();
 		pulsarRenderer.reset();
 		nebulaRenderer.reset();
+		starSystemRenderer.reset();
 		namedBodies.clear();
 		lightSource.reset();
 		solarSystem.reset();
@@ -405,10 +448,12 @@ namespace SV
 		// Fit the near and far planes to the bodies (in render coordinates, around the camera), so
 		// the depth buffer's precision is spent where the nearest body is
 		const glm::vec3& eye = camera.GetActualPosition();
-		if (sceneMode == SceneMode::BlackHole || sceneMode == SceneMode::Pulsar || sceneMode == SceneMode::Nebula)
+		if (sceneMode == SceneMode::BlackHole || sceneMode == SceneMode::Pulsar || sceneMode == SceneMode::Nebula || sceneMode == SceneMode::Stars)
 		{
 			// Only the frame's camera is used (each pixel's ray is traced or marched), so the planes are nominal
-			const float fieldOfView = sceneMode == SceneMode::Nebula ? GetNebulaPreset(nebulaType).fieldOfView : COMPACT_OBJECT_FOV;
+			const float fieldOfView = sceneMode == SceneMode::Nebula ? GetNebulaPreset(nebulaType).fieldOfView
+									  : sceneMode == SceneMode::Stars ? STAR_FOV
+																	  : COMPACT_OBJECT_FOV;
 			projectionMatrix = glm::perspective(glm::radians(fieldOfView), width / height, MIN_NEAR_PLANE, 10.0f * GetMaxZoom());
 			return;
 		}
@@ -451,10 +496,21 @@ namespace SV
 		followBody = nullptr;
 	}
 
+	void Application::MoveTo(const glm::dvec3& point, const float zoom)
+	{
+		travelBody = nullptr;
+		travelPoint = point;
+		travelBodyPosition = point;
+		travelZoom = zoom;
+		isTravelling = true;
+		followBody = nullptr;
+	}
+
 	void Application::StopFollowing()
 	{
 		isTravelling = false;
 		followBody = nullptr;
+		starFocus.reset();
 	}
 
 	float Application::GetMinZoom() const
@@ -467,8 +523,20 @@ namespace SV
 			return PULSAR_MIN_ZOOM;
 		if (sceneMode == SceneMode::Nebula)
 			return NEBULA_MIN_ZOOM;
+		if (sceneMode == SceneMode::Stars)
+		{
+			const float radius = starFocus.has_value() ? starSystemRenderer->GetNodeRadius(*starFocus) : 0.0f;
+			return std::max(STAR_MIN_ZOOM, STAR_MIN_ZOOM_PER_RADIUS * radius);
+		}
 		const sRef<CelestrialBody>& body = isTravelling ? travelBody : followBody;
-		return body != nullptr ? std::max(MIN_ZOOM, MIN_ZOOM_PER_RADIUS * GetOuterRadius(*body)) : MIN_ZOOM;
+		float minZoom = body != nullptr ? std::max(MIN_ZOOM, MIN_ZOOM_PER_RADIUS * GetOuterRadius(*body)) : MIN_ZOOM;
+		// Outside a black hole's horizon (or a neutron star) the camera is centred on
+		if (showUniverse && universeRenderer != nullptr)
+		{
+			const glm::dvec3 centre = (cameraOrigin + glm::dvec3(camera.GetCentrePosition()) - lightSource->GetPosition()) / PARSEC_IN_UNITS;
+			minZoom = std::max(minZoom, (float)(universeRenderer->GetMinZoom(centre) * PARSEC_IN_UNITS));
+		}
+		return minZoom;
 	}
 
 	float Application::GetMaxZoom() const
@@ -482,6 +550,8 @@ namespace SV
 			return COMPACT_OBJECT_MAX_ZOOM;
 		case SceneMode::Nebula:
 			return NEBULA_MAX_ZOOM;
+		case SceneMode::Stars:
+			return STAR_MAX_ZOOM;
 		default:
 			return MAX_ZOOM;
 		}
@@ -515,12 +585,22 @@ namespace SV
 			// Carried along with the body, then towards it, zooming in proportion. Easing towards a
 			// moving body alone would trail it by a distance proportional to its speed (tens of its
 			// radii at higher time scales), never arriving.
-			const double t = 1.0 - std::pow(1.0 - TRAVEL_RATE, deltaTime * 60.0);
-			const glm::dvec3& target = travelBody->GetPosition();
+			const glm::dvec3 target = travelBody != nullptr ? travelBody->GetPosition() : travelPoint;
+			const bool far = glm::distance(cameraOrigin, target) > FAR_TRAVEL * Universe::AU_IN_UNITS;
+			const double t = 1.0 - std::pow(1.0 - (far ? FAR_TRAVEL_RATE : TRAVEL_RATE), deltaTime * 60.0);
 			cameraOrigin += target - travelBodyPosition;
 			travelBodyPosition = target;
-			cameraOrigin = glm::mix(cameraOrigin, target, t);
-			const float zoom = (float)std::exp(glm::mix(std::log((double)camera.GetZoom()), std::log((double)travelZoom), t));
+			// Far journeys zoom out to keep the destination in view, moving only as fast as the zoom
+			// allows, then zoom in to it
+			const double remaining = glm::distance(cameraOrigin, target);
+			double goalZoom = travelZoom, move = t;
+			if (far)
+			{
+				goalZoom = std::max(goalZoom, FAR_TRAVEL_ZOOM * remaining);
+				move = t * std::clamp((double)camera.GetZoom() / (FAR_TRAVEL_ZOOM * remaining), 0.0, 1.0);
+			}
+			cameraOrigin = glm::mix(cameraOrigin, target, move);
+			const float zoom = (float)std::exp(glm::mix(std::log((double)camera.GetZoom()), std::log(goalZoom), t));
 
 			constexpr double THRESHOLD = 1e-3;
 			if (glm::distance(cameraOrigin, target) < THRESHOLD * travelZoom && std::abs(std::log(zoom / travelZoom)) < THRESHOLD)
@@ -539,6 +619,8 @@ namespace SV
 		{
 			if (followBody != nullptr)
 				cameraOrigin = followBody->GetPosition();
+			if (sceneMode == SceneMode::Stars && starFocus.has_value())
+				cameraOrigin = starSystemRenderer->GetNodePosition(*starFocus);
 			// Never inside the body being followed or past the solar system (travel eases into its
 			// own zoom, so is left alone)
 			camera.SetZoom(std::clamp(camera.GetZoom(), GetMinZoom(), GetMaxZoom()));
@@ -599,6 +681,8 @@ namespace SV
 		// The simulation first, so the camera follows a body to where it is this frame
 		if (simulateGravity)
 			solarSystem->Update(frameTime * daysPerSecond * SECONDS_PER_DAY);
+		if (sceneMode == SceneMode::Stars)
+			starSystemRenderer->Update(frameTime);
 		UpdateCamera(deltaTime);
 		if (sceneMode == SceneMode::SolarSystem)
 			solarSystem->SetRenderOrigin(cameraOrigin);
@@ -630,11 +714,40 @@ namespace SV
 			RenderNebulaTest(cmd, frame, frameTime);
 			return;
 		}
+		if (sceneMode == SceneMode::Stars)
+		{
+			RenderStarTest(cmd, frame);
+			return;
+		}
 		SetOccluders(frame);
 		frameUniformBuffer->Update(&frame, sizeof(frame));
 
 		// Atmosphere precomputation and texture uploads happen outside the scene pass
 		planetRenderer->Prepare(cmd);
+
+		// The universe behind the solar system (once its catalogues have loaded)
+		if (catalogue == nullptr && pendingCatalogue.valid() &&
+			pendingCatalogue.wait_for(std::chrono::seconds(0)) == std::future_status::ready)
+		{
+			catalogue = umake<Catalogue>(pendingCatalogue.get());
+			for (const std::string& line : catalogue->report)
+				std::cout << "Catalogue: " << line << '\n';
+			universeRenderer = umake<UniverseRenderer>(sceneContext, *catalogue);
+			// Only the landmarks are kept: the rest is on the GPU
+			catalogue->stars = {};
+			catalogue->compactSources = {};
+			catalogue->nebulae = {};
+			catalogue->galaxies = {};
+		}
+		const bool drawUniverse = showUniverse && universeRenderer != nullptr;
+		if (drawUniverse)
+			RenderUniverse(cmd, frameTime);
+		if (!IsSolarSystemShown())
+		{
+			if (!drawUniverse)
+				ClearViewport(cmd);
+			return;
+		}
 
 		const glm::vec3& cameraPosition = camera.GetActualPosition();
 		planetRenderer->PopulateDistanceCache(cameraPosition);
@@ -643,6 +756,8 @@ namespace SV
 		DH::RenderPassDesc pass;
 		pass.target = mViewportFramebuffer.get();
 		pass.clearColour = { 0.0f, 0.0f, 0.0f, 1.0f };
+		// Over the universe
+		pass.colourLoadOp = drawUniverse ? DH::LoadOp::Load : DH::LoadOp::Clear;
 		cmd.BeginRenderPass(pass);
 
 		cmd.BindGroup(0, *sceneContext.frameGroup);
@@ -665,10 +780,15 @@ namespace SV
 			RenderStars();
 		}
 
-		// The Sun's glare when it is far away, over everything
+		// The Sun's glare when it is far away, over everything (fading out as the universe draws the
+		// Sun as one of its stars)
 		const glm::vec2 viewportSize((float)mViewportFramebuffer->GetWidth(), (float)mViewportFramebuffer->GetHeight());
+		const float flareIntensity = starRenderer->flareIntensity;
+		if (drawUniverse)
+			starRenderer->flareIntensity *= 1.0f - universeView.sunVisibility;
 		starRenderer->RenderFlares(cmd, FlareView{ viewProjection, cameraPosition, projectionMatrix[1][1], viewportSize },
 								   solarSystem->GetBodies());
+		starRenderer->flareIntensity = flareIntensity;
 
 		cmd.EndRenderPass();
 	}
@@ -677,13 +797,17 @@ namespace SV
 	{
 		const double level = std::log10(std::max(camera.GetZoom(), MIN_ZOOM) / GRID_SPACINGS_PER_ZOOM);
 		const double fineSpacing = std::pow(10.0, std::floor(level));
-		const float fineOpacity = GRID_OPACITY * (1.0f - (float)(level - std::floor(level)));
+		// Fading out as the camera leaves the solar system (where the universe takes over)
+		const double sunDistance = GetSunDistance() / Universe::AU_IN_UNITS;
+		const double away = std::clamp((sunDistance - SUN_POINT_START) / (SOLAR_SYSTEM_EXTENT - SUN_POINT_START), 0.0, 1.0);
+		const float gridOpacity = GRID_OPACITY * (float)(1.0 - away * away * (3.0 - 2.0 * away));
+		const float fineOpacity = gridOpacity * (1.0f - (float)(level - std::floor(level)));
 
 		// Lines on multiples of the spacing in the solar system's coordinates (so they stay put as the
 		// camera moves), in the ecliptic (y = 0), around the camera's centre
 		const glm::dvec3 centre = cameraOrigin + glm::dvec3(camera.GetCentrePosition());
 		cmd.BindPipeline(*gridPipeline);
-		for (const auto& [spacing, opacity] : { std::pair{ fineSpacing, fineOpacity }, std::pair{ 10.0 * fineSpacing, GRID_OPACITY } })
+		for (const auto& [spacing, opacity] : { std::pair{ fineSpacing, fineOpacity }, std::pair{ 10.0 * fineSpacing, gridOpacity } })
 		{
 			const double halfSize = 0.5 * GRID_LINES * spacing;
 			const glm::dvec3 corner(std::floor(centre.x / spacing) * spacing - halfSize, 0.0,
@@ -722,13 +846,20 @@ namespace SV
 						DrawGalaxyLabels();
 					if (sceneMode == SceneMode::Nebula && showLabels)
 						DrawNebulaLabels();
+					if (sceneMode == SceneMode::Stars && showLabels)
+						DrawStarLabels();
 				}
 				else
 				{
-					if (showLabels)
+					if (showLabels && IsSolarSystemShown())
 						DrawLabels();
+					landmarkLabelRects.clear();
+					if (showLabels && showUniverse && universeRenderer != nullptr)
+						DrawUniverseLabels();
 					DrawCrosshair();
-					UpdateBodySelection();
+					// (A click on a landmark's label doesn't select a body behind it)
+					if (!UpdateLandmarkSelection() && IsSolarSystemShown())
+						UpdateBodySelection();
 				}
 			}
 			else
@@ -1088,6 +1219,11 @@ namespace SV
 			pulsarRenderer = umake<CompactObjectRenderer>(sceneContext, GetPulsarPreset());
 		if (mode == SceneMode::Nebula && nebulaRenderer == nullptr)
 			nebulaRenderer = umake<NebulaRenderer>(sceneContext, GetNebulaPreset(nebulaType).parameters);
+		if (mode == SceneMode::Stars && starSystemRenderer == nullptr)
+		{
+			starSystemRenderer = umake<StarSystemRenderer>(sceneContext, GetStarSystemPreset(starSystemType));
+			starFocus = (size_t)GetStarSystemPreset(starSystemType).focus;
+		}
 
 		// Each scene keeps its own camera, so switching back returns to where it was
 		sceneCameras[(size_t)sceneMode] = CameraState{ camera, cameraOrigin, followBody, isTravelling, travelBody, travelZoom };
@@ -1238,6 +1374,8 @@ namespace SV
 			return GetGalaxyOverview(galaxyType);
 		case SceneMode::Nebula:
 			return GetNebulaOverview(nebulaType);
+		case SceneMode::Stars:
+			return GetStarSystemOverview(starSystemType);
 		default:
 			return GetCompactObjectOverview(sceneMode);
 		}
@@ -1434,6 +1572,504 @@ namespace SV
 		}
 	}
 
+	Application::CameraState Application::GetStarSystemOverview(const StarSystemType type)
+	{
+		const StarSystemPreset& preset = GetStarSystemPreset(type);
+		CameraState state;
+		state.camera.SetZoom(preset.overviewZoom);
+		TurnCamera(state.camera, preset.overviewPitch, 0.0f);
+		return state;
+	}
+
+	void Application::SetStarSystemType(const StarSystemType type)
+	{
+		starSystemType = type;
+		const StarSystemPreset& preset = GetStarSystemPreset(type);
+		starSystemRenderer->SetSystem(preset);
+		starFocus = (size_t)preset.focus;
+		const CameraState overview = GetStarSystemOverview(type);
+		camera = overview.camera;
+		cameraOrigin = starSystemRenderer->GetNodePosition((size_t)preset.focus);
+		UpdateProjectionMatrix();
+	}
+
+	void Application::RenderStarTest(DH::CommandList& cmd, FrameUniforms& frame)
+	{
+		// Nothing casts shadows, and the Sun isn't drawn
+		frame.occluderCount = glm::vec4(0.0f);
+		frameUniformBuffer->Update(&frame, sizeof(frame));
+
+		// The solar system's textures keep loading while it is hidden
+		planetRenderer->Prepare(cmd);
+
+		// (The system was advanced before the camera, so the camera follows its bodies to where they are)
+		starSystemRenderer->Render(cmd, *mViewportFramebuffer, StarSystemView{ cameraOrigin, GetPixelAngle(STAR_FOV) });
+	}
+
+	void Application::RenderStarControls()
+	{
+		if (!ImGui::CollapsingHeader("Stars", ImGuiTreeNodeFlags_DefaultOpen))
+			return;
+
+		StarSystemRenderer& renderer = *starSystemRenderer;
+		const StarSystemPreset& system = renderer.GetSystem();
+		ImGui::Checkbox("Show labels (L)", &showLabels);
+		ImGui::SliderFloat("Brightness", &renderer.brightness, 1e-4f, 1000.0f, "%.3g", ImGuiSliderFlags_Logarithmic);
+		ImGui::SetItemTooltip("The exposure: stars' surfaces range from thousands of times fainter than the Sun's (brown dwarfs) "
+							  "to hundreds of times brighter (blue stars and white dwarfs)");
+		ImGui::SliderFloat("Bloom", &renderer.bloom, 0.0f, 2.0f);
+		ImGui::SliderFloat("Time scale", &renderer.daysPerSecond, 0.001f, 10000.0f, "%.3g days/s", ImGuiSliderFlags_Logarithmic);
+		ImGui::SliderFloat("Surface detail", &renderer.surfaceDetail, 0.0f, 1.5f);
+		ImGui::SetItemTooltip("The contrast of the convection cells, spots and cloud bands");
+		ImGui::SliderFloat("Point stars", &renderer.pointGain, 0.0f, 200.0f, "%.0f", ImGuiSliderFlags_Logarithmic);
+		ImGui::SetItemTooltip("Raises the light of stars too far away to see as discs, so they show as points.\n"
+							  "0 gives their true share of a pixel's light, which is lost at an exposure for stars' surfaces.");
+		ImGui::SliderFloat("Background stars", &renderer.starFieldBrightness, 0.0f, 10.0f, "%.2f");
+		ImGui::TextDisabled("Day %.1f", renderer.GetTime());
+
+		// The bodies and pairs, each to follow
+		ImGui::SeparatorText("Follow");
+		for (size_t node = 0; node < system.nodes.size(); node++)
+		{
+			const StarSystemNode& n = system.nodes[node];
+			ImGui::PushID((int)node);
+			const bool following = starFocus == node;
+			if (ImGui::RadioButton("##Follow", following) && !following)
+				starFocus = node;
+			ImGui::SameLine();
+			if (n.body >= 0)
+			{
+				const StellarBody& body = system.bodies[(size_t)n.body];
+				ImGui::Text("%s", body.name.c_str());
+				ImGui::SetItemTooltip("%s\n%.0f K, %.3g solar radii (%.3g km), %.3g solar masses", body.description.c_str(), body.temperature,
+									  body.radius, body.radius * 695700.0, body.mass);
+			}
+			else
+			{
+				ImGui::Text("%s (centre of mass)", n.name.c_str());
+				ImGui::SetItemTooltip("%.3g AU apart (%.3g solar radii), every %.4g days", n.separation / SOLAR_RADII_PER_AU, n.separation, n.period);
+			}
+			ImGui::PopID();
+		}
+
+		if (ImGui::Button("Defaults"))
+			SetStarSystemType(starSystemType);
+	}
+
+	void Application::DrawStarLabels()
+	{
+		const glm::vec2 origin = GetViewportImageOrigin();
+		const glm::vec2 size((float)mViewportFramebuffer->GetWidth(), (float)mViewportFramebuffer->GetHeight());
+		ImDrawList* drawList = ImGui::GetWindowDrawList();
+		const float fontSize = ImGui::GetFontSize();
+		const StarSystemPreset& system = starSystemRenderer->GetSystem();
+		for (size_t node = 0; node < system.nodes.size(); node++)
+		{
+			const int body = system.nodes[node].body;
+			if (body < 0)
+				continue;
+			const glm::vec4 clip = viewProjection * glm::vec4(glm::vec3(starSystemRenderer->GetNodePosition(node) - cameraOrigin), 1.0f);
+			if (clip.w <= 0.0f)
+				continue;
+			const glm::vec2 ndc = glm::vec2(clip) / clip.w;
+			// Beside the body's disc (at least a ring's width out)
+			const float discPixels = system.bodies[(size_t)body].radius / clip.w * projectionMatrix[1][1] * 0.5f * size.y;
+			const glm::vec2 point = origin + glm::vec2(ndc.x * 0.5f + 0.5f, 0.5f - ndc.y * 0.5f) * size;
+			const float offset = std::max(discPixels, LABEL_DOT_RADIUS * 2.5f) + 4.0f;
+			drawList->AddText(ImVec2(point.x + offset, point.y - fontSize * 0.5f), IM_COL32(220, 220, 220, 210), system.bodies[(size_t)body].name.c_str());
+		}
+	}
+
+	double Application::GetSunDistance() const
+	{
+		return glm::distance(cameraOrigin + glm::dvec3(camera.GetActualPosition()), lightSource->GetPosition());
+	}
+
+	bool Application::IsSolarSystemShown() const
+	{
+		// (Always, without the universe around it)
+		return !(showUniverse && universeRenderer != nullptr) || GetSunDistance() < SOLAR_SYSTEM_EXTENT * Universe::AU_IN_UNITS;
+	}
+
+	void Application::RenderUniverse(DH::CommandList& cmd, const double deltaTime)
+	{
+		universeTime += deltaTime;
+		// In parsecs from the Sun
+		const glm::dvec3 sun = lightSource->GetPosition();
+		UniverseView& view = universeView;
+		view.origin = (cameraOrigin + glm::dvec3(camera.GetCentrePosition()) - sun) / PARSEC_IN_UNITS;
+		view.offset = (glm::dvec3(camera.GetActualPosition()) - glm::dvec3(camera.GetCentrePosition())) / PARSEC_IN_UNITS;
+		view.camera = view.origin + view.offset;
+		view.rotation = glm::mat3(camera.GetViewMatrix());
+		view.fieldOfView = glm::radians(FOV);
+		view.zoom = (float)(camera.GetZoom() / PARSEC_IN_UNITS);
+		view.time = universeTime;
+		view.deltaTime = deltaTime;
+		const double sunDistance = GetSunDistance() / Universe::AU_IN_UNITS;
+		const double t = std::clamp((sunDistance - SUN_POINT_START) / (SOLAR_SYSTEM_EXTENT - SUN_POINT_START), 0.0, 1.0);
+		view.sunVisibility = (float)(t * t * (3.0 - 2.0 * t));
+		universeRenderer->Render(cmd, *mViewportFramebuffer, view);
+	}
+
+	void Application::GoToLandmark(const CatalogueLandmark& landmark)
+	{
+		// (Black holes and neutron stars close up)
+		const double closeUp = universeRenderer != nullptr ? universeRenderer->GetLandmarkZoom(landmark) : 0.0;
+		const double zoom = closeUp > 0.0 ? closeUp : landmark.radius > 0.0f ? LANDMARK_ZOOM_RADII * landmark.radius : LANDMARK_POINT_ZOOM;
+		MoveTo(lightSource->GetPosition() + landmark.position * PARSEC_IN_UNITS, (float)(zoom * PARSEC_IN_UNITS));
+	}
+
+	void Application::DrawUniverseLabels()
+	{
+		if (catalogue == nullptr)
+			return;
+		const glm::vec2 origin = GetViewportImageOrigin();
+		const glm::vec2 size((float)mViewportFramebuffer->GetWidth(), (float)mViewportFramebuffer->GetHeight());
+		if (size.x <= 0.0f || size.y <= 0.0f)
+			return;
+		const float pixelAngle = 2.0f / (projectionMatrix[1][1] * size.y);
+		ImDrawList* drawList = ImGui::GetWindowDrawList();
+		const float fontSize = ImGui::GetFontSize();
+
+		// The prominent landmarks on screen, most prominent first
+		struct Candidate
+		{
+			float prominence;
+			size_t index;
+			glm::vec2 point;
+		};
+		std::vector<Candidate> candidates;
+		// Inside the solar system, the sky behind its bodies is hidden
+		const bool inSolarSystem = IsSolarSystemShown();
+		const std::vector<glm::vec3> discs = inSolarSystem ? GetBodyDiscs() : std::vector<glm::vec3>();
+		for (size_t i = 0; i < catalogue->landmarks.size(); i++)
+		{
+			const CatalogueLandmark& landmark = catalogue->landmarks[i];
+			const std::optional<glm::vec2> point = ProjectLandmark(landmark.position);
+			if (!point || point->x < origin.x || point->y < origin.y || point->x > origin.x + size.x || point->y > origin.y + size.y)
+				continue;
+			const float prominence = universeRenderer->GetProminence(landmark, universeView, pixelAngle);
+			if (prominence < 0.0f)
+				continue;
+			bool hidden = false;
+			for (const glm::vec3& disc : discs)
+				hidden = hidden || glm::distance(glm::vec2(disc), *point) < disc.z;
+			if (!hidden)
+				candidates.push_back({ prominence, i, *point });
+		}
+		std::sort(candidates.begin(), candidates.end(), [](const Candidate& a, const Candidate& b) { return a.prominence > b.prominence; });
+
+		// (Around the bodies' labels, drawn first)
+		std::vector<ImVec4> placed;
+		for (const auto& [rect, index] : labelRects)
+			placed.emplace_back(rect.x, rect.y, rect.z, rect.w);
+		auto Place = [&](const glm::vec2 point, const char* name, const ImU32 colour) -> std::optional<ImVec4>
+		{
+			const ImVec2 textSize = ImGui::CalcTextSize(name);
+			const float offset = LABEL_DOT_RADIUS + 4.0f;
+			const ImVec4 rect(point.x - LABEL_DOT_RADIUS - LABEL_PADDING, point.y - fontSize * 0.5f - LABEL_PADDING,
+							  point.x + offset + textSize.x + LABEL_PADDING, point.y + fontSize * 0.5f + LABEL_PADDING);
+			for (const ImVec4& other : placed)
+			{
+				if (rect.x < other.z && rect.z > other.x && rect.y < other.w && rect.w > other.y)
+					return std::nullopt;
+			}
+			placed.push_back(rect);
+			drawList->AddCircle(ImVec2(point.x, point.y), LABEL_DOT_RADIUS + 1.5f, colour, 0, 1.0f);
+			drawList->AddText(ImVec2(point.x + offset, point.y - fontSize * 0.5f), colour, name);
+			return rect;
+		};
+		// The Sun, while the solar system (with its own labels) isn't drawn
+		if (!inSolarSystem)
+		{
+			const std::optional<glm::vec2> point = ProjectLandmark(glm::dvec3(0.0));
+			if (point && point->x >= origin.x && point->y >= origin.y && point->x <= origin.x + size.x && point->y <= origin.y + size.y)
+				Place(*point, "Sun", IM_COL32(255, 236, 190, 230));
+		}
+
+		auto Colour = [](const CatalogueKind kind) -> ImU32
+		{
+			switch (kind)
+			{
+			case CatalogueKind::Star: return IM_COL32(225, 225, 235, 210);
+			case CatalogueKind::Galaxy: return IM_COL32(235, 215, 170, 210);
+			case CatalogueKind::PlanetaryNebula: return IM_COL32(150, 235, 215, 210);
+			case CatalogueKind::HIIRegion: return IM_COL32(245, 160, 175, 210);
+			case CatalogueKind::SupernovaRemnant: return IM_COL32(245, 190, 150, 210);
+			case CatalogueKind::BlackHole: return IM_COL32(255, 200, 120, 230);
+			default: return IM_COL32(150, 200, 255, 210);
+			}
+		};
+		size_t count = 0;
+		// (Fewer while the solar system has its own labels, unless the camera is past its planets)
+		const size_t maxLabels = inSolarSystem && camera.GetZoom() < SUN_POINT_START * Universe::AU_IN_UNITS ? MAX_SKY_LABELS : MAX_LANDMARK_LABELS;
+		for (const Candidate& candidate : candidates)
+		{
+			if (count >= maxLabels)
+				break;
+			const CatalogueLandmark& landmark = catalogue->landmarks[candidate.index];
+			if (const std::optional<ImVec4> rect = Place(candidate.point, landmark.name.c_str(), Colour(landmark.kind)))
+			{
+				landmarkLabelRects.push_back({ glm::vec4(rect->x, rect->y, rect->z, rect->w), candidate.index });
+				count++;
+			}
+		}
+	}
+
+	bool Application::UpdateLandmarkSelection()
+	{
+		const ImGuiIO& io = ImGui::GetIO();
+		const glm::vec2 origin = GetViewportImageOrigin();
+		const glm::vec2 size((float)mViewportFramebuffer->GetWidth(), (float)mViewportFramebuffer->GetHeight());
+		auto OverImage = [&](const ImVec2& p)
+		{
+			return p.x >= origin.x && p.y >= origin.y && p.x < origin.x + size.x && p.y < origin.y + size.y;
+		};
+		bool clicked = false;
+		if (ImGui::IsWindowHovered(ImGuiHoveredFlags_ChildWindows | ImGuiHoveredFlags_NoPopupHierarchy) && ImGui::IsMouseReleased(ImGuiMouseButton_Left) &&
+			!ImGui::IsMouseDragPastThreshold(ImGuiMouseButton_Left) && OverImage(io.MouseClickedPos[ImGuiMouseButton_Left]) && OverImage(io.MousePos))
+		{
+			const glm::vec2 mouse(io.MousePos.x, io.MousePos.y);
+			for (const auto& [rect, index] : landmarkLabelRects)
+			{
+				if (mouse.x >= rect.x && mouse.x <= rect.z && mouse.y >= rect.y && mouse.y <= rect.w)
+				{
+					selectedLandmark = index;
+					clicked = true;
+					break;
+				}
+			}
+			// Otherwise the sky near the cursor, unless a body of the solar system (or its label) is
+			// there
+			if (!clicked && showUniverse && universeRenderer != nullptr && catalogue != nullptr)
+			{
+				bool overBody = false;
+				if (IsSolarSystemShown())
+				{
+					for (const auto& [rect, index] : labelRects)
+						overBody = overBody || (mouse.x >= rect.x && mouse.x <= rect.z && mouse.y >= rect.y && mouse.y <= rect.w);
+					overBody = overBody || PickBody((mouse - origin) / size).has_value();
+				}
+				if (!overBody)
+				{
+					if (const std::optional<size_t> picked = PickLandmark(mouse))
+					{
+						selectedLandmark = *picked;
+						clicked = true;
+					}
+				}
+			}
+			if (clicked)
+				ImGui::OpenPopup(LANDMARK_MENU);
+		}
+		if (catalogue == nullptr || !selectedLandmark || !ImGui::IsPopupOpen(LANDMARK_MENU))
+		{
+			selectedLandmark.reset();
+			return clicked;
+		}
+		const CatalogueLandmark& landmark = catalogue->landmarks[*selectedLandmark];
+
+		// Ring the selected landmark while its menu is open (as a selected body)
+		if (const std::optional<glm::vec2> point = ProjectLandmark(landmark.position))
+		{
+			const float pixelAngle = 2.0f / (projectionMatrix[1][1] * std::max(size.y, 1.0f));
+			const double distance = std::max(glm::distance(landmark.position, universeView.camera), 1e-12);
+			const float discRadius = (float)(landmark.radius / distance / pixelAngle);
+			const float ringRadius = std::min(std::max(discRadius, LABEL_DOT_RADIUS), 0.45f * size.y) + SELECTION_RING_GAP;
+			ImDrawList* drawList = ImGui::GetWindowDrawList();
+			drawList->AddCircle(ImVec2(point->x, point->y), ringRadius, IM_COL32(0, 0, 0, 140), 0, 3.5f);
+			drawList->AddCircle(ImVec2(point->x, point->y), ringRadius, IM_COL32(235, 235, 235, 230), 0, 1.5f);
+		}
+
+		if (ImGui::BeginPopup(LANDMARK_MENU))
+		{
+			ImGui::TextUnformatted(landmark.name.c_str());
+			ImGui::PushTextWrapPos(ImGui::GetFontSize() * 24.0f);
+			ImGui::TextDisabled("%s", landmark.description.c_str());
+			ImGui::PopTextWrapPos();
+			ImGui::Separator();
+			if (ImGui::MenuItem("Go to object"))
+				GoToLandmark(landmark);
+			ImGui::EndPopup();
+		}
+		return clicked;
+	}
+
+	std::optional<glm::vec2> Application::ProjectLandmark(const glm::dvec3& position) const
+	{
+		const glm::vec3 relative = universeView.rotation * glm::vec3(position - universeView.camera);
+		if (relative.z >= 0.0f)
+			return std::nullopt; // Behind the camera
+		const glm::vec2 origin = GetViewportImageOrigin();
+		const glm::vec2 size((float)mViewportFramebuffer->GetWidth(), (float)mViewportFramebuffer->GetHeight());
+		const glm::vec2 ndc(projectionMatrix[0][0] * relative.x / -relative.z, projectionMatrix[1][1] * relative.y / -relative.z);
+		return origin + glm::vec2(ndc.x * 0.5f + 0.5f, 0.5f - ndc.y * 0.5f) * size;
+	}
+
+	std::vector<glm::vec3> Application::GetBodyDiscs() const
+	{
+		const glm::vec2 origin = GetViewportImageOrigin();
+		const glm::vec2 size((float)mViewportFramebuffer->GetWidth(), (float)mViewportFramebuffer->GetHeight());
+		std::vector<glm::vec3> discs;
+		for (const NamedBody& namedBody : namedBodies)
+		{
+			const glm::vec4 clip = viewProjection * glm::vec4(namedBody.body->GetTranslation(), 1.0f);
+			if (clip.w <= 0.0f)
+				continue;
+			const float radius = GetOuterRadius(*namedBody.body) / clip.w * projectionMatrix[1][1] * size.y * 0.5f;
+			if (radius < 1.0f)
+				continue;
+			const glm::vec2 ndc = glm::vec2(clip) / clip.w;
+			discs.emplace_back(origin + glm::vec2(ndc.x * 0.5f + 0.5f, 0.5f - ndc.y * 0.5f) * size, radius);
+		}
+		return discs;
+	}
+
+	std::optional<size_t> Application::PickLandmark(const glm::vec2 point) const
+	{
+		const glm::vec2 size((float)mViewportFramebuffer->GetWidth(), (float)mViewportFramebuffer->GetHeight());
+		const float pixelAngle = 2.0f / (projectionMatrix[1][1] * std::max(size.y, 1.0f));
+		const std::vector<glm::vec3> discs = IsSolarSystemShown() ? GetBodyDiscs() : std::vector<glm::vec3>();
+		std::optional<size_t> picked;
+		float best = -std::numeric_limits<float>::max();
+		for (size_t i = 0; i < catalogue->landmarks.size(); i++)
+		{
+			const CatalogueLandmark& landmark = catalogue->landmarks[i];
+			const std::optional<glm::vec2> where = ProjectLandmark(landmark.position);
+			if (!where)
+				continue;
+			// Within a few pixels of it, or inside its disc
+			const double distance = std::max(glm::distance(landmark.position, universeView.camera), 1e-12);
+			const float discRadius = (float)(landmark.radius / distance / pixelAngle);
+			const float miss = glm::distance(*where, point);
+			if (miss > std::max(LANDMARK_PICK_PIXELS, discRadius))
+				continue;
+			bool hidden = false;
+			for (const glm::vec3& disc : discs)
+				hidden = hidden || glm::distance(glm::vec2(disc), *where) < disc.z;
+			if (hidden)
+				continue;
+			const float prominence = universeRenderer->GetProminence(landmark, universeView, pixelAngle, true);
+			if (prominence < 0.0f)
+				continue;
+			// The more prominent, then the nearer the cursor (in pixels, or in its disc's radii for
+			// one larger than that, so a small object over a large one is picked by clicking on it)
+			const float score = prominence - 2.0f * miss / std::max(LANDMARK_PICK_PIXELS, discRadius);
+			if (score > best)
+			{
+				best = score;
+				picked = i;
+			}
+		}
+		return picked;
+	}
+
+	void Application::RenderUniverseControls()
+	{
+		if (!ImGui::CollapsingHeader("Universe", ImGuiTreeNodeFlags_DefaultOpen))
+			return;
+		ImGui::Checkbox("Show the universe", &showUniverse);
+		ImGui::SetItemTooltip("The stars, the Milky Way, other galaxies, nebulae, pulsars and black holes of the catalogues, seen as you zoom out of the solar system");
+		if (universeRenderer == nullptr)
+		{
+			ImGui::TextDisabled(pendingCatalogue.valid() ? "Loading the catalogues..." : "No catalogues loaded");
+			return;
+		}
+		if (!showUniverse)
+			return;
+
+		UniverseRenderer& universe = *universeRenderer;
+		ImGui::Checkbox("Stars", &universe.showStars);
+		ImGui::SameLine();
+		ImGui::Checkbox("Milky Way", &universe.showMilkyWay);
+		ImGui::SameLine();
+		ImGui::Checkbox("Galaxies", &universe.showGalaxies);
+		ImGui::Checkbox("Nebulae", &universe.showNebulae);
+		ImGui::SameLine();
+		ImGui::Checkbox("Neutron stars", &universe.showNeutronStars);
+		ImGui::SameLine();
+		ImGui::Checkbox("Black holes", &universe.showBlackHoles);
+		ImGui::SliderFloat("Sky exposure", &universe.exposure, 0.5f, 200.0f, "%.1f", ImGuiSliderFlags_Logarithmic);
+		ImGui::SliderFloat("Star brightness", &universe.starBrightness, 0.05f, 20.0f, "%.2f", ImGuiSliderFlags_Logarithmic);
+		ImGui::Checkbox("Brighten as you zoom out", &universe.zoomGain);
+		ImGui::SetItemTooltip("Raises the light of distant stars and galaxies as the camera zooms out past them, so they still show (as a camera's exposure would)");
+		ImGui::SliderFloat("Milky Way brightness", &universe.milkyWayBrightness, 0.05f, 10.0f, "%.2f", ImGuiSliderFlags_Logarithmic);
+		ImGui::SliderFloat("Galaxy brightness", &universe.galaxyBrightness, 0.05f, 20.0f, "%.2f", ImGuiSliderFlags_Logarithmic);
+		ImGui::SliderFloat("Nebula brightness", &universe.nebulaBrightness, 0.05f, 20.0f, "%.2f", ImGuiSliderFlags_Logarithmic);
+		ImGui::SliderFloat("Markers", &universe.markerBrightness, 0.0f, 5.0f, "%.2f");
+		ImGui::SetItemTooltip("The brightness of the markers for pulsars, neutron stars and black holes (which give out next to no light that could be seen), and for distant nebulae");
+		ImGui::SliderFloat("Bloom##Universe", &universe.bloom, 0.0f, 2.0f);
+
+		// Finding a landmark by name, and some to start with
+		ImGui::SetNextItemWidth(-FLT_MIN);
+		ImGui::InputTextWithHint("##Find", "Find a star, nebula, galaxy or pulsar", landmarkFilter.data(), landmarkFilter.size());
+		const std::string filter = landmarkFilter.data();
+		if (!filter.empty())
+		{
+			auto Lower = [](std::string text)
+			{
+				std::transform(text.begin(), text.end(), text.begin(), [](const unsigned char c) { return (char)std::tolower(c); });
+				return text;
+			};
+			const std::string needle = Lower(filter);
+			if (ImGui::BeginListBox("##Results", ImVec2(-FLT_MIN, 8.0f * ImGui::GetTextLineHeightWithSpacing())))
+			{
+				size_t shown = 0;
+				for (size_t i = 0; i < catalogue->landmarks.size() && shown < MAX_SEARCH_RESULTS; i++)
+				{
+					const CatalogueLandmark& landmark = catalogue->landmarks[i];
+					if (Lower(landmark.name).find(needle) == std::string::npos && Lower(landmark.description).find(needle) == std::string::npos)
+						continue;
+					ImGui::PushID((int)i);
+					if (ImGui::Selectable(landmark.name.c_str()))
+						GoToLandmark(landmark);
+					ImGui::SetItemTooltip("%s\nClick to go to it", landmark.description.c_str());
+					ImGui::PopID();
+					shown++;
+				}
+				if (shown == 0)
+					ImGui::TextDisabled("Nothing found");
+				ImGui::EndListBox();
+			}
+		}
+		else
+		{
+			ImGui::TextDisabled("Go to:");
+			for (const char* name : { "Sagittarius A*", "Andromeda Galaxy", "Large Magellanic Cloud", "Orion Nebula", "Crab Nebula", "PSR B0531+21 (Crab)", "Betelgeuse" })
+			{
+				for (const CatalogueLandmark& landmark : catalogue->landmarks)
+				{
+					if (landmark.name != name)
+						continue;
+					if (ImGui::GetContentRegionAvail().x < ImGui::CalcTextSize(name).x + 2.0f * ImGui::GetStyle().FramePadding.x)
+						ImGui::NewLine();
+					if (ImGui::SmallButton(name))
+						GoToLandmark(landmark);
+					ImGui::SetItemTooltip("%s", landmark.description.c_str());
+					ImGui::SameLine();
+					break;
+				}
+			}
+			ImGui::NewLine();
+			if (ImGui::SmallButton("The Milky Way"))
+				MoveTo(lightSource->GetPosition() + GetGalacticCentre() * PARSEC_IN_UNITS, (float)(60000.0 * PARSEC_IN_UNITS));
+			ImGui::SetItemTooltip("Our galaxy, from outside");
+			ImGui::SameLine();
+			if (ImGui::SmallButton("The Local Group"))
+				MoveTo(lightSource->GetPosition(), (float)(3.0e6 * PARSEC_IN_UNITS));
+			ImGui::SameLine();
+			if (ImGui::SmallButton("The nearby universe"))
+				MoveTo(lightSource->GetPosition(), (float)(2.5e8 * PARSEC_IN_UNITS));
+		}
+
+		if (ImGui::TreeNode("Catalogues"))
+		{
+			for (const std::string& line : catalogue->report)
+				ImGui::BulletText("%s", line.c_str());
+			ImGui::TreePop();
+		}
+	}
+
 	void Application::RenderControlsPanel()
 	{
 		if (!ImGui::Begin("Space Visualiser"))
@@ -1444,12 +2080,12 @@ namespace SV
 
 		if (ImGui::CollapsingHeader("Scene", ImGuiTreeNodeFlags_DefaultOpen))
 		{
-			constexpr const char* SCENE_NAMES[] = { "Solar System", "Galaxy Test", "Black Hole Test", "Pulsar Test", "Nebula Test" };
+			constexpr const char* SCENE_NAMES[] = { "Solar System", "Galaxy Test", "Black Hole Test", "Pulsar Test", "Nebula Test", "Star Test" };
 			static_assert(std::size(SCENE_NAMES) == (size_t)SceneMode::Count);
 			int mode = (int)sceneMode;
 			if (ImGui::Combo("Scene##Mode", &mode, SCENE_NAMES, (int)SceneMode::Count))
 				SetSceneMode((SceneMode)mode);
-			ImGui::SetItemTooltip("The tests show only a galaxy, a black hole, a pulsar or a nebula, in place of the solar system");
+			ImGui::SetItemTooltip("The tests show only a galaxy, a black hole, a pulsar, a nebula or stars, in place of the solar system");
 			if (sceneMode == SceneMode::Galaxy)
 			{
 				const GalaxyPreset& current = GetGalaxyPreset(galaxyType);
@@ -1461,6 +2097,23 @@ namespace SV
 						const bool selected = type == galaxyType;
 						if (ImGui::Selectable(GetGalaxyPreset(type).name.c_str(), selected) && !selected)
 							SetGalaxyType(type);
+						if (selected)
+							ImGui::SetItemDefaultFocus();
+					}
+					ImGui::EndCombo();
+				}
+			}
+			if (sceneMode == SceneMode::Stars)
+			{
+				const StarSystemPreset& current = GetStarSystemPreset(starSystemType);
+				if (ImGui::BeginCombo("Stars##Preset", current.name.c_str()))
+				{
+					for (size_t i = 0; i < (size_t)StarSystemType::Count; i++)
+					{
+						const StarSystemType type = (StarSystemType)i;
+						const bool selected = type == starSystemType;
+						if (ImGui::Selectable(GetStarSystemPreset(type).name.c_str(), selected) && !selected)
+							SetStarSystemType(type);
 						if (selected)
 							ImGui::SetItemDefaultFocus();
 					}
@@ -1517,6 +2170,11 @@ namespace SV
 			RenderCompactObjectControls();
 		if (sceneMode == SceneMode::Nebula)
 			RenderNebulaControls();
+		if (sceneMode == SceneMode::Stars)
+			RenderStarControls();
+
+		if (sceneMode == SceneMode::SolarSystem)
+			RenderUniverseControls();
 
 		if (sceneMode == SceneMode::SolarSystem && ImGui::CollapsingHeader("Bodies", ImGuiTreeNodeFlags_DefaultOpen))
 		{
@@ -1590,6 +2248,13 @@ namespace SV
 				ImGui::Text("Centre (kpc): X=%.3f, Y=%.3f, Z=%.3f", kpc.x, kpc.y, kpc.z);
 				ImGui::Text("Zoom: %.3g kpc", camera.GetZoom() / 1000.0f);
 			}
+			else if (sceneMode == SceneMode::Stars)
+			{
+				ImGui::Text("Centre (solar radii): X=%.4g, Y=%.4g, Z=%.4g", centre.x, centre.y, centre.z);
+				ImGui::Text("Zoom: %.3g solar radii (%.3g AU)", camera.GetZoom(), camera.GetZoom() / SOLAR_RADII_PER_AU);
+				if (starFocus.has_value())
+					ImGui::Text("Following %s", starSystemRenderer->GetSystem().nodes[*starFocus].name.c_str());
+			}
 			else if (sceneMode == SceneMode::Nebula)
 			{
 				ImGui::Text("Centre (pc): X=%.2f, Y=%.2f, Z=%.2f", centre.x, centre.y, centre.z);
@@ -1602,9 +2267,28 @@ namespace SV
 			}
 			else
 			{
+				// Lengths in the units that suit them: Earth radii and AU in the solar system, light
+				// years and parsecs past it
+				auto FormatLength = [](const double units)
+				{
+					const double au = units / Universe::AU_IN_UNITS, pc = units / PARSEC_IN_UNITS;
+					char text[96];
+					if (au < 1000.0)
+						std::snprintf(text, sizeof(text), "%.3g Earth radii (%.3g AU)", units, au);
+					else if (pc < 1000.0)
+						std::snprintf(text, sizeof(text), "%.3g pc (%.3g light years)", pc, pc * 3.26156);
+					else if (pc < 1.0e6)
+						std::snprintf(text, sizeof(text), "%.3g kpc (%.3g thousand light years)", pc / 1e3, pc * 3.26156e-3);
+					else
+						std::snprintf(text, sizeof(text), "%.3g Mpc (%.3g million light years)", pc / 1e6, pc * 3.26156e-6);
+					return std::string(text);
+				};
 				const glm::dvec3 au = centre / Universe::AU_IN_UNITS;
-				ImGui::Text("Centre (AU): X=%.4f, Y=%.4f, Z=%.4f", au.x, au.y, au.z);
-				ImGui::Text("Zoom: %.3g Earth radii (%.3g AU)", camera.GetZoom(), camera.GetZoom() / Universe::AU_IN_UNITS);
+				if (glm::length(au) < 1.0e5)
+					ImGui::Text("Centre (AU): X=%.4f, Y=%.4f, Z=%.4f", au.x, au.y, au.z);
+				else
+					ImGui::Text("Centre: %s from the Sun", FormatLength(glm::distance(centre, lightSource->GetPosition())).c_str());
+				ImGui::Text("Zoom: %s", FormatLength(camera.GetZoom()).c_str());
 			}
 			ImGui::Text("Pitch: %.1f, Yaw: %.1f", camera.GetPitch(), camera.GetYaw());
 			for (const NamedBody& namedBody : namedBodies)
@@ -1619,6 +2303,8 @@ namespace SV
 					const CameraState overview = GetTestOverview();
 					camera = overview.camera;
 					cameraOrigin = overview.origin;
+					if (sceneMode == SceneMode::Stars)
+						starFocus = (size_t)GetStarSystemPreset(starSystemType).focus;
 				}
 				else
 				{

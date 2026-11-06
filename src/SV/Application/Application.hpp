@@ -1,5 +1,6 @@
 #pragma once
 #include <array>
+#include <future>
 #include <optional>
 #include <string>
 #include <utility>
@@ -13,6 +14,8 @@
 #include "Dahlia/Scene/Camera3D.h"
 #include "Dahlia/Utilities/Memory.h"
 #include "SV/Graphics/SceneContext.hpp"
+#include "SV/Universe/Catalogue.hpp"
+#include "SV/Universe/UniverseRenderer.hpp"
 
 namespace DH
 {
@@ -31,16 +34,20 @@ namespace SV
 	class StarRenderer;
 	class PlanetRenderer;
 	class SplashScreen;
+	class StarSystemRenderer;
+	enum class StarSystemType;
 
 	namespace Universe
 	{
 		class PlanetarySystem;
 	}
 
-	// Space Visualiser: renders a planetary system into Dahlia's ImGui viewport. The scene loads over
-	// the first few frames, behind a splash screen. The galaxy test shows a galaxy (the Milky Way,
+	// Space Visualiser: renders a planetary system into Dahlia's ImGui viewport, inside the universe
+	// of the star, galaxy, nebula and pulsar catalogues (seen as the camera zooms out past the solar
+	// system). The scene loads over the first few frames, behind a splash screen. The galaxy test shows a galaxy (the Milky Way,
 	// the Whirlpool or Andromeda) in place of the solar system, the black hole and pulsar tests a
-	// black hole or a neutron star, and the nebula test a nebula (the Crab or Orion).
+	// black hole or a neutron star, the nebula test a nebula, and the star test stars of each kind
+	// (single, binary and triple).
 	class Application final : public DH::GraphicsApp
 	{
 	public:
@@ -84,6 +91,7 @@ namespace SV
 			BlackHole, // The black hole test: only a black hole, in Schwarzschild radii around it
 			Pulsar,    // The pulsar test: only a neutron star, in Schwarzschild radii around it
 			Nebula,    // The nebula test: only a nebula, in parsecs around its centre
+			Stars,     // The star test: a star or star system, in solar radii
 			Count
 		};
 
@@ -109,6 +117,8 @@ namespace SV
 		void UpdateCamera(float deltaTime);
 		// Travel to the body, then follow it
 		void MoveTo(const sRef<CelestrialBody>& body, float zoom);
+		// Travel to a point (world coordinates), and stay there
+		void MoveTo(const glm::dvec3& point, float zoom);
 		void StopFollowing();
 		// The closest zoom allowed: outside the body being followed (or the galaxy test's limit)
 		[[nodiscard]] float GetMinZoom() const;
@@ -131,6 +141,34 @@ namespace SV
 		void SetOccluders(FrameUniforms& frame) const;
 		// Marks the camera's orbit centre over the viewport (inside its ImGui window)
 		void DrawCrosshair();
+
+		// The universe around the solar system (from the catalogues), drawn behind it. The solar
+		// system itself is only drawn while the camera is near enough to see anything of it.
+		void RenderUniverse(DH::CommandList& cmd, double deltaTime);
+		void RenderUniverseControls();
+		// Names the catalogue's landmarks over the viewport (the brightest, largest and best known
+		// that fit), inside its ImGui window. Clicking one opens a menu to go to it. Inside the solar
+		// system, only a few of the sky's brightest are named, around the bodies' own labels.
+		void DrawUniverseLabels();
+		// Clicking a landmark's label, or the sky near one that can be seen (where no body of the
+		// solar system is), selects it and opens a menu for it. Returns whether a landmark was
+		// clicked (so no body is selected by the click).
+		bool UpdateLandmarkSelection();
+		// The landmark that can be seen nearest a point in the viewport (screen coordinates), within
+		// a few pixels of it or inside its disc, favouring the more prominent
+		[[nodiscard]] std::optional<size_t> PickLandmark(glm::vec2 point) const;
+		// Where a position of the universe (parsecs from the Sun) is on screen, if in front of the
+		// camera
+		[[nodiscard]] std::optional<glm::vec2> ProjectLandmark(const glm::dvec3& position) const;
+		// The discs of the solar system's bodies on screen (centre, radius in pixels) at least a pixel
+		// across, which hide the sky behind them
+		[[nodiscard]] std::vector<glm::vec3> GetBodyDiscs() const;
+		// How far from the Sun the camera is (world units)
+		[[nodiscard]] double GetSunDistance() const;
+		// Whether the solar system is drawn (the camera is near enough to it)
+		[[nodiscard]] bool IsSolarSystemShown() const;
+		// Travel to a landmark, at a zoom to suit it
+		void GoToLandmark(const CatalogueLandmark& landmark);
 
 		// Shows another scene, swapping the camera to where it was in that scene
 		void SetSceneMode(SceneMode mode);
@@ -160,6 +198,14 @@ namespace SV
 		void RenderNebulaControls();
 		// Names the nebula's stars over the viewport (inside its ImGui window)
 		void DrawNebulaLabels();
+
+		// Shows another star system: from its start, and its first view
+		void SetStarSystemType(StarSystemType type);
+		[[nodiscard]] static CameraState GetStarSystemOverview(StarSystemType type);
+		void RenderStarTest(DH::CommandList& cmd, FrameUniforms& frame);
+		void RenderStarControls();
+		// Names the star system's bodies over the viewport (inside its ImGui window)
+		void DrawStarLabels();
 
 		// The current scene's first view (for "Reset camera" in the test scenes)
 		[[nodiscard]] CameraState GetTestOverview() const;
@@ -206,9 +252,25 @@ namespace SV
 		uRef<CompactObjectRenderer> pulsarRenderer;
 		NebulaType nebulaType{}; // The Crab
 		uRef<NebulaRenderer> nebulaRenderer;
+		StarSystemType starSystemType{}; // A red dwarf
+		uRef<StarSystemRenderer> starSystemRenderer;
+		// The star system's node (a body, or a pair's centre of mass) the camera follows, if any
+		std::optional<size_t> starFocus;
 		std::array<CameraState, (size_t)SceneMode::Count> sceneCameras{
 			CameraState{}, GetGalaxyOverview(galaxyType), GetCompactObjectOverview(SceneMode::BlackHole),
-			GetCompactObjectOverview(SceneMode::Pulsar), GetNebulaOverview(nebulaType) };
+			GetCompactObjectOverview(SceneMode::Pulsar), GetNebulaOverview(nebulaType), GetStarSystemOverview(starSystemType) };
+
+		// The catalogues, parsed on a worker thread from the start, then drawn by universeRenderer
+		std::future<Catalogue> pendingCatalogue;
+		uRef<Catalogue> catalogue;
+		uRef<UniverseRenderer> universeRenderer;
+		bool showUniverse = true;
+		UniverseView universeView; // This frame's
+		double universeTime = 0.0;
+		// The landmark search ("Find") and the landmark whose menu is open
+		std::array<char, 64> landmarkFilter{};
+		std::optional<size_t> selectedLandmark;
+		std::vector<std::pair<glm::vec4, size_t>> landmarkLabelRects;
 
 		// Whether the cursor is over the viewport window (updated each ImGui frame)
 		bool isViewportHovered = false;
@@ -226,9 +288,10 @@ namespace SV
 		std::string imguiIniPath;
 		bool applyDefaultLayout = false;
 
-		// Smooth camera travel to a body ("Go to"), which the camera then follows
+		// Smooth camera travel to a body ("Go to"), which the camera then follows, or to a point
 		bool isTravelling = false;
 		sRef<CelestrialBody> travelBody;
+		glm::dvec3 travelPoint{ 0.0 }; // When travelBody is null
 		// Where travelBody was when the camera last moved towards it, so the camera moves with it
 		glm::dvec3 travelBodyPosition{ 0.0 };
 		float travelZoom = 0.0f;

@@ -58,6 +58,14 @@ namespace SV::Atmosphere
 		TritonAtmosphere();
 	};
 
+	// Pluto's tenuous nitrogen atmosphere (about 11 microbar), with the layered haze New Horizons saw
+	// glowing blue around its limb
+	class PlutoAtmosphere : public IAtmosphere
+	{
+	public:
+		PlutoAtmosphere();
+	};
+
 	// Venus' atmosphere above its cloud tops (the planet's visible surface)
 	class VenusAtmosphere : public IAtmosphere
 	{

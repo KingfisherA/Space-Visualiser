@@ -36,6 +36,9 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(SV_DAHLIA_DIR "${PROJECT_SOURCE_DIR}/../Dahlia" CACHE PATH "Path to the Dahlia graphics engine source")
 # Planet textures. Overridable at runtime with --data <dir>
 set(SV_DATA_DIR "${PROJECT_SOURCE_DIR}/Data Files/Textures" CACHE PATH "Directory containing the planet textures")
+# Star, galaxy, nebula and pulsar catalogues (Tools/Catalogues/download_catalogues.py). Overridable
+# at runtime with --catalogues <dir>
+set(SV_CATALOGUE_DIR "${PROJECT_SOURCE_DIR}/Data Files/Catalogues" CACHE PATH "Directory containing the astronomical catalogues")
 
 # ---- Dahlia ---------------------------------------------------------------------------------------
 get_filename_component(SV_DAHLIA_DIR "${SV_DAHLIA_DIR}" REALPATH)

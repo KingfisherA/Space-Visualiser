@@ -52,6 +52,9 @@ void main()
     float brightness = aColour.w > 0.0 ? uGalaxy.view.z : uGalaxy.view.y;
     float peak = aStar.w * brightness / (distance * distance * 6.28318531 * sigma * sigma);
     vRadiance = min(aColour.rgb * peak, vec3(MAX_RADIANCE)) * Extinction(aStar.xyz, camera - uGalaxy.centre.xyz);
+    // Not inside the hole (where real stars are drawn instead)
+    if (uGalaxy.hole.w > 0.0)
+        vRadiance *= smoothstep(0.6 * uGalaxy.hole.w, uGalaxy.hole.w, length(aStar.xyz - uGalaxy.hole.xyz));
     vCorner = aCorner;
 
     // Facing the camera, spanning its right and up axes

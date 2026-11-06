@@ -6,12 +6,13 @@
 #include "Dahlia/Platform/GPUContext.h"
 #include "SV/Application/Application.hpp"
 #include "SV/Graphics/AsyncTexture.hpp"
+#include "SV/Universe/Catalogue.hpp"
 
 namespace
 {
 	void PrintUsage(const char* program)
 	{
-		std::cout << "Usage: " << program << " [--opengl | --metal | --vulkan] [--data <texture directory>]\n";
+		std::cout << "Usage: " << program << " [--opengl | --metal | --vulkan] [--data <texture directory>] [--catalogues <catalogue directory>]\n";
 	}
 }
 
@@ -50,6 +51,10 @@ int main(int argc, char** argv)
 		else if (arg == "--data" && i + 1 < argc)
 		{
 			SV::SetTextureDirectory(argv[++i]);
+		}
+		else if (arg == "--catalogues" && i + 1 < argc)
+		{
+			SV::SetCatalogueDirectory(argv[++i]);
 		}
 		else
 		{

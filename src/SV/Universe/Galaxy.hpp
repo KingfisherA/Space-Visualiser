@@ -148,6 +148,10 @@ namespace SV
 		glm::vec3 centre{ 0.0f };
 		// The angle one pixel subtends (radians)
 		float pixelAngle = 1e-3f;
+		// The stars within holeRadius of holeCentre (galactic coordinates) fade out, where real stars
+		// are drawn instead (0 for no hole)
+		glm::vec3 holeCentre{ 0.0f };
+		float holeRadius = 0.0f;
 	};
 
 	// Draws the galaxy into a viewport framebuffer in three passes:
@@ -170,6 +174,12 @@ namespace SV
 		// Outside a render pass; ends with `target` rendered (cleared first). Uses the frame
 		// uniforms (set 0) for the camera.
 		void Render(DH::CommandList& cmd, DH::Framebuffer& target, const GalaxyView& view);
+
+		// Or in two steps, to add the galaxy to another scene's HDR target (a BloomCompositor's):
+		// renders the glow and stars for a target of this size (outside a render pass), then adds
+		// them, times `scale`, inside the pass drawing that target
+		void RenderLayers(DH::CommandList& cmd, size_t width, size_t height, const GalaxyView& view);
+		void AddTo(DH::CommandList& cmd, float scale);
 
 		[[nodiscard]] size_t GetStarCount() const { return starCount; }
 
@@ -199,5 +209,6 @@ namespace SV
 		sRef<DH::GraphicsPipeline> glowPipeline;
 		sRef<DH::GraphicsPipeline> starPipeline;
 		sRef<DH::GraphicsPipeline> compositePipeline;
+		sRef<DH::GraphicsPipeline> addPipeline; // Created by the first AddTo
 	};
 }

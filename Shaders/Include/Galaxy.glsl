@@ -24,6 +24,7 @@ layout(std140, set = 1, binding = 0) uniform GalaxyUniforms
     vec4 view;    // x = pixel angle (radians), y = star brightness, z = nebula (H II region) brightness
     vec4 shape;   // x = minor arms' strength, y = the bar's share of the central light, z = companion count
     vec4 ring;    // x = radius, y = width, z = strength
+    vec4 hole;    // xyz = centre (galactic coordinates), w = radius: the stars inside it fade out (0 for none)
     // Each companion: xyz = centre (galactic coordinates), w = its halo's standard deviation; xyz =
     // its stretch, w = its luminosity; rgb = colour, a = how bright its core and nucleus are
     vec4 companionCentre[MAX_COMPANIONS];
