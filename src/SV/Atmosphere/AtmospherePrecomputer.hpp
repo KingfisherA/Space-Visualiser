@@ -227,6 +227,11 @@ namespace SV::Atmosphere
 		std::array<DensityProfileLayer, MAX_DENSITY_PROFILE_LAYERS> absorptionDensity;
 
 		double kGroundAlbedo;
+
+		// The largest sun zenith angle the scattering is precomputed for (degrees), beyond which it is
+		// taken as at this angle; 0 for the default (102). A tall, thick atmosphere (Titan's) is
+		// still lit in twilight well past 102 degrees, so needs more.
+		double kMaxSunZenithAngle;
 	};
 
 	//A structure to hold the atmospheric parameters that have undergone processing through means of interpolation and steralisation.

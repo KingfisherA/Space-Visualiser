@@ -29,6 +29,11 @@ function(sv_add_executable TARGET)
     Platform/Trackpad.hpp
     Scene/Transformation.hpp
     Universe/CelestrialBody.hpp
+    Universe/Coordinates.hpp
+    Universe/Moon.cpp
+    Universe/Moon.hpp
+    Universe/MoonData.cpp
+    Universe/MoonData.hpp
     Universe/Planet.cpp
     Universe/Planet.hpp
     Universe/PlanetarySystem.cpp

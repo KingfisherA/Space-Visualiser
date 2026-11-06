@@ -2,6 +2,8 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
+#include <iterator>
 #include <limits>
 
 #include <glm/gtc/constants.hpp>
@@ -267,6 +269,11 @@ namespace SV
 		constexpr int PLANET_LIT_SURFACE = 16;
 
 		constexpr unsigned int SPHERE_SUBDIVISIONS = 50;
+
+		// The smallest disc drawn, in pixels of radius, and how far a smaller body's disc may be
+		// inflated to it (beyond that, at under 1/400 of its drawn brightness, it is skipped)
+		constexpr float MIN_DISC_PIXELS = 0.75f;
+		constexpr float MAX_DISC_INFLATION = 20.0f;
 		constexpr unsigned int RINGS_SEGMENTS = 120;
 
 		// The half ring mesh lies in the XY plane with y >= 0; this turns it into the XZ plane (z >= 0)
@@ -365,13 +372,29 @@ namespace SV
 		};
 
 		using Entry = DH::BindGroupEntry;
+		const sRef<DH::Texture> diffuseMap = TextureOrBlack(planet.GetDiffuseMap(), 0);
+		const sRef<DH::Texture> specularMap = TextureOrBlack(planet.GetSpecularMap(), PLANET_HAS_SPECULAR);
+		const sRef<DH::Texture> cloudsMap = TextureOrBlack(planet.GetCloudsMap(), PLANET_HAS_CLOUDS);
 		const sRef<DH::Texture> ringMap = TextureOrBlack(planet.GetRingMap(), PLANET_HAS_RINGS);
-		bindings.mapsGroup = DH::BindGroup::Create(mapsLayout, {
-			Entry::TextureSampler(0, TextureOrBlack(planet.GetDiffuseMap(), 0), context.mapSampler),
-			Entry::TextureSampler(1, TextureOrBlack(planet.GetSpecularMap(), PLANET_HAS_SPECULAR), context.mapSampler),
-			Entry::TextureSampler(2, TextureOrBlack(planet.GetCloudsMap(), PLANET_HAS_CLOUDS), context.mapSampler),
-			Entry::TextureSampler(3, ringMap, context.ringSampler),
-			Entry::TextureSampler(4, TextureOrBlack(planet.GetNightMap(), PLANET_HAS_NIGHT), context.mapSampler) });
+		const sRef<DH::Texture> nightMap = TextureOrBlack(planet.GetNightMap(), PLANET_HAS_NIGHT);
+
+		// Shared with any other body with the same maps
+		const std::array<const void*, 6> key = { diffuseMap.get(), specularMap.get(), cloudsMap.get(), ringMap.get(), nightMap.get(),
+												 reinterpret_cast<const void*>((uintptr_t)bindings.mapFlags) };
+		sRef<DH::BindGroup>& mapsGroup = mapsGroups[key];
+		if (mapsGroup == nullptr)
+		{
+			mapsGroup = DH::BindGroup::Create(mapsLayout, {
+				Entry::TextureSampler(0, diffuseMap, context.mapSampler),
+				Entry::TextureSampler(1, specularMap, context.mapSampler),
+				Entry::TextureSampler(2, cloudsMap, context.mapSampler),
+				Entry::TextureSampler(3, ringMap, context.ringSampler),
+				Entry::TextureSampler(4, nightMap, context.mapSampler) });
+		}
+		bindings.mapsGroup = mapsGroup;
+		// Drop groups no body uses any more (such as those for maps before they loaded)
+		for (auto it = mapsGroups.begin(); it != mapsGroups.end();)
+			it = it->second.use_count() == 1 && it->second != bindings.mapsGroup ? mapsGroups.erase(it) : std::next(it);
 
 		// The rings are drawn once either map is ready, over the extent of the maps that are
 		bindings.hasRingMap = (bindings.mapFlags & PLANET_HAS_RINGS) != 0;
@@ -429,14 +452,25 @@ namespace SV
 
 			if (isNew)
 			{
+				// Shared by the bodies with this atmosphere (all of a planet's airless moons)
 				using Entry = DH::BindGroupEntry;
-				bindings.atmosphereGroup = DH::BindGroup::Create(atmosphereLayout, {
-					Entry::UniformBuffer(0, precomputer->GetUniformBuffer()),
-					Entry::TextureSampler(1, precomputer->GetTransmittanceTex(), context.clampSampler),
-					Entry::TextureSampler(2, precomputer->GetScatteringTex(), context.clampSampler) });
-				bindings.ringShadowGroup = DH::BindGroup::Create(ringShadowLayout, {
-					Entry::UniformBuffer(0, precomputer->GetUniformBuffer()),
-					Entry::TextureSampler(1, precomputer->GetTransmittanceTex(), context.clampSampler) });
+				AtmosphereGroups& groups = atmosphereGroups[precomputer.get()];
+				if (groups.atmosphere == nullptr)
+				{
+					groups.atmosphere = DH::BindGroup::Create(atmosphereLayout, {
+						Entry::UniformBuffer(0, precomputer->GetUniformBuffer()),
+						Entry::TextureSampler(1, precomputer->GetTransmittanceTex(), context.clampSampler),
+						Entry::TextureSampler(2, precomputer->GetScatteringTex(), context.clampSampler) });
+				}
+				// Only planets with rings need their atmosphere to shade their rings
+				if (groups.ringShadow == nullptr && (planet->GetRingMap() != nullptr || planet->GetDustMap() != nullptr))
+				{
+					groups.ringShadow = DH::BindGroup::Create(ringShadowLayout, {
+						Entry::UniformBuffer(0, precomputer->GetUniformBuffer()),
+						Entry::TextureSampler(1, precomputer->GetTransmittanceTex(), context.clampSampler) });
+				}
+				bindings.atmosphereGroup = groups.atmosphere;
+				bindings.ringShadowGroup = groups.ringShadow;
 				bindings.skyMesh = GetSkyMesh(planet->GetPolarRatio());
 			}
 
@@ -513,7 +547,8 @@ namespace SV
 		}
 	}
 
-	void PlanetRenderer::Render(DH::CommandList& cmd, const DH::PolygonMode polygonMode, const glm::vec3& cameraPosition)
+	void PlanetRenderer::Render(DH::CommandList& cmd, const DH::PolygonMode polygonMode, const glm::vec3& cameraPosition,
+								const float pixelAngle)
 	{
 		if (planets.empty()) return;
 
@@ -531,9 +566,17 @@ namespace SV
 				continue;
 			const PlanetBindings& bindings = it->second;
 			const SV::Atmosphere::ProcessedAtmoData& atmoData = planet.GetAtmosphere()->GetAtmosphericData();
+			const float skyScale = atmoData.topRadius / atmoData.bottomRadius;
+
+			// Inflated to the smallest disc drawn (the shader shrinks it back, and dims it by the
+			// inflation squared), or skipped if that would leave it too faint to see
+			const float angularRadius = GetUnitsPerRadius(planet) * skyScale / glm::distance(planet.GetTranslation(), cameraPosition);
+			const float inflation = std::max(MIN_DISC_PIXELS * pixelAngle / angularRadius, 1.0f);
+			if (inflation > MAX_DISC_INFLATION)
+				continue;
 
 			// The mesh is drawn at the top of the atmosphere; the surface is found in the shader
-			const glm::mat4 skyTransformation = planet.transformationMatrix * glm::scale(glm::vec3(atmoData.topRadius / atmoData.bottomRadius));
+			const glm::mat4 skyTransformation = planet.transformationMatrix * glm::scale(glm::vec3(skyScale * inflation));
 			const glm::mat3 rotation = GetPlanetRotation(planet);
 			const PlanetRings& rings = planet.GetRings();
 

@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdio>
 #include <cstdlib>
 #include <filesystem>
 #include <iostream>
@@ -28,6 +29,7 @@
 #include "SV/Graphics/AsyncTexture.hpp"
 #include "SV/Graphics/ShaderSources.hpp"
 #include "SV/Platform/Trackpad.hpp"
+#include "SV/Universe/MoonData.hpp"
 #include "SV/Universe/PlanetarySystem.hpp"
 #include "SV/Universe/SolarSystem.hpp"
 
@@ -46,7 +48,7 @@ namespace SV
 		// The solar system spans millions of units, so the near and far planes are fitted to the scene
 		// each frame: the near plane is this fraction of the distance to the nearest surface
 		constexpr float NEAR_PLANE_FRACTION = 0.05f;
-		constexpr float MIN_NEAR_PLANE = 1e-3f;
+		constexpr float MIN_NEAR_PLANE = 1e-6f;
 		// Extents of a body in its radii: its surface (with the atmosphere), and everything drawn
 		// around it (rings and coronae)
 		constexpr float BODY_SURFACE_EXTENT = 1.02f;
@@ -61,7 +63,8 @@ namespace SV
 		constexpr float GRID_SPACINGS_PER_ZOOM = 30.0f;
 		constexpr float GRID_OPACITY = 0.35f;
 
-		constexpr float MIN_ZOOM = 0.2f;
+		// About 300 m: the smallest moons are a kilometre or two across
+		constexpr float MIN_ZOOM = 5e-5f;
 		constexpr float MAX_ZOOM = 3.0e6f; // About 128 AU
 		// Closest zoom to the body being followed, in its radii
 		constexpr float MIN_ZOOM_PER_RADIUS = 1.1f;
@@ -89,9 +92,46 @@ namespace SV
 		constexpr float CROSSHAIR_THICKNESS = 1.5f;
 
 		// Body labels: a dot for bodies smaller than this on screen, and no label for bodies larger
-		// than this fraction of the viewport's height
+		// than this fraction of the viewport's height. Labels that would overlap one already drawn
+		// (larger bodies are labelled first) are left out.
 		constexpr float LABEL_DOT_RADIUS = 2.5f;
 		constexpr float LABEL_MAX_DISC_FRACTION = 0.25f;
+		constexpr float LABEL_PADDING = 3.0f;
+
+		// The radius of everything drawn of a body's sphere: its atmosphere's top for planets and moons
+		float GetOuterRadius(const CelestrialBody& body)
+		{
+			const float radius = body.GetScale().x;
+			if (body.GetType() == CelestrialBodyType::Planet || body.GetType() == CelestrialBodyType::Moon)
+			{
+				const auto& atmosphere = static_cast<const Planet&>(body).GetAtmosphere()->GetAtmosphericData();
+				return radius * atmosphere.topRadius / atmosphere.bottomRadius;
+			}
+			return radius;
+		}
+
+		// Days since J2000.0 (UTC) as a calendar date and time
+		std::string FormatDate(const double days)
+		{
+			// From the Julian day (Fliegel and Van Flandern)
+			const double julianDay = days + 2451545.0;
+			const double shifted = julianDay + 0.5;
+			const long z = (long)std::floor(shifted);
+			const double fraction = shifted - z;
+			long a = z + 32044;
+			const long b = (4 * a + 3) / 146097;
+			const long c = a - 146097 * b / 4;
+			const long d = (4 * c + 3) / 1461;
+			const long e = c - 1461 * d / 4;
+			const long m = (5 * e + 2) / 153;
+			const long day = e - (153 * m + 2) / 5 + 1;
+			const long month = m + 3 - 12 * (m / 10);
+			const long year = 100 * b + d - 4800 + m / 10;
+			const long minutes = (long)std::floor(fraction * 1440.0);
+			char text[64];
+			std::snprintf(text, sizeof(text), "%04ld-%02ld-%02ld %02ld:%02ld UTC", year, month, day, minutes / 60, minutes % 60);
+			return text;
+		}
 
 		constexpr double ANIMATION_SPEED = 0.2;
 		constexpr double MAX_FRAME_TIME = 0.1;
@@ -264,9 +304,9 @@ namespace SV
 		planetRenderer = make<PlanetRenderer>(sceneContext);
 		solarSystem = umake<Universe::PlanetarySystem>(starRenderer, planetRenderer);
 
-		// The Sun and planets where they are today, to scale
+		// The Sun, planets and moons where they are today, to scale
 		for (const Universe::SolarSystemBody& body : Universe::CreateSolarSystem(*solarSystem, Universe::DaysSinceJ2000Now()))
-			namedBodies.push_back({ body.name, body.body });
+			namedBodies.push_back({ body.name, body.body, body.parent });
 		lightSource = namedBodies.front().body;
 
 		// Start at Earth
@@ -321,7 +361,7 @@ namespace SV
 			{
 				const float distance = glm::distance(body->GetTranslation(), eye);
 				const float radius = body->GetScale().x;
-				nearest = std::min(nearest, distance - radius * BODY_SURFACE_EXTENT);
+				nearest = std::min(nearest, distance - GetOuterRadius(*body) * BODY_SURFACE_EXTENT);
 				farthest = std::max(farthest, distance + radius * BODY_BOUNDING_EXTENT);
 			}
 		}
@@ -353,7 +393,7 @@ namespace SV
 	float Application::GetMinZoom() const
 	{
 		const sRef<CelestrialBody>& body = isTravelling ? travelBody : followBody;
-		return body != nullptr ? std::max(MIN_ZOOM, MIN_ZOOM_PER_RADIUS * body->GetScale().x) : MIN_ZOOM;
+		return body != nullptr ? std::max(MIN_ZOOM, MIN_ZOOM_PER_RADIUS * GetOuterRadius(*body)) : MIN_ZOOM;
 	}
 
 	void Application::UpdateCamera(const float deltaTime)
@@ -479,6 +519,7 @@ namespace SV
 		frame.sun = glm::vec4(lightSource->GetTranslation(), lightSource->GetScale().x);
 		frame.times = glm::vec4((float)animationTime, (float)animationTime * 0.05f, 0.0f, 0.0f);
 		frame.display = glm::vec4(exposure, 0.0f, 0.0f, 0.0f);
+		SetOccluders(frame);
 		frameUniformBuffer->Update(&frame, sizeof(frame));
 
 		// Atmosphere precomputation and texture uploads happen outside the scene pass
@@ -499,7 +540,8 @@ namespace SV
 			RenderGrid(cmd);
 
 		// Draw the furthest kind of body first so blending (coronas, atmospheres) composites correctly
-		auto RenderPlanets = [&]() { planetRenderer->Render(cmd, polygonMode, cameraPosition); };
+		const float pixelAngle = 2.0f * std::tan(glm::radians(FOV) * 0.5f) / (float)std::max<size_t>(mViewportFramebuffer->GetHeight(), 1);
+		auto RenderPlanets = [&]() { planetRenderer->Render(cmd, polygonMode, cameraPosition, pixelAngle); };
 		auto RenderStars = [&]() { starRenderer->Render(cmd, polygonMode); };
 		if (planetRenderer->GetClosestDistance() <= starRenderer->GetClosestDistance())
 		{
@@ -647,6 +689,7 @@ namespace SV
 		const glm::vec2 size((float)mViewportFramebuffer->GetWidth(), (float)mViewportFramebuffer->GetHeight());
 		ImDrawList* drawList = ImGui::GetWindowDrawList();
 		const ImU32 colour = IM_COL32(220, 220, 220, 210);
+		const ImU32 moonColour = IM_COL32(180, 190, 205, 190);
 		const float fontSize = ImGui::GetFontSize();
 
 		// Each body's disc on screen
@@ -657,15 +700,37 @@ namespace SV
 			float depth; // Clip w: the distance in front of the camera
 		};
 		std::vector<Disc> discs;
+		discs.reserve(namedBodies.size());
 		for (const NamedBody& namedBody : namedBodies)
 		{
 			const glm::vec4 clip = viewProjection * glm::vec4(namedBody.body->GetTranslation(), 1.0f);
 			const glm::vec2 ndc = glm::vec2(clip) / clip.w;
 			discs.push_back({ origin + glm::vec2(ndc.x * 0.5f + 0.5f, 0.5f - ndc.y * 0.5f) * size,
-							  namedBody.body->GetScale().x / clip.w * projectionMatrix[1][1] * size.y * 0.5f, clip.w });
+							  GetOuterRadius(*namedBody.body) / clip.w * projectionMatrix[1][1] * size.y * 0.5f, clip.w });
+		}
+		// Discs big enough to hide a label behind them
+		std::vector<size_t> occluding;
+		for (size_t i = 0; i < discs.size(); i++)
+		{
+			if (discs[i].depth > 0.0f && discs[i].radius >= 1.0f)
+				occluding.push_back(i);
 		}
 
-		for (size_t i = 0; i < namedBodies.size(); i++)
+		// The Sun and planets first, then the moons from the largest down, so where labels would
+		// overlap the more notable body keeps its label
+		std::vector<size_t> order(namedBodies.size());
+		for (size_t i = 0; i < order.size(); i++)
+			order[i] = i;
+		std::stable_sort(order.begin(), order.end(), [this](const size_t a, const size_t b)
+			{
+				const bool aMoon = !namedBodies[a].parent.empty(), bMoon = !namedBodies[b].parent.empty();
+				if (aMoon != bMoon)
+					return !aMoon;
+				return aMoon && namedBodies[a].body->GetScale().x > namedBodies[b].body->GetScale().x;
+			});
+
+		std::vector<ImVec4> placed; // Label rectangles drawn (min x, min y, max x, max y)
+		for (const size_t i : order)
 		{
 			const Disc& disc = discs[i];
 			const glm::vec2& point = disc.centre;
@@ -678,19 +743,67 @@ namespace SV
 
 			// Hidden behind a nearer body's disc
 			bool hidden = false;
-			for (const Disc& other : discs)
+			for (const size_t other : occluding)
 			{
-				if (other.depth > 0.0f && other.depth < disc.depth && glm::distance(other.centre, point) < other.radius)
+				if (other != i && discs[other].depth < disc.depth && glm::distance(discs[other].centre, point) < discs[other].radius)
+				{
 					hidden = true;
+					break;
+				}
 			}
 			if (hidden)
 				continue;
 
+			// Left out where it would overlap a label already drawn
 			const NamedBody& namedBody = namedBodies[i];
-			if (discRadius < LABEL_DOT_RADIUS)
-				drawList->AddCircleFilled(ImVec2(point.x, point.y), LABEL_DOT_RADIUS, colour);
 			const float offset = std::max(discRadius, LABEL_DOT_RADIUS) + 4.0f;
-			drawList->AddText(ImVec2(point.x + offset, point.y - fontSize * 0.5f), colour, namedBody.name.c_str());
+			const ImVec2 textSize = ImGui::CalcTextSize(namedBody.name.c_str());
+			const ImVec4 rect(point.x - LABEL_DOT_RADIUS - LABEL_PADDING, point.y - fontSize * 0.5f - LABEL_PADDING,
+							  point.x + offset + textSize.x + LABEL_PADDING, point.y + fontSize * 0.5f + LABEL_PADDING);
+			bool overlaps = false;
+			for (const ImVec4& other : placed)
+			{
+				if (rect.x < other.z && rect.z > other.x && rect.y < other.w && rect.w > other.y)
+				{
+					overlaps = true;
+					break;
+				}
+			}
+			if (overlaps)
+				continue;
+			placed.push_back(rect);
+
+			const ImU32 labelColour = namedBody.parent.empty() ? colour : moonColour;
+			if (discRadius < LABEL_DOT_RADIUS)
+				drawList->AddCircleFilled(ImVec2(point.x, point.y), namedBody.parent.empty() ? LABEL_DOT_RADIUS : LABEL_DOT_RADIUS * 0.7f, labelColour);
+			drawList->AddText(ImVec2(point.x + offset, point.y - fontSize * 0.5f), labelColour, namedBody.name.c_str());
+		}
+	}
+
+	void Application::SetOccluders(FrameUniforms& frame) const
+	{
+		// By apparent size from the camera's centre
+		const glm::vec3 centre = camera.GetCentrePosition();
+		std::vector<std::pair<float, const CelestrialBody*>> candidates;
+		for (const sRef<CelestrialBody>& body : solarSystem->GetBodies())
+		{
+			if (body->GetType() == CelestrialBodyType::Star)
+				continue;
+			const float radius = body->GetScale().x;
+			const float distance = std::max(glm::distance(body->GetTranslation(), centre), radius);
+			candidates.push_back({ radius / distance, body.get() });
+		}
+		const size_t count = std::min<size_t>(candidates.size(), MAX_OCCLUDERS);
+		std::partial_sort(candidates.begin(), candidates.begin() + count, candidates.end(),
+						  [](const auto& a, const auto& b) { return a.first > b.first; });
+
+		frame.occluderCount = glm::vec4((float)count, 0.0f, 0.0f, 0.0f);
+		for (size_t i = 0; i < count; i++)
+		{
+			const CelestrialBody& body = *candidates[i].second;
+			// Earth's atmosphere reddens its umbra (the only one thick enough to light a moon in its shadow)
+			const bool reddens = body.GetType() == CelestrialBodyType::Planet && dynamic_cast<const Earth*>(&body) != nullptr;
+			frame.occluders[i] = glm::vec4(body.GetTranslation(), reddens ? -body.GetScale().x : body.GetScale().x);
 		}
 	}
 
@@ -726,6 +839,8 @@ namespace SV
 		{
 			ImGui::DragFloat("Exposure (-/=)", &exposure, 0.1f, 0.0f, 100.0f);
 			ImGui::SliderFloat("H-alpha emission", &starRenderer->hydrogenEmission, 0.0f, 4.0f);
+			ImGui::SliderFloat("Solar flares", &starRenderer->solarFlares, 0.0f, 2.0f);
+			ImGui::SetItemTooltip("Brightness of the flares on the Sun's surface and in the loops over its limb (0 for none)");
 			ImGui::SliderFloat("Sun flare", &starRenderer->flareIntensity, 0.0f, 2.0f);
 			ImGui::SetItemTooltip("The Sun's glare and lens flare when it is far away (0 for none)");
 			ImGui::SliderFloat("Faint ring gain", &planetRenderer->diffuseRingGain, 0.0f, 3000.0f, "%.0f",
@@ -740,17 +855,28 @@ namespace SV
 			ImGui::SameLine();
 			ImGui::Checkbox("Show labels (L)", &showLabels);
 			ImGui::Checkbox("Simulate gravity", &simulateGravity);
+			ImGui::SameLine();
+			ImGui::TextDisabled("%s", FormatDate(solarSystem->GetTime()).c_str());
 			ImGui::SliderFloat("Time scale", &daysPerSecond, 0.001f, 100.0f, "%.3g days/s", ImGuiSliderFlags_Logarithmic);
 		}
 
 		if (ImGui::CollapsingHeader("Bodies", ImGuiTreeNodeFlags_DefaultOpen))
 		{
-			for (const NamedBody& namedBody : namedBodies)
+			auto GoToButton = [this](const NamedBody& namedBody)
 			{
-				ImGui::PushID(namedBody.name.c_str());
-				if (ImGui::Button("Go to"))
-					MoveTo(namedBody.body, GO_TO_ZOOM * namedBody.body->GetScale().x);
+				if (namedBody.parent.empty() ? ImGui::Button("Go to") : ImGui::SmallButton("Go to"))
+					MoveTo(namedBody.body, GO_TO_ZOOM * GetOuterRadius(*namedBody.body));
 				ImGui::SameLine();
+			};
+
+			// Each planet, then its moons (in order from the planet) under it
+			for (size_t i = 0; i < namedBodies.size(); i++)
+			{
+				const NamedBody& namedBody = namedBodies[i];
+				if (!namedBody.parent.empty())
+					continue;
+				ImGui::PushID(namedBody.name.c_str());
+				GoToButton(namedBody);
 				if (namedBody.body == lightSource)
 				{
 					ImGui::TextUnformatted(namedBody.name.c_str());
@@ -759,6 +885,39 @@ namespace SV
 				{
 					const double distance = glm::distance(namedBody.body->GetPosition(), lightSource->GetPosition());
 					ImGui::Text("%s (%.2f AU from the Sun)", namedBody.name.c_str(), distance / Universe::AU_IN_UNITS);
+				}
+
+				size_t moonCount = 0;
+				for (size_t j = i + 1; j < namedBodies.size() && namedBodies[j].parent == namedBody.name; j++)
+					moonCount++;
+				if (moonCount > 0)
+				{
+					ImGui::Indent();
+					const std::string header = moonCount == 1 ? "1 moon" : std::to_string(moonCount) + " moons";
+					if (ImGui::TreeNode("Moons", "%s", header.c_str()))
+					{
+						for (size_t j = i + 1; j <= i + moonCount; j++)
+						{
+							const NamedBody& moonBody = namedBodies[j];
+							const auto& moon = static_cast<const Moon&>(*moonBody.body);
+							const Universe::MoonData& data = moon.GetData();
+							ImGui::PushID((int)j);
+							GoToButton(moonBody);
+							const double distance = glm::distance(moonBody.body->GetPosition(), namedBody.body->GetPosition()) *
+													Universe::KM_PER_UNIT;
+							ImGui::Text("%s (%s%.0f km across, %.0f km from %s)", moonBody.name.c_str(), data.radiusEstimated ? "~" : "",
+										2.0 * data.radiusKm, distance, namedBody.name.c_str());
+							if (ImGui::IsItemHovered())
+							{
+								ImGui::SetTooltip("%s%s%s", data.regular ? "Regular moon" : "Irregular moon (a captured body on a distant, inclined orbit)",
+												  data.radiusEstimated ? "\nSize estimated from its brightness" : "",
+												  data.fitError > 1.0 ? "\nPosition approximate (its orbit is strongly perturbed)" : "");
+							}
+							ImGui::PopID();
+						}
+						ImGui::TreePop();
+					}
+					ImGui::Unindent();
 				}
 				ImGui::PopID();
 			}

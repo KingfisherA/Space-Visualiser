@@ -14,9 +14,9 @@ void main()
     mat4 view = uFrame.view;
     vec3 cameraRight = vec3(view[0][0], view[1][0], view[2][0]);
     vec3 cameraUp = vec3(view[0][1], view[1][1], view[2][1]);
-    vec3 positionModel = cameraRight * aPosition.x + cameraUp * aPosition.y;
 
-    vec4 positionWorld = uCorona.transform * vec4(positionModel, 1.0);
-    vWorldPosition = positionWorld.xyz;
-    gl_Position = uFrame.viewProjection * positionWorld;
+    vec3 centre = uCorona.transform[3].xyz;
+    float halfSize = length(uCorona.transform[0].xyz) * CORONA_EXTENT;
+    vWorldPosition = centre + (cameraRight * aPosition.x + cameraUp * aPosition.y) * halfSize;
+    gl_Position = uFrame.viewProjection * vec4(vWorldPosition, 1.0);
 }

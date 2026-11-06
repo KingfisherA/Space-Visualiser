@@ -167,6 +167,37 @@ namespace SV::Atmosphere
 
 			return make<AtmospherePrecomputer>(scatData, kLengthUnitInMeters);
 		}
+
+		// A vacuum: vanishingly thin, but not zero (the precomputation divides by the scattering
+		// coefficients)
+		sRef<AtmospherePrecomputer> CreateVacuum(const double radius, const double height, const double distance)
+		{
+			ScatteringData scatData;
+			scatData.kLambdaMin = 360;
+			scatData.kLambdaMax = 830;
+
+			const std::array<double, 1> solarIrradiance{ DisplaySolarIrradiance(distance) };
+			scatData.solarIrradiance = solarIrradiance;
+			const std::array<double, 1> absorptionExtinction{ 0.0 };
+			scatData.rayleighExtinction = absorptionExtinction;
+
+			scatData.kBottomRadius = radius;
+			scatData.kTopRadius = radius + height;
+
+			constexpr double kScaleHeight = 10000.0;
+			scatData.kRayleighScatteringCoefficient = AtmospherePrecomputer::CalculateRayleighCoefficient(1.0 + 1e-8);
+			scatData.kMieScaleHeight = kScaleHeight;
+			scatData.kMieAngstromAlpha = 0.0;
+			scatData.kMieAngstromBeta = 1e-9;
+			scatData.kMieSingleScatteringAlbedo = 0.9;
+			scatData.kMiePhaseFunctionG = 0.7;
+			scatData.kGroundAlbedo = 0.01;
+
+			scatData.rayleighDensity[0] = DensityProfileLayer(0.0, 1.0, -1.0 / kScaleHeight, 0.0, 0.0);
+			scatData.mieDensity[0] = DensityProfileLayer(0.0, 1.0, -1.0 / kScaleHeight, 0.0, 0.0);
+
+			return make<AtmospherePrecomputer>(scatData, kLengthUnitInMeters);
+		}
 	}
 	//
 #pragma endregion
@@ -175,32 +206,13 @@ namespace SV::Atmosphere
 	//
 	MercuryAtmosphere::MercuryAtmosphere()
 	{
-		ScatteringData scatData;
-		scatData.kLambdaMin = 360;
-		scatData.kLambdaMax = 830;
+		atmoPrecomputer = CreateVacuum(2439700.0, 50000.0, 0.387);
+	}
 
-		const std::array<double, 1> solarIrradiance{ DisplaySolarIrradiance(0.387) };
-		scatData.solarIrradiance = solarIrradiance;
-		const std::array<double, 1> absorptionExtinction{ 0.0 };
-		scatData.rayleighExtinction = absorptionExtinction;
-
-		scatData.kBottomRadius = 2439700.0;
-		scatData.kTopRadius = scatData.kBottomRadius + 50000.0;
-
-		// Vanishingly thin, but not zero (the precomputation divides by the scattering coefficients)
-		constexpr double kScaleHeight = 10000.0;
-		scatData.kRayleighScatteringCoefficient = AtmospherePrecomputer::CalculateRayleighCoefficient(1.0 + 1e-8);
-		scatData.kMieScaleHeight = kScaleHeight;
-		scatData.kMieAngstromAlpha = 0.0;
-		scatData.kMieAngstromBeta = 1e-9;
-		scatData.kMieSingleScatteringAlbedo = 0.9;
-		scatData.kMiePhaseFunctionG = 0.7;
-		scatData.kGroundAlbedo = 0.01;
-
-		scatData.rayleighDensity[0] = DensityProfileLayer(0.0, 1.0, -1.0 / kScaleHeight, 0.0, 0.0);
-		scatData.mieDensity[0] = DensityProfileLayer(0.0, 1.0, -1.0 / kScaleHeight, 0.0, 0.0);
-
-		atmoPrecomputer = make<AtmospherePrecomputer>(scatData, kLengthUnitInMeters);
+	AirlessAtmosphere::AirlessAtmosphere(const double distance)
+	{
+		// A shell 1% of the body's radius thick (the sky mesh is drawn at its top)
+		atmoPrecomputer = CreateVacuum(1000000.0, 10000.0, distance);
 	}
 
 	VenusAtmosphere::VenusAtmosphere()
@@ -277,6 +289,97 @@ namespace SV::Atmosphere
 
 		scatData.rayleighDensity[0] = DensityProfileLayer(0.0, 1.0, -1.0 / kScaleHeight, 0.0, 0.0);
 		scatData.mieDensity[0] = DensityProfileLayer(0.0, 1.0, -1.0 / kScaleHeight, 0.0, 0.0);
+
+		atmoPrecomputer = make<AtmospherePrecomputer>(scatData, kLengthUnitInMeters);
+	}
+	//
+#pragma endregion
+	//
+#pragma region Moon Atmospheres
+	//
+	TitanAtmosphere::TitanAtmosphere()
+	{
+		ScatteringData scatData;
+		scatData.kLambdaMin = 360;
+		scatData.kLambdaMax = 830;
+
+		const std::array<double, 1> solarIrradiance{ DisplaySolarIrradiance(9.537) };
+		scatData.solarIrradiance = solarIrradiance;
+
+		// The haze reaches about 500 km (a detached layer at its top gives Cassini's views of the limb
+		// their blue rim)
+		scatData.kBottomRadius = 2574700.0;
+		scatData.kTopRadius = scatData.kBottomRadius + 600000.0;
+
+		// Nitrogen at 1.47 bar and 94 K on the surface: with Titan's low gravity there is ten times
+		// Earth's column of gas (a Rayleigh optical depth of about 1 at 550 nm). Scale height 21 km
+		// (28 g/mol, g = 1.35 m s^-2).
+		constexpr double kRayleighScaleHeight = 21000.0;
+		scatData.kRayleighScatteringCoefficient =
+			AtmospherePrecomputer::CalculateRayleighCoefficient(EffectiveIndex(2.98e-4, 1.47, 94.0));
+
+		// The haze (fractal aggregates of tholins): an optical depth of about 4 at 550 nm, falling
+		// with wavelength, forward scattering (Huygens DISR, Tomasko et al. 2008)
+		constexpr double kHazeScaleHeight = 65000.0;
+		scatData.kMieScaleHeight = kHazeScaleHeight;
+		scatData.kMieAngstromAlpha = 1.2;
+		scatData.kMieAngstromBeta = 1.95;
+		scatData.kMieSingleScatteringAlbedo = 0.995;
+		scatData.kMiePhaseFunctionG = 0.65;
+
+		// The tholins absorb blue light: absorption with the haze's profile, scaled by lambda^-4 (in
+		// micrometres) in ProcessAtmosphericData, which gives the haze a single scattering albedo of
+		// about 0.67 at 440 nm, 0.80 at 550 nm and 0.88 at 680 nm. Many scatterings in the deep haze
+		// compound that into Titan's orange; where the haze thins out at the limb it looks blue.
+		const std::array<double, 1> hazeAbsorption{ 1.4e-6 };
+		scatData.rayleighExtinction = hazeAbsorption;
+		scatData.absorptionDensity[0] = DensityProfileLayer(0.0, 1.0, -1.0 / kHazeScaleHeight, 0.0, 0.0);
+
+		// The surface, dark beneath the haze (scaled by lambda^-4 in ProcessAtmosphericData)
+		scatData.kGroundAlbedo = 0.01;
+
+		// From 600 km up the Sun stays in view until 32 degrees past the terminator, and the haze
+		// scatters its light further: twilight reaches far round the night side
+		scatData.kMaxSunZenithAngle = 145.0;
+
+		scatData.rayleighDensity[0] = DensityProfileLayer(0.0, 1.0, -1.0 / kRayleighScaleHeight, 0.0, 0.0);
+		scatData.mieDensity[0] = DensityProfileLayer(0.0, 1.0, -1.0 / kHazeScaleHeight, 0.0, 0.0);
+
+		atmoPrecomputer = make<AtmospherePrecomputer>(scatData, kLengthUnitInMeters);
+	}
+
+	TritonAtmosphere::TritonAtmosphere()
+	{
+		ScatteringData scatData;
+		scatData.kLambdaMin = 360;
+		scatData.kLambdaMax = 830;
+
+		const std::array<double, 1> solarIrradiance{ DisplaySolarIrradiance(30.07) };
+		scatData.solarIrradiance = solarIrradiance;
+		const std::array<double, 1> absorptionExtinction{ 0.0 };
+		scatData.rayleighExtinction = absorptionExtinction;
+
+		scatData.kBottomRadius = 1353400.0;
+		scatData.kTopRadius = scatData.kBottomRadius + 60000.0;
+
+		// Nitrogen at 14 microbar and 38 K; scale height 14 km (g = 0.78 m s^-2)
+		constexpr double kScaleHeight = 14000.0;
+		scatData.kRayleighScatteringCoefficient =
+			AtmospherePrecomputer::CalculateRayleighCoefficient(EffectiveIndex(2.98e-4, 1.4e-5, 38.0));
+
+		// Thin, bright haze layers below about 30 km, with an optical depth of 0.003 to 0.01, seen by
+		// Voyager 2 above the limb (Rages and Pollack 1992)
+		scatData.kMieScaleHeight = 10000.0;
+		scatData.kMieAngstromAlpha = 1.0;
+		scatData.kMieAngstromBeta = 0.004;
+		scatData.kMieSingleScatteringAlbedo = 0.99;
+		scatData.kMiePhaseFunctionG = 0.6;
+
+		// The nitrogen frost (scaled by lambda^-4 in ProcessAtmosphericData)
+		scatData.kGroundAlbedo = 0.06;
+
+		scatData.rayleighDensity[0] = DensityProfileLayer(0.0, 1.0, -1.0 / kScaleHeight, 0.0, 0.0);
+		scatData.mieDensity[0] = DensityProfileLayer(0.0, 1.0, -1.0 / scatData.kMieScaleHeight, 0.0, 0.0);
 
 		atmoPrecomputer = make<AtmospherePrecomputer>(scatData, kLengthUnitInMeters);
 	}

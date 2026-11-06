@@ -16,14 +16,18 @@ namespace SV::Universe
 	{
 		std::string name;
 		sRef<CelestrialBody> body;
+		// The planet a moon orbits (empty for the Sun and planets)
+		std::string parent;
 	};
 
 	// Days since the J2000.0 epoch (2000-01-01 12:00 UTC) now
 	double DaysSinceJ2000Now();
 
-	// Adds the Sun and the eight planets to `system`, all to scale: their sizes, their orbits (from
-	// JPL's Keplerian elements, at `daysSinceJ2000`) and the directions of their rotation axes.
-	// The ecliptic is the world's XZ plane, with ecliptic north up (+Y) and the vernal equinox along
-	// +X. Returns the bodies, the Sun first, in order from the Sun.
+	// Adds the Sun, the eight planets and all of their known moons to `system`, all to scale: their
+	// sizes, their orbits (the planets' from JPL's Keplerian elements, the moons' from their mean
+	// elements about their planets, see MoonData.hpp) at `daysSinceJ2000`, and the directions of
+	// their rotation axes. The ecliptic is the world's XZ plane, with ecliptic north up (+Y) and the
+	// vernal equinox along +X. Returns the bodies, the Sun first, then each planet in order from the
+	// Sun followed by its moons in order from the planet.
 	std::vector<SolarSystemBody> CreateSolarSystem(PlanetarySystem& system, double daysSinceJ2000);
 }

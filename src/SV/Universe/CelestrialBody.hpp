@@ -21,20 +21,27 @@ namespace SV
 	enum class CelestrialBodyType
 	{
 		Star = 1,
-		Planet = 2
+		Planet = 2,
+		Moon = 3 // Drawn as a planet; its orbit is computed rather than integrated
 	};
 
 	// A body of the gravity simulation. Its position is kept in double precision (the solar system
 	// spans millions of world units, beyond float precision); its Transformation's translation is
 	// its position relative to the render origin (see PlanetarySystem::SetRenderOrigin), which keeps
 	// the coordinates the GPU sees small.
+	//
+	// A planet with moons is simulated as its system: its system's mass at the system's barycentre
+	// (moving with its velocity), the planet itself offset from the barycentre by the pull of its
+	// moons (see PlanetarySystem::AddMoon).
 	class CelestrialBody : public Transformation
 	{
 	public:
-		CelestrialBody(const CelestrialBodyType typeIn, const double massIn) : mass(massIn), mytype(typeIn) {}
+		CelestrialBody(const CelestrialBodyType typeIn, const double massIn) : mass(massIn), systemMass(massIn), mytype(typeIn) {}
 
 		[[nodiscard]] CelestrialBodyType GetType() const noexcept { return mytype; }
 		[[nodiscard]] double GetMass() const noexcept { return mass; }
+		// The mass of the body and its moons
+		[[nodiscard]] double GetSystemMass() const noexcept { return systemMass; }
 		// World units (see Universe::METRES_PER_UNIT)
 		[[nodiscard]] const glm::dvec3& GetPosition() const noexcept { return position; }
 
@@ -45,8 +52,12 @@ namespace SV
 		friend class SV::Universe::PlanetarySystem;
 
 		glm::dvec3 position = { 0.0, 0.0, 0.0 };
+		// Of the body's system's barycentre
 		glm::dvec3 velocity = { 0.0, 0.0, 0.0 };
+		// position - the system's barycentre
+		glm::dvec3 barycentreOffset = { 0.0, 0.0, 0.0 };
 		double mass;
+		double systemMass;
 		CelestrialBodyType mytype;
 	};
 

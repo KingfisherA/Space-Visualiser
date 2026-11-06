@@ -7,7 +7,8 @@
 namespace SV
 {
 	// Translation, rotations and scale of an object, combined into transformationMatrix by
-	// RecalculateTransformation. Rotations are (axis.xyz, angle in degrees), applied in order.
+	// RecalculateTransformation. Rotations are (axis.xyz, angle in degrees), applied in order after
+	// the orientation.
 	class Transformation
 	{
 	public:
@@ -20,10 +21,17 @@ namespace SV
 		[[nodiscard]] const glm::vec3& GetScale() const { return scaling; }
 
 		void Rotate(const glm::vec4& rotation) { rotations.push_back(rotation); }
+		// Sets the orientation directly, clearing the rotations: the columns are the object's axes in
+		// world space
+		void SetOrientation(const glm::mat3& axes)
+		{
+			rotations.clear();
+			orientation = glm::mat4(axes);
+		}
 
 		[[nodiscard]] glm::mat4 GetRotationMatrix() const
 		{
-			glm::mat4 rotationMatrix(1.0f);
+			glm::mat4 rotationMatrix = orientation;
 			for (const glm::vec4& rot : rotations)
 				rotationMatrix *= glm::rotate(glm::radians(rot.w), glm::vec3(rot));
 			return rotationMatrix;
@@ -41,5 +49,6 @@ namespace SV
 		glm::vec3 translation{ 0.0f };
 		glm::vec3 scaling{ 1.0f };
 		std::vector<glm::vec4> rotations;
+		glm::mat4 orientation{ 1.0f };
 	};
 }

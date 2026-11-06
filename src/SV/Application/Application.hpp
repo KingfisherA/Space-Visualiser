@@ -53,6 +53,7 @@ namespace SV
 		{
 			std::string name;
 			sRef<CelestrialBody> body;
+			std::string parent; // The planet a moon orbits
 		};
 
 		// Each slow step of loading is given its own frame, so the splash screen can show progress
@@ -85,6 +86,9 @@ namespace SV
 		void RenderControlsPanel();
 		// Names the bodies over the viewport (inside its ImGui window)
 		void DrawLabels();
+		// The bodies whose shadows are drawn this frame: those that look largest from the camera's
+		// centre (the body in view, its planet and neighbouring moons)
+		void SetOccluders(FrameUniforms& frame) const;
 		// Marks the camera's orbit centre over the viewport (inside its ImGui window)
 		void DrawCrosshair();
 

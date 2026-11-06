@@ -33,7 +33,8 @@ namespace SV::Atmosphere
 		kMieScaleHeight(0),
 		mieDensity(),
 		absorptionDensity(),
-		kGroundAlbedo(0)
+		kGroundAlbedo(0),
+		kMaxSunZenithAngle(0)
 	{
 	}
 	ScatteringData::ScatteringData(const ScatteringData& dataIn) noexcept :
@@ -52,7 +53,8 @@ namespace SV::Atmosphere
 		kMieScaleHeight(dataIn.kMieScaleHeight),
 		mieDensity(dataIn.mieDensity),
 		absorptionDensity(dataIn.absorptionDensity),
-		kGroundAlbedo(dataIn.kGroundAlbedo)
+		kGroundAlbedo(dataIn.kGroundAlbedo),
+		kMaxSunZenithAngle(dataIn.kMaxSunZenithAngle)
 	{
 	}
 	//
@@ -293,7 +295,8 @@ namespace SV::Atmosphere
 		pAtmoData.absorptionExtinction = InterpolateScatteringSpectrum(absorptionExtinction, lengthUnit);
 		pAtmoData.groundAlbdeo = InterpolateScatteringSpectrum(groundAlbedo, 1.0);
 		pAtmoData.sunAngularRadius = (float)SUN_ANGULAR_RADIUS;
-		pAtmoData.muSMin = cos((halfPrecision ? 102.0 : 120.0) / 180.0 * kPi); //muSMin
+		const double maxSunZenith = scatteringData.kMaxSunZenithAngle > 0.0 ? scatteringData.kMaxSunZenithAngle : (halfPrecision ? 102.0 : 120.0);
+		pAtmoData.muSMin = cos(maxSunZenith / 180.0 * kPi);
 		pAtmoData.sunSpectralRadianceToLuminance = sunK;
 		pAtmoData.skySpectralRadianceToLuminance = skyK;
 

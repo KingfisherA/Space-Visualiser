@@ -1,4 +1,6 @@
 #pragma once
+#include <array>
+#include <map>
 #include <unordered_map>
 #include <vector>
 
@@ -155,8 +157,12 @@ namespace SV
 		};
 		[[nodiscard]] MapLoadProgress GetMapLoadProgress() const;
 
-		// Must be inside the scene render pass with the frame bind group bound at set 0
-		void Render(DH::CommandList& cmd, DH::PolygonMode polygonMode, const glm::vec3& cameraPosition);
+		// Must be inside the scene render pass with the frame bind group bound at set 0. pixelAngle is
+		// the angle a pixel spans (radians). Bodies smaller than a pixel would flicker as they move
+		// across the pixel grid, so they are drawn at least MIN_DISC_PIXELS in radius and dimmed by
+		// the difference in area; bodies far smaller than that (most moons, most of the time) are
+		// skipped.
+		void Render(DH::CommandList& cmd, DH::PolygonMode polygonMode, const glm::vec3& cameraPosition, float pixelAngle = 0.0f);
 
 		// Brightness gain of the faint, dusty rings (such as Saturn's E ring and Jupiter's rings), up
 		// to an optical depth of about 0.02. At 1 they have their true optical depths (about 1e-5)
@@ -199,6 +205,17 @@ namespace SV
 		ModalPipeline ringsPipeline;
 
 		std::unordered_map<const Planet*, PlanetBindings> planetBindings;
+
+		// Bind groups shared by bodies with the same resources (Vulkan's descriptor pool holds 1024
+		// sets, and most moons share an atmosphere and a plain colour map): by atmosphere, and by
+		// the textures bound (with the map flags)
+		struct AtmosphereGroups
+		{
+			sRef<DH::BindGroup> atmosphere;
+			sRef<DH::BindGroup> ringShadow;
+		};
+		std::unordered_map<const SV::Atmosphere::AtmospherePrecomputer*, AtmosphereGroups> atmosphereGroups;
+		std::map<std::array<const void*, 6>, sRef<DH::BindGroup>> mapsGroups;
 		// Precomputers whose temporary resources can be freed once their commands have run
 		std::vector<sRef<SV::Atmosphere::AtmospherePrecomputer>> finishedPrecomputers;
 	};

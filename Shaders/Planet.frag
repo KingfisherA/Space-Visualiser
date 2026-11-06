@@ -59,7 +59,7 @@ void SpecularPhong(float specReflectivity, vec3 unitNormal, vec3 unitToCameraVec
 
 // Earth: the original stylised shading, where the surface takes its brightness from the sky.
 // Positions are in the atmosphere's sphere space (km).
-vec4 ShadeEarthLike(vec3 camera, vec3 viewRay, vec3 skyPoint, vec3 sunDirection, vec3 toCamera, int flags)
+vec4 ShadeEarthLike(vec3 camera, vec3 viewRay, vec3 skyPoint, vec3 sunDirection, vec3 toCamera, int flags, vec3 eclipse)
 {
     AtmosphereParameters atmosphere = ATMOSPHERE;
     float time = uFrame.times.x;
@@ -122,10 +122,15 @@ vec4 ShadeEarthLike(vec3 camera, vec3 viewRay, vec3 skyPoint, vec3 sunDirection,
         alpha = 1.0;
     }
 
-    return vec4(radiance + nightColour, alpha);
+    // A moon's shadow darkens the sky and the surface, but not the city lights
+    return vec4(radiance * eclipse + nightColour, alpha);
 }
 
-void main()
+// The fraction of the drawn disc the body covers: below 1 when a body smaller than a pixel is drawn
+// inflated (see PlanetRenderer::Render)
+float coverage = 1.0;
+
+void ShadePlanet()
 {
     AtmosphereParameters atmosphere = ATMOSPHERE;
     int flags = int(uPlanet.axes[1].w + 0.5);
@@ -137,6 +142,14 @@ void main()
     float unitsPerRadius = uPlanet.axes[2].w;
     vec3 camera = toPlanet * (uFrame.cameraPosition.xyz - centre) / unitsPerRadius;
     vec3 skyPoint = toPlanet * (vWorldPosition - centre) / unitsPerRadius;
+
+    // A body drawn inflated is shaded as its true disc, scaled up to the drawn one
+    float inflation = length(uPlanet.transform[0].xyz) / (unitsPerRadius * atmosphere.top_radius / atmosphere.bottom_radius);
+    if (inflation > 1.001)
+    {
+        skyPoint /= inflation;
+        coverage = 1.0 / (inflation * inflation);
+    }
     vec3 sunOffset = uFrame.sun.xyz - centre;
     vec3 toSun = normalize(toPlanet * sunOffset);
     float sunAngularRadius = asin(min(uFrame.sun.w / length(sunOffset), 1.0));
@@ -148,9 +161,14 @@ void main()
     vec3 viewRayS = normalize(skyPointS - cameraS);
     vec3 sunDirectionS = normalize(ToSphereSpace(toSun, polarRatio));
 
+    // Eclipses: the sunlight reaching the point below this one on the surface, past the moons and
+    // planets that can cast shadows here
+    vec3 surfaceBelow = normalize(ToSphereSpace(skyPoint, polarRatio));
+    vec3 eclipse = SunVisibility(centre + GetPlanetRotation() * FromSphereSpace(surfaceBelow, polarRatio) * unitsPerRadius, centre);
+
     if ((flags & PLANET_LIT_SURFACE) == 0)
     {
-        vec4 colour = ShadeEarthLike(cameraS, viewRayS, skyPointS, sunDirectionS, normalize(camera - skyPoint), flags);
+        vec4 colour = ShadeEarthLike(cameraS, viewRayS, skyPointS, sunDirectionS, normalize(camera - skyPoint), flags, eclipse);
         float alpha = clamp(colour.a, 0.0, 1.0);
         pixColour = vec4(colour.rgb * alpha, alpha); // Premultiplied
         return;
@@ -174,17 +192,20 @@ void main()
     uvDy.x -= round(uvDy.x);
     uv.x += uFrame.times.x * uPlanet.shape.w;
 
-    // The rings' shadow. It falls on the air above the surface as well as on the surface, so it
-    // also dims the light the atmosphere scatters (the shadow is taken at the surface point below).
-    vec3 ringShadow = vec3(1.0);
+    // The rings' shadow, and other bodies'. It falls on the air above the surface as well as on the
+    // surface, so it also dims the light the atmosphere scatters (the shadow is taken at the surface
+    // point below).
+    vec3 shadow = vec3(1.0);
     if ((flags & PLANET_HAS_RINGS) != 0)
-        ringShadow = RingShadow(ground, toSun, uPlanet.shape.y, uPlanet.shape.z, sunAngularRadius);
+        shadow = RingShadow(ground, toSun, uPlanet.shape.y, uPlanet.shape.z, sunAngularRadius);
+    // Shadows of other bodies (taken at the surface point, like the rings')
+    shadow *= SunVisibility(centre + GetPlanetRotation() * ground * unitsPerRadius, centre);
 
     if (!hitsGround)
     {
         // Sky: the limb of the atmosphere, which glows when lit from behind (forward scattering)
         vec3 transmittance;
-        vec3 radiance = ToneMap(ringShadow * GetSkyRadiance(atmosphere, transmittanceTexture, scatteringTexture,
+        vec3 radiance = ToneMap(shadow * GetSkyRadiance(atmosphere, transmittanceTexture, scatteringTexture,
                                                             scatteringTexture, cameraS, viewRayS, 0.0, sunDirectionS,
                                                             transmittance));
         // The air adds its light and hides what is behind it by its opacity along the ray (faint
@@ -199,18 +220,17 @@ void main()
     vec3 inScattered = GetSkyRadianceToPoint(atmosphere, transmittanceTexture, scatteringTexture, scatteringTexture,
                                              cameraS, groundS, 0.0, sunDirectionS, viewTransmittance);
 
-    // Sunlight reaching the surface through the atmosphere (and the rings)
+    // Sunlight reaching the surface through the atmosphere (past the rings and other bodies)
     vec3 normal = normalize(vec3(ground.x, ground.y / (polarRatio * polarRatio), ground.z));
     float r = length(groundS);
     vec3 sunlight = atmosphere.solar_irradiance *
                     GetTransmittanceToSun(atmosphere, transmittanceTexture, r, dot(groundS, sunDirectionS) / r) *
-                    max(dot(normal, toSun), 0.0);
+                    max(dot(normal, toSun), 0.0) * shadow;
     vec3 ringshine = vec3(0.0);
     if ((flags & PLANET_HAS_RINGS) != 0)
     {
         float innerRadius = uPlanet.shape.y;
         float outerRadius = uPlanet.shape.z;
-        sunlight *= ringShadow;
         ringshine = atmosphere.solar_irradiance *
                     RingshineIrradiance(ground, normal, toSun, innerRadius, outerRadius, polarRatio, sunAngularRadius);
     }
@@ -220,5 +240,11 @@ void main()
     vec3 albedo = pow(textureGrad(uDiffuseMap, uv, uvDx, uvDy).rgb, vec3(2.2)) * uPlanet.axes[0].w;
     vec3 surface = albedo / PI * (sunlight + ringshine);
 
-    pixColour = vec4(ToneMap(surface * viewTransmittance + inScattered * ringShadow), 1.0);
+    pixColour = vec4(ToneMap(surface * viewTransmittance + inScattered * shadow), 1.0);
+}
+
+void main()
+{
+    ShadePlanet();
+    pixColour *= coverage; // Premultiplied
 }

@@ -8,6 +8,9 @@
 
 namespace SV
 {
+	// Bodies that can cast shadows (MAX_OCCLUDERS in Shaders/Include/Frame.glsl)
+	constexpr int MAX_OCCLUDERS = 16;
+
 	// Mirrors the FrameUniforms block in Shaders/Include/Frame.glsl (std140)
 	struct FrameUniforms
 	{
@@ -19,6 +22,9 @@ namespace SV
 		glm::vec4 sun{ 0.0f };     // xyz = the Sun's position (world space), w = the Sun's radius
 		glm::vec4 times{ 0.0f };   // x = planet animation time, y = star animation time
 		glm::vec4 display{ 0.0f }; // x = exposure
+		glm::vec4 occluderCount{ 0.0f }; // x = the number of occluders
+		// xyz = centre (world space), w = radius (negative for a body whose atmosphere reddens its umbra)
+		glm::vec4 occluders[MAX_OCCLUDERS] = {};
 	};
 
 	// Resources shared by every scene renderer. Scene pipelines use set 0 for the frame uniforms.

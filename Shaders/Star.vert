@@ -2,16 +2,10 @@
 #extension GL_ARB_shading_language_420pack : require
 
 #include "Frame.glsl"
+#include "StarPushConstants.glsl"
 
 layout(location = 0) in vec3 aPosition;
 layout(location = 1) in vec3 aNormal;
-
-layout(push_constant) uniform StarPushConstants
-{
-    mat4 transform;
-    vec4 properties; // radius, temperature, noise octaves
-    vec4 colour;
-} uStar;
 
 layout(location = 0) out vec3 vVertex;
 layout(location = 1) out vec3 vCamVector;

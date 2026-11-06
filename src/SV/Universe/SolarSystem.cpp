@@ -7,6 +7,9 @@
 #include <glm/glm.hpp>
 
 #include "Dahlia/Maths/Maths.h"
+#include "SV/Atmosphere/Atmosphere.hpp"
+#include "Coordinates.hpp"
+#include "MoonData.hpp"
 #include "PlanetarySystem.hpp"
 #include "Planet.hpp"
 #include "Star.hpp"
@@ -15,13 +18,10 @@ namespace SV::Universe
 {
 	namespace
 	{
-		constexpr double DEGREES = 3.14159265358979323846 / 180.0;
 		constexpr double METRES_PER_AU = 149597870700.0;
 		constexpr double SECONDS_PER_DAY = 86400.0;
 		// J2000.0 as a Unix time (2000-01-01 12:00:00 UTC)
 		constexpr double J2000_UNIX_SECONDS = 946728000.0;
-		// Obliquity of the ecliptic at J2000.0
-		constexpr double OBLIQUITY = 23.43928 * DEGREES;
 
 		constexpr double SUN_MASS = 1.98847E30;
 		constexpr double SUN_RADIUS_KM = 695700.0;
@@ -48,24 +48,6 @@ namespace SV::Universe
 			// Direction of the north pole (IAU WGCCRE 2015), equatorial J2000
 			double poleRightAscension, poleDeclination; // Degrees
 		};
-
-		// Ecliptic coordinates (x to the vernal equinox, z to ecliptic north) to world coordinates
-		glm::dvec3 EclipticToWorld(const glm::dvec3& v)
-		{
-			return { v.x, v.z, -v.y };
-		}
-
-		// A direction given by right ascension and declination (degrees, equatorial J2000) in world
-		// coordinates
-		glm::dvec3 EquatorialDirectionToWorld(const double rightAscension, const double declination)
-		{
-			const double ra = rightAscension * DEGREES, dec = declination * DEGREES;
-			const glm::dvec3 equatorial(std::cos(dec) * std::cos(ra), std::cos(dec) * std::sin(ra), std::sin(dec));
-			const glm::dvec3 ecliptic(equatorial.x,
-									  std::cos(OBLIQUITY) * equatorial.y + std::sin(OBLIQUITY) * equatorial.z,
-									  -std::sin(OBLIQUITY) * equatorial.y + std::cos(OBLIQUITY) * equatorial.z);
-			return EclipticToWorld(ecliptic);
-		}
 
 		// Turns the body so its local +Y (its rotation axis) points along `pole`
 		void PointAxis(CelestrialBody& body, const glm::dvec3& pole)
@@ -134,7 +116,7 @@ namespace SV::Universe
 		sun->Scale(glm::vec3((float)(SUN_RADIUS_KM / KM_PER_UNIT)));
 		PointAxis(*sun, EquatorialDirectionToWorld(286.13, 63.87));
 		system.Add(sun);
-		bodies.push_back({ "Sun", sun });
+		bodies.push_back({ "Sun", sun, "" });
 
 		// Earth's elements are those of the Earth-Moon barycentre
 		const PlanetDescription planets[] = {
@@ -172,20 +154,55 @@ namespace SV::Universe
 			  299.36, 43.46 },
 		};
 
+		system.SetTime(daysSinceJ2000);
 		for (const PlanetDescription& description : planets)
 		{
 			const sRef<Planet> planet = description.create();
 			planet->Scale(glm::vec3((float)(description.equatorialRadiusKm / KM_PER_UNIT)));
 			PointAxis(*planet, EquatorialDirectionToWorld(description.poleRightAscension, description.poleDeclination));
 
+			// The elements are of the planet's system's barycentre (for Earth, the Earth-Moon
+			// barycentre): the moons, added below, offset the planet from it
+			std::vector<const MoonData*> moonData;
+			double moonsMass = 0.0;
+			for (const MoonData& data : MOON_DATA)
+			{
+				if (description.name == std::string(data.planet))
+				{
+					moonData.push_back(&data);
+					moonsMass += data.massKg;
+				}
+			}
+
 			glm::dvec3 position, velocity;
-			const double mu = SV::Maths::Gravity::G * (SUN_MASS + planet->GetMass());
+			const double mu = SV::Maths::Gravity::G * (SUN_MASS + planet->GetMass() + moonsMass);
 			OrbitalState(description.orbit, daysSinceJ2000, mu, position, velocity);
 			planet->SetPosition(position);
 			planet->SetVelocity(velocity);
 
 			system.Add(planet);
-			bodies.push_back({ description.name, planet });
+			bodies.push_back({ description.name, planet, "" });
+
+			// The airless moons share one atmosphere (a vacuum, lit for the planet's distance)
+			const double distance = description.orbit.semiMajorAxis;
+			sRef<SV::Atmosphere::IAtmosphere> airless;
+			for (const MoonData* data : moonData)
+			{
+				sRef<SV::Atmosphere::IAtmosphere> atmosphere;
+				if (data->naifId == 606)
+					atmosphere = make<SV::Atmosphere::TitanAtmosphere>();
+				else if (data->naifId == 801)
+					atmosphere = make<SV::Atmosphere::TritonAtmosphere>();
+				else
+				{
+					if (airless == nullptr)
+						airless = make<SV::Atmosphere::AirlessAtmosphere>(distance);
+					atmosphere = airless;
+				}
+				const sRef<Moon> moon = make<Moon>(*data, atmosphere);
+				system.AddMoon(moon, planet);
+				bodies.push_back({ moon->GetName(), moon, description.name });
+			}
 		}
 
 		// Keep the system's centre of mass still

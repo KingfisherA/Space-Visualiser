@@ -35,7 +35,7 @@ namespace SV
 		// The photosphere's colour: a blackbody at the star's temperature, tinted by starColour
 		[[nodiscard]] glm::vec3 GetPhotosphereColour() const { return BlackbodyColour(starTemperature) * starColour; }
 
-		// The star is drawn with the radius of its scale; this scales its sunspot noise
+		// The star is drawn with the radius of its scale
 		float radius = 1.0f;
 		float starTemperature = 5772.0f;
 		glm::vec3 starColour;
@@ -59,8 +59,8 @@ namespace SV
 		glm::vec2 viewportSize; // Pixels
 	};
 
-	// Draws stars (noise textured spheres) and their coronas and chromospheres (additive camera
-	// facing quads), and the glare of stars too small on screen to show them (a lens flare)
+	// Draws stars (noise textured spheres, with flares) and their coronas, loops, chromospheres and
+	// prominences (additive camera facing quads), and the glare of stars too small on screen to show them (a lens flare)
 	class StarRenderer : public CelestrialRenderer<SV::Star>
 	{
 	public:
@@ -76,6 +76,8 @@ namespace SV
 
 		// Brightness of the hydrogen (Balmer line) emission of the chromosphere and prominences
 		float hydrogenEmission = 1.0f;
+		// Brightness of solar flares on the disc and in the loops over the limb (0 for none)
+		float solarFlares = 1.0f;
 		// Brightness of the flare (0 for none)
 		float flareIntensity = 1.0f;
 

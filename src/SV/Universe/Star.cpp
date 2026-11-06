@@ -15,20 +15,20 @@ namespace SV
 {
 	namespace
 	{
-		// Mirrors the push constants in Shaders/Star.vert and Star.frag
+		// Mirrors Shaders/Include/StarPushConstants.glsl
 		struct StarPushConstants
 		{
-			glm::mat4 transform;
-			glm::vec4 properties; // radius, temperature, noise octaves
-			glm::vec4 colour;
+			glm::mat4 transform;  // Model to world
+			glm::vec4 properties; // x = detail octaves (0 for a plain disc), y = flare activity
+			glm::vec4 colour;     // rgb = photosphere colour
 		};
 
 		// Mirrors Shaders/Include/CoronaPushConstants.glsl
 		struct CoronaPushConstants
 		{
-			glm::mat4 transform; // Translation, and scale to the billboard's half size
-			glm::vec4 colour;    // rgb = photosphere colour, w = the star's radius
-			glm::vec4 axis;      // xyz = the star's rotation axis, w = hydrogen emission intensity
+			glm::mat4 transform; // The star's model to world transform
+			glm::vec4 colour;    // rgb = photosphere colour, w = hydrogen emission intensity
+			glm::vec4 activity;  // x = flare activity
 		};
 
 		// Mirrors Shaders/Include/FlarePushConstants.glsl
@@ -44,8 +44,6 @@ namespace SV
 
 		constexpr unsigned int SPHERE_SUBDIVISIONS = 20;
 		constexpr float STAR_NOISE_OCTAVES = 3.0f;
-		// Half size of the corona billboard in stellar radii (CORONA_EXTENT in CoronaPushConstants.glsl)
-		constexpr float CORONA_EXTENT = 4.0f;
 
 		// The flare fades in as the star's disc shrinks on screen from FLARE_START_RADIUS to
 		// FLARE_FULL_RADIUS pixels (the corona is barely visible by then). From Earth the Sun's disc
@@ -166,17 +164,18 @@ namespace SV
 	{
 		if (stars.empty()) return;
 
+		for (const auto& [distance, index] : distanceCache)
+			stars[index]->RecalculateTransformation();
+
 		// Coronas first, so the stars are drawn over them
 		cmd.BindPipeline(coronaPipeline.Get(polygonMode));
 		for (const auto& [distance, index] : distanceCache)
 		{
 			const Star& star = *stars[index];
-			const float radius = star.GetScale().x;
-			const glm::vec3 axis = glm::normalize(glm::vec3(star.GetRotationMatrix() * glm::vec4(0.0f, 1.0f, 0.0f, 0.0f)));
 			const CoronaPushConstants pushConstants{
-				glm::translate(star.GetTranslation()) * glm::scale(glm::vec3(CORONA_EXTENT * radius)),
-				glm::vec4(star.GetPhotosphereColour(), radius),
-				glm::vec4(axis, hydrogenEmission)
+				star.transformationMatrix,
+				glm::vec4(star.GetPhotosphereColour(), hydrogenEmission),
+				glm::vec4(solarFlares, 0.0f, 0.0f, 0.0f)
 			};
 			cmd.PushConstants(pushConstants);
 			quadMesh->Draw(cmd);
@@ -185,11 +184,11 @@ namespace SV
 		cmd.BindPipeline(starPipeline.Get(polygonMode));
 		for (const auto& [distance, index] : distanceCache)
 		{
-			Star& star = *stars[index];
+			const Star& star = *stars[index];
 			const StarPushConstants pushConstants{
-				star.RecalculateTransformation(),
-				glm::vec4(star.radius, star.starTemperature, STAR_NOISE_OCTAVES, 0.0f),
-				glm::vec4(star.starColour, 1.0f)
+				star.transformationMatrix,
+				glm::vec4(STAR_NOISE_OCTAVES, solarFlares, 0.0f, 0.0f),
+				glm::vec4(star.GetPhotosphereColour(), 1.0f)
 			};
 			cmd.PushConstants(pushConstants);
 			sphereMesh->Draw(cmd);
