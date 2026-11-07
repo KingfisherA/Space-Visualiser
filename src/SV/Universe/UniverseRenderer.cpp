@@ -241,7 +241,10 @@ namespace SV
 			{ "M101", GalaxyType::Pinwheel }, { "M104", GalaxyType::Sombrero }, { "NGC1300", GalaxyType::Ngc1300 },
 			{ "UGC1810", GalaxyType::RoseGalaxy } };
 		constexpr std::pair<const char*, NebulaType> NEBULA_FEATURES[] = {
-			{ "M1", NebulaType::Crab }, { "M42", NebulaType::Orion }, { "M16", NebulaType::PillarsOfCreation } };
+			{ "M1", NebulaType::Crab }, { "M42", NebulaType::Orion }, { "M16", NebulaType::PillarsOfCreation },
+			{ "NGC7635", NebulaType::Bubble }, { "NGC6905", NebulaType::BlueFlash }, { "NGC6309", NebulaType::Box },
+			{ "NGC6960", NebulaType::Veil }, { "NGC7000", NebulaType::NorthAmerica }, { "NGC3372", NebulaType::Carina },
+			{ "NGC6188", NebulaType::Rim }, { "NGC2238", NebulaType::Rosette }, { "IC405", NebulaType::FlamingStar } };
 
 		// Whether a designation ("M31 / NGC 224, ...") includes an id ("M31"), ignoring spaces
 		bool HasDesignation(const std::string& designation, const char* id)
@@ -545,7 +548,8 @@ namespace SV
 			// Large enough to see, or bright and well known (with a common name: see the priority in
 			// Catalogue.cpp's FinishGalaxy)
 			const bool wellKnown = landmark.priority - (std::log10(std::max(landmark.luminosity, 1.0f)) - 6.0f) >= 2.5f;
-			if (radiusPixels < LABEL_RADIUS && (light < LABEL_LIGHT || (!wellKnown && !picking)))
+			// (For picking, any that shows, and the well known ones however faint)
+			if (radiusPixels < LABEL_RADIUS && (picking ? light < LABEL_LIGHT && !wellKnown : light < LABEL_LIGHT || !wellKnown))
 				return -1.0f;
 			return landmark.priority + (float)std::log10(std::max(light, 1e-3)) * 0.5f + std::log10(std::max(radiusPixels, 0.1f));
 		}
@@ -562,15 +566,24 @@ namespace SV
 			// Large enough to see, or a well known one marked while the galaxy is in view
 			// (Any marked one, for picking)
 			const bool marked = (landmark.priority >= 2.0f || picking) && zoom >= NEBULA_MARKER_ZOOM_START && (distance < 3.0 * zoom || picking);
-			if (radiusPixels < LABEL_RADIUS && !marked)
+			// For picking, also one bright enough to show as a point, and the well known ones (with
+			// common names: see the priority in Catalogue.cpp's LoadNebulae) wherever they are: from
+			// the solar system most are far too small to see, but where they are is known
+			const bool known = landmark.priority - std::log10(std::max(landmark.radius, 1e-6f)) >= 2.5f;
+			const double light = landmark.luminosity / (distance * distance) / 0.855 * NEBULA_SURFACE_GAIN * nebulaBrightness * exposure;
+			if (radiusPixels < LABEL_RADIUS && !marked && !(picking && (known || light >= LABEL_LIGHT)))
 				return -1.0f;
 			return landmark.priority + std::log10(std::max(radiusPixels, 0.1f));
 		}
 		default:
 		{
 			const bool blackHole = landmark.kind == CatalogueKind::BlackHole;
-			// (Picked wherever their markers show)
-			if (!(blackHole ? showBlackHoles : showNeutronStars) || zoom < (picking ? MARKER_ZOOM_START : MARKER_ZOOM_END) || zoom > MARKER_FADE_START)
+			// Picked wherever their markers show, and the notable ones (Sagittarius A*, the stellar
+			// black holes, and the pulsars with names or in supernova remnants: see their priorities in
+			// Catalogue.cpp) at any closer zoom too, such as from the solar system
+			const bool notable = picking && landmark.priority >= -1.5f;
+			if (!(blackHole ? showBlackHoles : showNeutronStars) || zoom > MARKER_FADE_START ||
+				(zoom < (picking ? MARKER_ZOOM_START : MARKER_ZOOM_END) && !notable))
 				return -1.0f;
 			// Sagittarius A* while the galaxy is in view; the others when near the camera's centre
 			const double reach = landmark.priority >= 10.0f ? 100.0 : landmark.priority >= -1.0f ? 2.0 : 0.7;

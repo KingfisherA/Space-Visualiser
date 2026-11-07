@@ -87,6 +87,9 @@ namespace SV
 		// Pan speed per unit of zoom distance, so panning moves the view by a similar amount at
 		// any distance
 		constexpr float PAN_ACCELERATION_PER_ZOOM = 6.0f;
+		// W/A/S/D move the camera's centre this many zooms (its distance from the centre), or distances to
+		// the nearest surface if that is nearer, per second
+		constexpr float KEY_MOVE_SPEED = 1.0f;
 		// "Go to" zoom distance per unit of the body's radius
 		constexpr float GO_TO_ZOOM = 6.0f;
 		// Fraction of the remaining distance (and log zoom) covered each 1/60 s when travelling to a body
@@ -110,6 +113,9 @@ namespace SV
 		constexpr size_t MAX_SKY_LABELS = 20;
 		// Clicking the sky picks a landmark within this many pixels
 		constexpr float LANDMARK_PICK_PIXELS = 10.0f;
+		// Landmarks near the cursor are picked by their prominence (up to this) less twice their
+		// distance from it in LANDMARK_PICK_PIXELS
+		constexpr float LANDMARK_PICK_MAX_PROMINENCE = 4.0f;
 		constexpr const char* LANDMARK_MENU = "LandmarkMenu";
 		// "Go to" a landmark: the zoom (in its radii, or parsecs for points)
 		constexpr double LANDMARK_ZOOM_RADII = 3.0;
@@ -489,6 +495,7 @@ namespace SV
 
 	void Application::MoveTo(const sRef<CelestrialBody>& body, const float zoom)
 	{
+		camera.StopKeyMovement();
 		travelBody = body;
 		travelBodyPosition = body->GetPosition();
 		travelZoom = zoom;
@@ -498,6 +505,7 @@ namespace SV
 
 	void Application::MoveTo(const glm::dvec3& point, const float zoom)
 	{
+		camera.StopKeyMovement();
 		travelBody = nullptr;
 		travelPoint = point;
 		travelBodyPosition = point;
@@ -559,14 +567,37 @@ namespace SV
 
 	void Application::UpdateCamera(const float deltaTime)
 	{
-		// W/A/S/D move the camera's centre while the viewport has focus
-		if (mIsViewportFocused && !ImGui::GetIO().WantCaptureKeyboard &&
-			(mKeyDown == DH::KeyCode::K_W || mKeyDown == DH::KeyCode::K_A ||
-			 mKeyDown == DH::KeyCode::K_S || mKeyDown == DH::KeyCode::K_D))
+		// W/A/S/D move the camera's centre relative to where it is looking (Camera3D::GetKeyDirection:
+		// forwards and backwards along its view, and to its left and right), any number held together
+		// (GraphicsApp::IsKeyHeld), at a speed in proportion to the zoom so they work at any scale. The
+		// camera eases up to speed and back to rest (Camera3D::UpdateKeyMovement, called every frame so
+		// it can slow down after the keys are released). They work while the viewport is focused or
+		// under the cursor, and no text is being typed (ImGui's WantCaptureKeyboard is set whenever any
+		// of its windows is focused, the viewport included, as keyboard navigation is enabled).
+		const ImGuiIO& io = ImGui::GetIO();
+		glm::vec3 keyDirection(0.0f);
+		if ((mIsViewportFocused || isViewportHovered) && !io.WantTextInput)
+			keyDirection = camera.GetKeyDirection(IsKeyHeld(DH::KeyCode::K_W), IsKeyHeld(DH::KeyCode::K_S), IsKeyHeld(DH::KeyCode::K_A),
+												  IsKeyHeld(DH::KeyCode::K_D));
+		float keySpeed = 0.0f;
+		if (glm::length(keyDirection) > 1e-6f)
 		{
 			StopFollowing();
-			camera.UpdateMovement(glm::vec2(0.0f), DH::MouseButton::None, mKeyDown, mKeyMods);
+			// No faster than the distance to the nearest body's surface allows, so the camera slows as
+			// it nears one (to see its surface close up) rather than flying through it
+			float distance = camera.GetZoom();
+			if (sceneMode == SceneMode::SolarSystem && solarSystem != nullptr)
+			{
+				for (const sRef<CelestrialBody>& body : solarSystem->GetBodies())
+				{
+					const float surface = glm::distance(body->GetTranslation(), camera.GetActualPosition()) - body->GetScale().x;
+					if (surface > 0.0f)
+						distance = std::min(distance, surface);
+				}
+			}
+			keySpeed = KEY_MOVE_SPEED * std::max(distance, MIN_ZOOM);
 		}
+		camera.UpdateKeyMovement(keyDirection, keySpeed, deltaTime);
 
 		// Pinch to zoom (consumed even when not over the viewport so it doesn't build up)
 		const float magnification = Trackpad::ConsumeMagnification();
@@ -1509,7 +1540,10 @@ namespace SV
 			return;
 
 		NebulaParameters& p = nebulaRenderer->parameters;
+		const NebulaParameters& defaults = GetNebulaPreset(nebulaType).parameters;
 		const bool isRemnant = p.kind == NebulaKind::SupernovaRemnant;
+		const bool isShell = p.kind == NebulaKind::SupernovaShell;
+		const bool isEmission = p.kind == NebulaKind::HIIRegion || p.kind == NebulaKind::EmissionNebula;
 		ImGui::Checkbox("Show labels (L)", &showLabels);
 		ImGui::SliderFloat("Brightness", &p.brightness, 0.05f, 20.0f, "%.2f", ImGuiSliderFlags_Logarithmic);
 		ImGui::SliderFloat("Bloom", &p.bloom, 0.0f, 2.0f);
@@ -1524,7 +1558,7 @@ namespace SV
 		ImGui::SetItemTooltip("[O III] (green-blue), from doubly ionised oxygen: where the light ionising the gas is hardest");
 		ImGui::SliderFloat("Nitrogen and sulphur", &p.sulphur, 0.0f, 3.0f);
 		ImGui::SetItemTooltip("[N II] and [S II] (deep red)");
-		if (p.kind != NebulaKind::Pillars)
+		if (isRemnant || isEmission)
 		{
 			ImGui::SliderFloat(isRemnant ? "Synchrotron" : "Scattered starlight", &p.continuum, 0.0f, 3.0f);
 			ImGui::SetItemTooltip(isRemnant ? "The blue-white glow of electrons spiralling in the magnetic field, spun up by the pulsar"
@@ -1534,13 +1568,28 @@ namespace SV
 		ImGui::SetItemTooltip("How much the dust dims (and reddens) what is behind it");
 
 		ImGui::SeparatorText("Structure");
-		ImGui::SliderFloat("Detail", &p.detail, 0.1f, 1.0f, "%.2f", ImGuiSliderFlags_Logarithmic);
+		// The nebulae range from a fraction of a parsec across to tens of parsecs: the scales of
+		// their structure are set about their presets'
+		ImGui::SliderFloat("Detail", &p.detail, 0.25f * defaults.detail, 4.0f * defaults.detail, "%.3g", ImGuiSliderFlags_Logarithmic);
 		ImGui::SetItemTooltip("Larger for finer structure in the gas");
-		ImGui::SliderFloat("Turbulence", &p.turbulence, 0.0f, 2.0f, "%.2f pc");
+		ImGui::SliderFloat("Turbulence", &p.turbulence, 0.0f, 4.0f * defaults.turbulence, "%.3g pc");
 		if (isRemnant)
 		{
 			ImGui::SliderFloat("Filaments", &p.filaments, 0.0f, 3.0f);
 			ImGui::SliderFloat("Filament sharpness", &p.filamentSharpness, 2.0f, 30.0f, "%.0f");
+		}
+		else if (isShell)
+		{
+			ImGui::SliderFloat("Filaments", &p.filaments, 0.0f, 3.0f);
+			ImGui::SetItemTooltip("The glow of the gas the shock has swept up");
+			ImGui::SliderFloat("Sheet sharpness", &p.filamentSharpness, 20.0f, 200.0f, "%.0f", ImGuiSliderFlags_Logarithmic);
+			ImGui::SetItemTooltip("How thin the shock's sheet is (its radius over its thickness): its folds seen edge on are the filaments");
+		}
+		else if (p.kind == NebulaKind::EmissionNebula)
+		{
+			ImGui::SliderFloat("Wisps", &p.filaments, 0.0f, 1.0f);
+			ImGui::SetItemTooltip("How much of the gas is drawn out into wisps rather than clumps");
+			ImGui::SliderFloat("Wisp sharpness", &p.filamentSharpness, 1.0f, 12.0f, "%.1f");
 		}
 		ImGui::SliderFloat("Stars", &p.starFieldBrightness, 0.0f, 10.0f, "%.2f");
 		ImGui::SliderFloat("Resolution", &p.renderScale, 0.25f, 1.0f, "%.2f");
@@ -1614,13 +1663,14 @@ namespace SV
 		StarSystemRenderer& renderer = *starSystemRenderer;
 		const StarSystemPreset& system = renderer.GetSystem();
 		ImGui::Checkbox("Show labels (L)", &showLabels);
-		ImGui::SliderFloat("Brightness", &renderer.brightness, 1e-4f, 1000.0f, "%.3g", ImGuiSliderFlags_Logarithmic);
-		ImGui::SetItemTooltip("The exposure: stars' surfaces range from thousands of times fainter than the Sun's (brown dwarfs) "
-							  "to hundreds of times brighter (blue stars and white dwarfs)");
+		ImGui::SliderFloat("Brightness", &renderer.brightness, 1e-4f, 1e8f, "%.3g", ImGuiSliderFlags_Logarithmic);
+		ImGui::SetItemTooltip("The exposure: in visible light, stars' surfaces range from millions of times fainter than the Sun's "
+							  "(brown dwarfs, which give out almost all their light in the infrared) to tens of times brighter "
+							  "(blue stars and white dwarfs)");
 		ImGui::SliderFloat("Bloom", &renderer.bloom, 0.0f, 2.0f);
 		ImGui::SliderFloat("Time scale", &renderer.daysPerSecond, 0.001f, 10000.0f, "%.3g days/s", ImGuiSliderFlags_Logarithmic);
 		ImGui::SliderFloat("Surface detail", &renderer.surfaceDetail, 0.0f, 1.5f);
-		ImGui::SetItemTooltip("The contrast of the convection cells, spots and cloud bands");
+		ImGui::SetItemTooltip("The contrast of the granulation, spots and cloud bands. The Sun's granules are tiny: zoom in close to its surface to see them.");
 		ImGui::SliderFloat("Point stars", &renderer.pointGain, 0.0f, 200.0f, "%.0f", ImGuiSliderFlags_Logarithmic);
 		ImGui::SetItemTooltip("Raises the light of stars too far away to see as discs, so they show as points.\n"
 							  "0 gives their true share of a pixel's light, which is lost at an exposure for stars' surfaces.");
@@ -1862,6 +1912,61 @@ namespace SV
 			if (clicked)
 				ImGui::OpenPopup(LANDMARK_MENU);
 		}
+
+		// Rings a landmark (a dark outline under a light line, as a selected body), returning the
+		// ring's centre and radius
+		auto Ring = [&](const CatalogueLandmark& landmark, const ImU32 colour) -> std::optional<glm::vec3>
+		{
+			const std::optional<glm::vec2> point = ProjectLandmark(landmark.position);
+			if (!point)
+				return std::nullopt;
+			const float pixelAngle = 2.0f / (projectionMatrix[1][1] * std::max(size.y, 1.0f));
+			const double distance = std::max(glm::distance(landmark.position, universeView.camera), 1e-12);
+			const float discRadius = (float)(landmark.radius / distance / pixelAngle);
+			const float ringRadius = std::min(std::max(discRadius, LABEL_DOT_RADIUS), 0.45f * size.y) + SELECTION_RING_GAP;
+			ImDrawList* drawList = ImGui::GetWindowDrawList();
+			drawList->AddCircle(ImVec2(point->x, point->y), ringRadius, IM_COL32(0, 0, 0, 140), 0, 3.5f);
+			drawList->AddCircle(ImVec2(point->x, point->y), ringRadius, colour, 0, 1.5f);
+			return glm::vec3(*point, ringRadius);
+		};
+
+		// Hovering over the sky rings the landmark a click there would pick, and names it, so what can
+		// be clicked on shows (many are too faint or small to see from the solar system). Not while a
+		// button is down (turning the camera), a menu is open, or over a label or a body.
+		const bool menuOpen = ImGui::IsPopupOpen(LANDMARK_MENU) || ImGui::IsPopupOpen(BODY_MENU);
+		if (!clicked && !menuOpen && showUniverse && universeRenderer != nullptr && catalogue != nullptr && OverImage(io.MousePos) &&
+			ImGui::IsWindowHovered(ImGuiHoveredFlags_ChildWindows | ImGuiHoveredFlags_NoPopupHierarchy) && !ImGui::IsAnyMouseDown())
+		{
+			const glm::vec2 mouse(io.MousePos.x, io.MousePos.y);
+			auto Over = [&](const std::vector<std::pair<glm::vec4, size_t>>& rects)
+			{
+				for (const auto& [rect, index] : rects)
+				{
+					if (mouse.x >= rect.x && mouse.x <= rect.z && mouse.y >= rect.y && mouse.y <= rect.w)
+						return true;
+				}
+				return false;
+			};
+			const bool overBody = IsSolarSystemShown() && (Over(labelRects) || PickBody((mouse - origin) / size).has_value());
+			if (!overBody && !Over(landmarkLabelRects))
+			{
+				if (const std::optional<size_t> hovered = PickLandmark(mouse))
+				{
+					const CatalogueLandmark& landmark = catalogue->landmarks[*hovered];
+					if (const std::optional<glm::vec3> ring = Ring(landmark, IM_COL32(235, 235, 235, 150)))
+					{
+						const char* kind = GetCatalogueKindName(landmark.kind);
+						const float fontSize = ImGui::GetFontSize();
+						const ImVec2 at(ring->x + ring->z + 5.0f, ring->y - fontSize * 0.5f);
+						ImDrawList* drawList = ImGui::GetWindowDrawList();
+						const std::string text = landmark.name + "  (" + kind + ")";
+						drawList->AddText(ImVec2(at.x + 1.0f, at.y + 1.0f), IM_COL32(0, 0, 0, 200), text.c_str());
+						drawList->AddText(at, IM_COL32(235, 235, 235, 230), text.c_str());
+					}
+				}
+			}
+		}
+
 		if (catalogue == nullptr || !selectedLandmark || !ImGui::IsPopupOpen(LANDMARK_MENU))
 		{
 			selectedLandmark.reset();
@@ -1869,17 +1974,8 @@ namespace SV
 		}
 		const CatalogueLandmark& landmark = catalogue->landmarks[*selectedLandmark];
 
-		// Ring the selected landmark while its menu is open (as a selected body)
-		if (const std::optional<glm::vec2> point = ProjectLandmark(landmark.position))
-		{
-			const float pixelAngle = 2.0f / (projectionMatrix[1][1] * std::max(size.y, 1.0f));
-			const double distance = std::max(glm::distance(landmark.position, universeView.camera), 1e-12);
-			const float discRadius = (float)(landmark.radius / distance / pixelAngle);
-			const float ringRadius = std::min(std::max(discRadius, LABEL_DOT_RADIUS), 0.45f * size.y) + SELECTION_RING_GAP;
-			ImDrawList* drawList = ImGui::GetWindowDrawList();
-			drawList->AddCircle(ImVec2(point->x, point->y), ringRadius, IM_COL32(0, 0, 0, 140), 0, 3.5f);
-			drawList->AddCircle(ImVec2(point->x, point->y), ringRadius, IM_COL32(235, 235, 235, 230), 0, 1.5f);
-		}
+		// Ring the selected landmark while its menu is open
+		Ring(landmark, IM_COL32(235, 235, 235, 230));
 
 		if (ImGui::BeginPopup(LANDMARK_MENU))
 		{
@@ -1930,20 +2026,30 @@ namespace SV
 		const glm::vec2 size((float)mViewportFramebuffer->GetWidth(), (float)mViewportFramebuffer->GetHeight());
 		const float pixelAngle = 2.0f / (projectionMatrix[1][1] * std::max(size.y, 1.0f));
 		const std::vector<glm::vec3> discs = IsSolarSystemShown() ? GetBodyDiscs() : std::vector<glm::vec3>();
-		std::optional<size_t> picked;
+		// Objects within a few pixels of the cursor first (the more prominent, then the nearer it),
+		// and only then one whose disc the cursor is inside (the smallest), so a star or a small
+		// nebula in front of a large galaxy is picked by clicking on it
+		std::optional<size_t> picked, pickedDisc;
 		float best = -std::numeric_limits<float>::max();
+		float smallestDisc = std::numeric_limits<float>::max();
 		for (size_t i = 0; i < catalogue->landmarks.size(); i++)
 		{
 			const CatalogueLandmark& landmark = catalogue->landmarks[i];
+			// Not one the camera is inside (the Milky Way, from the solar system): its "disc" would be
+			// the whole sky, and take every click
+			const double distance = std::max(glm::distance(landmark.position, universeView.camera), 1e-12);
+			if (distance < landmark.radius)
+				continue;
 			const std::optional<glm::vec2> where = ProjectLandmark(landmark.position);
 			if (!where)
 				continue;
-			// Within a few pixels of it, or inside its disc
-			const double distance = std::max(glm::distance(landmark.position, universeView.camera), 1e-12);
 			const float discRadius = (float)(landmark.radius / distance / pixelAngle);
 			const float miss = glm::distance(*where, point);
-			if (miss > std::max(LANDMARK_PICK_PIXELS, discRadius))
+			const bool close = miss <= LANDMARK_PICK_PIXELS;
+			if (!close && miss > discRadius)
 				continue;
+			if (!close && pickedDisc && discRadius >= smallestDisc)
+				continue; // (Cheaper than the checks below)
 			bool hidden = false;
 			for (const glm::vec3& disc : discs)
 				hidden = hidden || glm::distance(glm::vec2(disc), *where) < disc.z;
@@ -1952,16 +2058,22 @@ namespace SV
 			const float prominence = universeRenderer->GetProminence(landmark, universeView, pixelAngle, true);
 			if (prominence < 0.0f)
 				continue;
-			// The more prominent, then the nearer the cursor (in pixels, or in its disc's radii for
-			// one larger than that, so a small object over a large one is picked by clicking on it)
-			const float score = prominence - 2.0f * miss / std::max(LANDMARK_PICK_PIXELS, discRadius);
+			if (!close)
+			{
+				smallestDisc = discRadius;
+				pickedDisc = i;
+				continue;
+			}
+			// (Prominence is capped, so a very prominent object, such as Sagittarius A*, doesn't take
+			// clicks on the stars around it)
+			const float score = std::min(prominence, LANDMARK_PICK_MAX_PROMINENCE) - 2.0f * miss / LANDMARK_PICK_PIXELS;
 			if (score > best)
 			{
 				best = score;
 				picked = i;
 			}
 		}
-		return picked;
+		return picked ? picked : pickedDisc;
 	}
 
 	void Application::RenderUniverseControls()
@@ -2141,6 +2253,15 @@ namespace SV
 			if (sceneMode == SceneMode::SolarSystem)
 			{
 				ImGui::DragFloat("Exposure (-/=)", &exposure, 0.1f, 0.0f, 100.0f);
+				int surfaceView = (int)starRenderer->surfaceView;
+				const char* surfaceViews[] = { "Visible light", "Extreme ultraviolet" };
+				if (ImGui::Combo("Sun's surface", &surfaceView, surfaceViews, 2))
+					starRenderer->surfaceView = (StarSurfaceView)surfaceView;
+				ImGui::SetItemTooltip("Visible light: the photosphere as through a solar filter, darker and redder towards the limb, "
+									  "with sunspots, faculae and granulation (zoom in close to see the granules).\n"
+									  "Extreme ultraviolet: the hot, glowing chromosphere and corona above it, as SDO sees them.");
+				if (starRenderer->surfaceView == StarSurfaceView::VisibleLight)
+					ImGui::SliderFloat("Sunspots", &starRenderer->sunspots, 0.0f, 1.5f);
 				ImGui::SliderFloat("H-alpha emission", &starRenderer->hydrogenEmission, 0.0f, 4.0f);
 				ImGui::SliderFloat("Solar flares", &starRenderer->solarFlares, 0.0f, 2.0f);
 				ImGui::SetItemTooltip("Brightness of the flares on the Sun's surface and in the loops over its limb (0 for none)");
@@ -2313,7 +2434,7 @@ namespace SV
 			}
 			ImGui::TextWrapped("Trackpad: two finger scroll to orbit, pinch or Cmd + scroll to zoom, Shift + scroll to pan.");
 			ImGui::TextWrapped("Mouse: drag to orbit, right drag or Option + drag to pan, wheel or Shift + drag to zoom.");
-			ImGui::TextWrapped("W/A/S/D: move. Panning or moving stops following a body.");
+			ImGui::TextWrapped("W/A/S/D: move (slowing near a surface, to see it close up). Panning or moving stops following a body.");
 		}
 
 		if (ImGui::CollapsingHeader("Renderer"))
@@ -2329,7 +2450,9 @@ namespace SV
 	bool Application::OnKeyPressed(DH::KeyPressedEvent& e)
 	{
 		GraphicsApp::OnKeyPressed(e);
-		if (ImGui::GetIO().WantCaptureKeyboard)
+		// Not while typing (WantCaptureKeyboard would also block them whenever any window, the
+		// viewport included, is focused, as ImGui's keyboard navigation is enabled)
+		if (ImGui::GetIO().WantTextInput)
 			return false;
 
 		switch (e.GetKeyCode())

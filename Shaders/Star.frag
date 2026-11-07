@@ -4,6 +4,7 @@
 #include "Frame.glsl"
 #include "StarPushConstants.glsl"
 #include "SolarActivity.glsl"
+#include "Photosphere.glsl"
 
 layout(location = 0) in vec3 vVertex;
 layout(location = 1) in vec3 vCamVector;
@@ -11,10 +12,34 @@ layout(location = 2) in vec3 vNormal;
 
 layout(location = 0) out vec4 fragColour;
 
-// The star's surface as an artistic take on the Sun in extreme ultraviolet (as SDO images it near
-// 30 nm), drawn in white rather than the false colour of those images: the tangled chromospheric
-// network, active regions threaded by bright loops, dark coronal holes and filaments, flares, and
-// a limb brightened (not darkened) because the glow is optically thin.
+// The star's surface, seen one of two ways:
+//
+//  - In visible light (the default), as through a solar filter: the photosphere of Photosphere.glsl,
+//    limb darkened and reddened, granulated, with sunspots and faculae in the active regions (those
+//    of SolarActivity.glsl, under the corona's loops), and the rare white-light flare.
+//  - In extreme ultraviolet, as an artistic take on the Sun as SDO images it near 30 nm, drawn in
+//    white rather than the false colour of those images: the tangled chromospheric network, active
+//    regions threaded by bright loops, dark coronal holes and filaments, flares, and a limb
+//    brightened (not darkened) because the glow is optically thin.
+//
+// Both are display colours (the disc is far brighter than anything else in the scene, so it has
+// its own exposure, as if seen through a filter).
+
+// ---- Visible light ---------------------------------------------------------------------------
+
+// The exposure of the photosphere's light (relative to a blackbody at the effective temperature),
+// shown nearly in proportion (as a filtered photograph exposed for the disc) up to a soft clip: the
+// centre of the disc is a little short of white, so the granules' contrast isn't flattened there
+const float PHOTOSPHERE_EXPOSURE = 0.68;
+// Granules evolve at this many lifetimes per unit of uFrame.times.x
+const float GRANULE_RATE = 0.5;
+// Faculae cover the active regions (as well as ringing the spots), this strongly
+const float ACTIVE_REGION_FACULAE = 0.7;
+// White-light flares: the share of a flare's patch glowing as a blackbody at FLARE_TEMPERATURE (K)
+const float WHITE_LIGHT_FLARE = 0.04;
+const float FLARE_TEMPERATURE = 9000.0;
+
+// ---- Extreme ultraviolet ---------------------------------------------------------------------
 
 // Spatial frequencies on the unit sphere
 const float NETWORK_FREQUENCY = 11.0;
@@ -31,8 +56,9 @@ const float SURFACE_EXPOSURE = 1.1;
 // How much of the star's colour shows through the white (the Sun is white)
 const float TINT = 0.25;
 
-// Model space units per pixel, set in main()
-float pixelSize;
+// Set in main()
+float pixelSize; // Model space units per pixel
+float time;      // uFrame.times.y
 
 // 1 while noise of this frequency is well resolved, falling to 0 as it shrinks under a pixel
 float Resolved(float frequency)
@@ -46,22 +72,53 @@ float Ridge(vec4 position)
     return 1.0 - abs(snoise(position));
 }
 
-void main()
+// Proportional to x up to about 0.8, then rolling off to 1
+vec3 SoftClip(vec3 x)
 {
-    pixelSize = length(fwidth(vVertex)); // Before any branch
+    vec3 x2 = x * x;
+    vec3 x4 = x2 * x2;
+    return x / pow(vec3(1.0) + x4 * x4, vec3(0.125));
+}
 
-    vec3 photosphere = uStar.colour.rgb;
-    vec3 tint = mix(vec3(1.0), photosphere / max(max(photosphere.r, photosphere.g), photosphere.b), TINT);
-    int octaves = int(ceil(uStar.properties.x));
-    float flareActivity = uStar.properties.y;
-    if (octaves == 0)
+// Sunspots form in the cores of the active regions (strongest in the belts either side of the
+// equator), and grow and decay as they do
+float SpotActivity(vec3 site)
+{
+    return smoothstep(0.3, 0.7, ActivityNoise(site, time));
+}
+
+vec3 VisibleSurface(vec3 p, float mu, float flareActivity)
+{
+    float temperature = uStar.surface.x;
+    float activityNoise = ActivityNoise(p, time);
+    float local = temperature;
+
+    // Granulation (its contrast falls towards the limb, where the granules are seen side on)
+    float granulation = Granulation(p, uStar.surface.y, uFrame.times.x * GRANULE_RATE, pixelSize);
+    local *= 1.0 + GRANULATION_CONTRAST * GranulationStrength(temperature) * granulation * smoothstep(0.0, 0.3, mu);
+
+    // Spots, and faculae around them and over the active regions
+    vec2 spots = Starspots(p, temperature, pixelSize, uStar.surface.z);
+    float facula = max(spots.y, ActiveRegion(activityNoise) * ACTIVE_REGION_FACULAE * uStar.surface.z);
+    local *= spots.x * (1.0 + FaculaWarming(facula, mu));
+
+    vec3 light = PhotosphereLight(temperature, local, mu);
+
+    // The rare flare bright enough to see in white light, over an active region
+    if (flareActivity > 0.0)
     {
-        fragColour = vec4(tint, 1.0);
-        return;
+        float flare = Flares(p, time, activityNoise) * flareActivity;
+        light += flare * flare * WHITE_LIGHT_FLARE * PlanckRatio(FLARE_TEMPERATURE, temperature);
     }
 
-    vec3 p = normalize(vVertex);
-    float time = uFrame.times.y;
+    // As through a filter, in the star's colour
+    return SoftClip(light * uStar.colour.rgb * PHOTOSPHERE_EXPOSURE);
+}
+
+vec3 UltravioletSurface(vec3 p, float mu, float flareActivity, int octaves)
+{
+    vec3 photosphere = uStar.colour.rgb;
+    vec3 tint = mix(vec3(1.0), photosphere / max(max(photosphere.r, photosphere.g), photosphere.b), TINT);
 
     // Large scale: broad swells in brightness, active regions, and coronal holes nearer the poles
     float broad = noise(vec4(p * 3.0, time * ACTIVITY_RATE + 60.0), 2, 1.0, 0.5);
@@ -106,9 +163,28 @@ void main()
     }
 
     // The limb, seen through more of the optically thin glow, is brighter
-    float mu = clamp(dot(normalize(vNormal), normalize(vCamVector)), 0.0, 1.0);
     brightness *= 1.0 + LIMB_BRIGHTENING * pow(1.0 - mu, 3.0);
 
     // Bright regions roll off smoothly to white
-    fragColour = vec4(tint * (1.0 - exp(-max(brightness, 0.0) * SURFACE_EXPOSURE)), 1.0);
+    return tint * (1.0 - exp(-max(brightness, 0.0) * SURFACE_EXPOSURE));
+}
+
+void main()
+{
+    pixelSize = length(fwidth(vVertex)); // Before any branch
+    time = uFrame.times.y;
+
+    int octaves = int(ceil(uStar.properties.x));
+    float flareActivity = uStar.properties.y;
+    if (octaves == 0)
+    {
+        // A plain disc
+        fragColour = vec4(SoftClip(uStar.colour.rgb * PHOTOSPHERE_EXPOSURE), 1.0);
+        return;
+    }
+
+    vec3 p = normalize(vVertex);
+    float mu = clamp(dot(normalize(vNormal), normalize(vCamVector)), 0.0, 1.0);
+    vec3 colour = uStar.surface.w > 0.5 ? UltravioletSurface(p, mu, flareActivity, octaves) : VisibleSurface(p, mu, flareActivity);
+    fragColour = vec4(colour, 1.0);
 }

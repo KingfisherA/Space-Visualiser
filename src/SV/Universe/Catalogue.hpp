@@ -104,7 +104,7 @@ namespace SV
 		CatalogueKind kind = CatalogueKind::Star;
 		glm::dvec3 position{ 0.0 };
 		float radius = 0.0f;      // Parsecs (0 for points)
-		float luminosity = 0.0f;  // Stars: solar luminosities (V band)
+		float luminosity = 0.0f;  // Solar luminosities (stars and nebulae: V band, galaxies: B band)
 		// Which landmarks are labelled first where they would overlap (higher first)
 		float priority = 0.0f;
 	};

@@ -16,7 +16,9 @@ under simulated N-body gravity. It renders:
   ([Bruneton](https://github.com/ebruneton/precomputed_atmospheric_scattering)), tuned for each planet
 - Ring systems with shadows and forward scattering: Saturn's main rings from Cassini imagery, plus
   the faint dusty rings of Jupiter, Uranus and Neptune
-- The Sun's animated surface, chromosphere and corona, with a lens flare when it is far away
+- The Sun's photosphere in visible light (limb darkening and reddening from its temperature,
+  granulation, sunspots and faculae), or its chromosphere in extreme ultraviolet, and its corona,
+  with a lens flare when it is far away
 - Earth's specular oceans, clouds and night lights
 
 The interface lets you fly to any body, change the time scale, exposure and render style, and
@@ -109,7 +111,8 @@ Zooming out of the solar system shows the universe around it, built from publish
 Close up, the galaxy, nebula, black hole and pulsar renderers of the test scenes take over:
 
 - Andromeda, Triangulum, the Whirlpool, the Pinwheel, the Sombrero, NGC 1300 and the Rose Galaxy;
-- the Crab, Orion and Eagle nebulae;
+- the Crab, Orion, Eagle, Bubble, Blue Flash, Box, Veil, North America, Carina, Rim, Rosette and
+  Flaming Star nebulae;
 - any black hole or neutron star you go to.
 
 The catalogues aren't in the repository. Space Visualiser loads them from `Data Files/Catalogues`
@@ -206,7 +209,7 @@ or `~/.config/space-visualiser` elsewhere. Delete it to restore the default layo
 | Drag / two-finger scroll                | Orbit                                    |
 | Right drag, Option + drag / Shift + scroll | Pan                                   |
 | Mouse wheel, Shift + drag / pinch, Cmd + scroll | Zoom                             |
-| W / A / S / D                           | Move                                     |
+| W / A / S / D                           | Move (slowing as you near a surface)     |
 | `-` / `=`                               | Decrease / increase exposure             |
 | 1 / 2 / 3                               | Solid / wireframe / points               |
 | G / L                                   | Toggle the grid / labels                 |
@@ -217,7 +220,9 @@ following it.
 To go somewhere in the universe:
 - search by name in the Universe panel (stars, nebulae, galaxies, pulsars and black holes);
 - or use its shortcuts;
-- or click a label in the viewport.
+- or click a label in the viewport, or the sky near an object. Hovering over the sky rings and names
+  the object a click would select, including pulsars, black holes and small nebulae too faint or
+  small to see from the solar system.
 
 Close up, a black hole or neutron star is shown by the black hole or pulsar renderer.
 

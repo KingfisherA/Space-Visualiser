@@ -40,12 +40,11 @@ namespace SV
 		float temperature = 5772.0f; // Of its surface (K)
 		float mass = 1.0f;
 		float rotationPeriod = 25.0f;
-		// The convection cells across its surface (fewer and larger in giants), and how much of it
-		// starspots cover (0 to 1)
-		float granulation = 40.0f;
+		// Its convection cells (granules) to a stellar radius (fewer and larger in giants: the Sun's
+		// are about 1500 km across, and a red supergiant has only a few), and how spotted it is (0 to
+		// 1). Its limb darkening follows from its temperature (Shaders/Include/Photosphere.glsl).
+		float granulation = 460.0f;
 		float spots = 0.0f;
-		// How much darker its edge is than its centre (0 to 1: more in cooler stars)
-		float limbDarkening = 0.6f;
 		// The glow around it (its chromosphere and corona, or a supergiant's dusty envelope): its
 		// size (fraction of its radius) and brightness (fraction of its surface's)
 		float glowSize = 0.05f;
@@ -119,8 +118,8 @@ namespace SV
 	};
 
 	// Draws a star system into a viewport framebuffer. A full screen pass traces each pixel's ray to
-	// the nearest body and shades its surface (limb darkening, convection cells, spots, bands, flares,
-	// and the light of its companions on it). Bodies smaller than a pixel are drawn as points of the
+	// the nearest body and shades its surface (limb darkening, granulation, spots and faculae, cloud
+	// bands, flares, gravity darkening, and the heat of its companions' light on it). Bodies smaller than a pixel are drawn as points of the
 	// same total light, with glows around them, over the sky's stars; then the BloomCompositor blooms
 	// and tone maps it. The bodies follow Kepler orbits.
 	class StarSystemRenderer
@@ -169,6 +168,8 @@ namespace SV
 		std::vector<glm::dvec3> nodePositions;
 		// Each body's tidal stretch: along the direction to its partner (xyz), by w
 		std::vector<glm::vec4> stretches;
+		// Each body's granules' age (in their lifetimes)
+		std::vector<double> granuleAges;
 
 		sRef<DH::Buffer> uniformBuffer;
 		sRef<DH::Texture3D> noiseTexture;

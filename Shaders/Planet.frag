@@ -58,8 +58,10 @@ void SpecularPhong(float specReflectivity, vec3 unitNormal, vec3 unitToCameraVec
 }
 
 // Earth: the original stylised shading, where the surface takes its brightness from the sky.
-// Positions are in the atmosphere's sphere space (km).
-vec4 ShadeEarthLike(vec3 camera, vec3 viewRay, vec3 skyPoint, vec3 sunDirection, vec3 toCamera, int flags, vec3 eclipse)
+// Positions are in the atmosphere's sphere space (km). The maps are sampled at uv (the surface
+// point's longitude and latitude, before the planet's turning), with the derivatives uvDx and uvDy.
+vec4 ShadeEarthLike(vec3 camera, vec3 viewRay, vec3 skyPoint, vec3 sunDirection, vec3 toCamera, int flags, vec3 eclipse,
+                    vec2 uv, vec2 uvDx, vec2 uvDy)
 {
     AtmosphereParameters atmosphere = ATMOSPHERE;
     float time = uFrame.times.x;
@@ -75,13 +77,13 @@ vec4 ShadeEarthLike(vec3 camera, vec3 viewRay, vec3 skyPoint, vec3 sunDirection,
     float groundDistance;
     if (IntersectSphere(camera, viewRay, atmosphere.bottom_radius, groundDistance))
     {
-        vec2 offsetCoords = vTexCoord + vec2(time * uPlanet.shape.w, 0.0);
-        vec3 surfaceMapColour = texture(uDiffuseMap, offsetCoords).rgb * 0.5;
+        vec2 offsetCoords = uv + vec2(time * uPlanet.shape.w, 0.0);
+        vec3 surfaceMapColour = textureGrad(uDiffuseMap, offsetCoords, uvDx, uvDy).rgb * 0.5;
 
         if ((flags & PLANET_HAS_SPECULAR) != 0)
         {
             const float damper = 80.0;
-            float specReflectivity = texture(uSpecularMap, offsetCoords).r * 8.0;
+            float specReflectivity = textureGrad(uSpecularMap, offsetCoords, uvDx, uvDy).r * 8.0;
             SpecularPhong(specReflectivity, unitNormal, toCamera, sunDirection, vec3(0.1), damper, surfaceMapColour);
         }
 
@@ -91,14 +93,14 @@ vec4 ShadeEarthLike(vec3 camera, vec3 viewRay, vec3 skyPoint, vec3 sunDirection,
         if ((flags & PLANET_HAS_CLOUDS) != 0)
         {
             const float cloudSpeed = 0.5;
-            vec2 cloudTexCoords = vTexCoord + vec2(time, 0.0) * cloudSpeed;
+            vec2 cloudTexCoords = uv + vec2(time, 0.0) * cloudSpeed;
 
             const float shadowOffset = 0.015;
             const float shadowDarkness = 0.02;
-            vec4 cloudsMapColour = texture(uCloudsMap, cloudTexCoords);
+            vec4 cloudsMapColour = textureGrad(uCloudsMap, cloudTexCoords, uvDx, uvDy);
             float cloudShadowOffset = -((1.0 - dotResult) * shadowOffset);
 
-            vec4 cloudsShadowColour = texture(uCloudsMap, cloudTexCoords + vec2(cloudShadowOffset));
+            vec4 cloudsShadowColour = textureGrad(uCloudsMap, cloudTexCoords + vec2(cloudShadowOffset), uvDx, uvDy);
             // Cloud shadows
             surfaceMapColour *= max(1.0 - cloudsShadowColour.r, shadowDarkness);
             // Clouds
@@ -116,7 +118,7 @@ vec4 ShadeEarthLike(vec3 camera, vec3 viewRay, vec3 skyPoint, vec3 sunDirection,
             const float spreadFactor = 6.0;
             const float offsetFactor = 0.13;
             float invLuminance = smoothstep(0.0, 1.0, max(1.0 - (dotResult + offsetFactor) * spreadFactor, 0.0));
-            nightColour = texture(uNightMap, offsetCoords).rgb * invLuminance;
+            nightColour = textureGrad(uNightMap, offsetCoords, uvDx, uvDy).rgb * invLuminance;
         }
 
         alpha = 1.0;
@@ -166,14 +168,6 @@ void ShadePlanet()
     vec3 surfaceBelow = normalize(ToSphereSpace(skyPoint, polarRatio));
     vec3 eclipse = SunVisibility(centre + GetPlanetRotation() * FromSphereSpace(surfaceBelow, polarRatio) * unitsPerRadius, centre);
 
-    if ((flags & PLANET_LIT_SURFACE) == 0)
-    {
-        vec4 colour = ShadeEarthLike(cameraS, viewRayS, skyPointS, sunDirectionS, normalize(camera - skyPoint), flags, eclipse);
-        float alpha = clamp(colour.a, 0.0, 1.0);
-        pixColour = vec4(colour.rgb * alpha, alpha); // Premultiplied
-        return;
-    }
-
     // The surface point the view ray reaches (or, for rays that miss, the nearest point to it)
     float groundDistance;
     bool hitsGround = IntersectSphere(cameraS, viewRayS, atmosphere.bottom_radius, groundDistance);
@@ -181,8 +175,11 @@ void ShadePlanet()
                               : normalize(cameraS - viewRayS * dot(cameraS, viewRayS)) * atmosphere.bottom_radius;
     vec3 ground = FromSphereSpace(groundS / atmosphere.bottom_radius, polarRatio);
 
-    // Map coordinates of the surface point (the sky mesh's own are offset by parallax near the limb).
-    // Derivatives are taken here, outside any branch, with the longitude wrap removed.
+    // Map coordinates of the surface point, worked out for each pixel. The sky mesh's own are offset
+    // by parallax near the limb, and are interpolated across the triangles that straddle the map's
+    // date line from near 1 back to near 0, squeezing the whole map into a seam there. Derivatives are
+    // taken here, outside any branch, with the longitude wrap removed (so the seam's pixels don't
+    // sample the smallest mip level).
     vec3 groundDirection = normalize(ground);
     vec2 uv = vec2((atan(groundDirection.x, groundDirection.z) + PI) / (2.0 * PI),
                    acos(clamp(groundDirection.y, -1.0, 1.0)) / PI);
@@ -190,6 +187,15 @@ void ShadePlanet()
     vec2 uvDy = dFdy(uv);
     uvDx.x -= round(uvDx.x);
     uvDy.x -= round(uvDy.x);
+
+    if ((flags & PLANET_LIT_SURFACE) == 0)
+    {
+        vec4 colour = ShadeEarthLike(cameraS, viewRayS, skyPointS, sunDirectionS, normalize(camera - skyPoint), flags, eclipse,
+                                     uv, uvDx, uvDy);
+        float alpha = clamp(colour.a, 0.0, 1.0);
+        pixColour = vec4(colour.rgb * alpha, alpha); // Premultiplied
+        return;
+    }
     uv.x += uFrame.times.x * uPlanet.shape.w;
 
     // The rings' shadow, and other bodies'. It falls on the air above the surface as well as on the

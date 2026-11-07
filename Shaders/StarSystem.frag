@@ -3,6 +3,7 @@
 
 #include "Frame.glsl"
 #include "Procedural.glsl"
+#include "Photosphere.glsl"
 
 layout(location = 0) in vec2 vNdc;
 
@@ -11,7 +12,12 @@ layout(location = 0) out vec4 fragColour;
 
 // The star test's bodies: each pixel's ray is traced to the nearest body (an ellipsoid: a sphere
 // stretched along the line to its partner by their tides) and its surface shaded. Lengths are in
-// solar radii. Surface brightness is relative to the Sun's, as a blackbody's: (T / 5772 K)^4.
+// solar radii. Light is relative to the Sun's surface in visible light: a blackbody's luminance at
+// the body's temperature (BlackbodyLuminance in src/SV/Universe/Star.cpp).
+//
+// Stars' surfaces are their photospheres (Photosphere.glsl: limb darkening from the temperature,
+// granulation, spots and faculae), cooled where their partner's tides stretch them (gravity
+// darkening) and heated where their partner's light falls on them (the reflection effect).
 //
 // Around each body is its glow, and a body smaller than a pixel or two is drawn as a point of the
 // same total light (so distant stars don't flicker or vanish). Behind them all are the sky's stars.
@@ -23,10 +29,10 @@ layout(std140, set = 1, binding = 0) uniform StarSystemUniforms
 {
     vec4 info; // x = body count, y = pixel angle (radians), z = star field brightness, w = surface detail
     vec4 position[MAX_BODIES]; // xyz = centre (render coordinates), w = radius
-    vec4 surface[MAX_BODIES];  // x = temperature (K), y = kind (0 star, 1 brown dwarf, 2 white dwarf), z = granulation, w = spots
+    vec4 surface[MAX_BODIES];  // x = temperature (K), y = kind (0 star, 1 brown dwarf, 2 white dwarf), z = granules per radius, w = spots
     vec4 stretch[MAX_BODIES];  // xyz = the tides' axis, w = stretch along it
-    vec4 look[MAX_BODIES];     // x = limb darkening, y = glow size, z = glow strength, w = rotation (radians)
-    vec4 tint[MAX_BODIES];     // rgb = tint
+    vec4 look[MAX_BODIES];     // x = granules' age (lifetimes), y = glow size, z = glow strength, w = rotation (radians)
+    vec4 tint[MAX_BODIES];     // rgb = tint, w = surface luminance (relative to the Sun's)
     vec4 flare[MAX_BODIES];    // xyz = where (in the turning frame), w = brightness
     vec4 display; // x = point star gain
     vec4 blackbody[BLACKBODY_SAMPLES]; // rgb = colour (luminance 1)
@@ -35,11 +41,13 @@ layout(std140, set = 1, binding = 0) uniform StarSystemUniforms
 // Four independent channels of tileable fBm, evenly spread over [0, 1]
 layout(set = 1, binding = 1) uniform sampler3D uNoise;
 
-const float SUN_TEMPERATURE = 5772.0;
-// Spots are this much cooler than the surface around them
-const float SPOT_COOLING = 0.72;
-// Light from a companion reflected (or absorbed and given off again) by a surface
-const float IRRADIATION_ALBEDO = 0.5;
+// Gravity darkening (von Zeipel 1924): temperature goes as surface gravity to this power, in stars
+// with radiative envelopes (hotter than about 7000 K) and with convective ones (Lucy 1967)
+const float RADIATIVE_GRAVITY_DARKENING = 0.25;
+const float CONVECTIVE_GRAVITY_DARKENING = 0.08;
+// The share of a companion's light falling on a surface that heats it (the rest is reflected):
+// convective envelopes give about half back at once, radiative ones absorb it all
+const float CONVECTIVE_HEATING = 0.5;
 // A flare's size (radians across the surface), temperature (K), and the fraction of its patch
 // glowing at that temperature
 const float FLARE_SIZE = 0.12;
@@ -60,11 +68,10 @@ vec3 StarColour(float temperature)
     return Blackbody(temperature);
 }
 
-// The light leaving a surface at a temperature, relative to the Sun's
-vec3 SurfaceLight(float temperature)
+// The light of body i's surface on average (a blackbody's at its temperature)
+vec3 BodyLight(int i)
 {
-    float relative = temperature / SUN_TEMPERATURE;
-    return Blackbody(temperature) * relative * relative * relative * relative;
+    return Blackbody(uSystem.surface[i].x) * uSystem.tint[i].rgb * uSystem.tint[i].w;
 }
 
 vec4 NoiseAt(vec3 p)
@@ -106,40 +113,74 @@ vec3 ToTurningFrame(vec3 n, int i)
     return vec3(c * n.x - s * n.z, n.y, s * n.x + c * n.z);
 }
 
-// The light from body i's surface at `hit`, seen along `direction`
-vec3 ShadeSurface(int i, vec3 hit, vec3 direction)
+// The spots of the body being shaded (its surface.w), for SpotActivity
+float spotCoverage = 0.0;
+
+float SpotActivity(vec3 site)
+{
+    // Sun-like stars have their spots in belts either side of the equator; heavily spotted ones
+    // (young, fast turning and red dwarfs) at every latitude, up to the poles
+    float latitude = abs(site.y);
+    float belts = smoothstep(0.05, 0.15, latitude) * (1.0 - smoothstep(0.5, 0.65, latitude));
+    float where = mix(belts, 1.0, smoothstep(0.15, 0.4, spotCoverage));
+    // (The noise is spread evenly, so the threshold sets the share of sites with spots)
+    float threshold = 1.0 - 0.6 * spotCoverage;
+    return smoothstep(threshold, threshold + 0.06, NoiseAt(site * 0.7 + 7.1).b) * where;
+}
+
+// The light from body i's surface at `hit` (`distance` along the ray), seen along `direction`
+vec3 ShadeSurface(int i, vec3 hit, vec3 direction, float distance)
 {
     vec3 local = hit - uSystem.position[i].xyz;
-    // The ellipsoid's normal: the gradient of |Unstretch(p)|^2
-    vec3 normal = normalize(Unstretch(Unstretch(local, i), i));
+    float radius = uSystem.position[i].w;
+    // The ellipsoid's normal: along the gradient of |Unstretch(p)|^2
+    vec3 gradient = Unstretch(Unstretch(local, i), i);
+    vec3 normal = normalize(gradient);
     vec3 turning = ToTurningFrame(normalize(local), i);
     float mu = max(dot(normal, -direction), 0.0);
-    float limb = 1.0 - uSystem.look[i].x * (1.0 - sqrt(mu));
     float detail = uSystem.info.w;
     float temperature = uSystem.surface[i].x;
     int kind = int(uSystem.surface[i].y + 0.5);
+    // A pixel on the unit sphere, foreshortened towards the limb
+    float footprint = uSystem.info.y * distance / radius / max(mu, 0.05);
+    float radiative = smoothstep(6500.0, 7500.0, temperature);
     float pattern = 1.0;
+
+    // Gravity darkening: tides stretch the star, and its surface gravity (the gradient of the
+    // potential the ellipsoid stands for, relative to a sphere's) is weaker at the stretched ends
+    float gravity = length(gradient) / radius;
+    float T = temperature * pow(gravity, mix(CONVECTIVE_GRAVITY_DARKENING, RADIATIVE_GRAVITY_DARKENING, radiative));
+
+    // The light of the other bodies falling on it heats it: in a close binary, the face of the cooler
+    // star turned to the hotter glows hotter (the reflection effect). T^4 grows by the flux absorbed.
+    float heating = 0.0;
+    int count = int(uSystem.info.x);
+    for (int j = 0; j < MAX_BODIES; j++)
+    {
+        if (j >= count || j == i)
+            continue;
+        vec3 toOther = uSystem.position[j].xyz - hit;
+        float separation = length(toOther);
+        float facing = max(dot(normal, toOther / separation), 0.0);
+        float size = uSystem.position[j].w / separation;
+        float ratio = uSystem.surface[j].x / temperature;
+        heating += size * size * facing * ratio * ratio * ratio * ratio;
+    }
+    T *= pow(1.0 + mix(CONVECTIVE_HEATING, 1.0, radiative) * heating, 0.25);
 
     if (kind == 0)
     {
-        // Convection cells (hot rising centres, cooler edges), and spots at low and middle latitudes
-        float cells = uSystem.surface[i].z;
-        vec4 n = NoiseAt(turning * cells / 8.0);
-        vec4 m = NoiseAt(turning * cells / 3.0 + 3.7);
-        pattern = mix(1.0, 0.75 + 0.35 * n.r + 0.15 * (m.g - 0.5), detail);
-        float spots = uSystem.surface[i].w * detail;
-        if (spots > 0.0)
+        // Granulation (its contrast falls towards the limb, where the granules are seen side on)
+        float strength = GranulationStrength(temperature) * detail;
+        if (strength > 0.0)
+            T *= 1.0 + GRANULATION_CONTRAST * strength * Granulation(turning, uSystem.surface[i].z, uSystem.look[i].x, footprint) * smoothstep(0.0, 0.3, mu);
+        // Spots and faculae
+        spotCoverage = uSystem.surface[i].w;
+        if (spotCoverage > 0.0 && detail > 0.0)
         {
-            // (The noise is spread evenly, so the threshold sets the fraction covered)
-            float spotNoise = NoiseAt(turning * 2.2 + 7.1).b;
-            float threshold = 1.0 - 0.3 * spots;
-            float spot = smoothstep(threshold, threshold + 0.04, spotNoise) * (1.0 - smoothstep(0.55, 0.75, abs(turning.y)));
-            temperature *= mix(1.0, SPOT_COOLING, spot);
+            vec2 spots = Starspots(turning, temperature, footprint, detail);
+            T *= spots.x * (1.0 + FaculaWarming(spots.y, mu));
         }
-        // Gravity darkening: the stretched ends (with weaker gravity) are cooler
-        float stretch = uSystem.stretch[i].w;
-        float along = dot(normalize(local), uSystem.stretch[i].xyz);
-        temperature *= 1.0 - 0.8 * (stretch - 1.0) * along * along;
     }
     else if (kind == 1)
     {
@@ -149,29 +190,16 @@ vec3 ShadeSurface(int i, vec3 hit, vec3 direction)
         float bands = 0.5 + 0.5 * sin(latitude * BROWN_DWARF_BANDS * 3.14159);
         vec4 clouds = NoiseAt(vec3(turning.x * 0.6, turning.y * 2.5, turning.z * 0.6) + warp.gba * 0.3);
         pattern = mix(1.0, mix(0.55, 1.35, 0.6 * bands + 0.4 * clouds.g), detail);
-        temperature *= mix(1.0, 0.93 + 0.1 * clouds.b, detail);
+        T *= mix(1.0, 0.97 + 0.04 * clouds.b, detail);
     }
 
-    vec3 light = SurfaceLight(temperature) * uSystem.tint[i].rgb * limb * pattern;
+    vec3 light = BodyLight(i) * PhotosphereLight(temperature, T, mu) * pattern;
 
     // A flare: a small, hot, bright patch
     if (uSystem.flare[i].w > 0.0)
     {
         float angle = acos(clamp(dot(turning, normalize(uSystem.flare[i].xyz)), -1.0, 1.0)) / FLARE_SIZE;
-        light += uSystem.flare[i].w * exp(-angle * angle) * FLARE_SHARE * SurfaceLight(FLARE_TEMPERATURE);
-    }
-
-    // The light of the other bodies falling on it (the reflection effect in close binaries)
-    int count = int(uSystem.info.x);
-    for (int j = 0; j < MAX_BODIES; j++)
-    {
-        if (j >= count || j == i)
-            continue;
-        vec3 toOther = uSystem.position[j].xyz - hit;
-        float distance = length(toOther);
-        float facing = max(dot(normal, toOther / distance), 0.0);
-        float size = uSystem.position[j].w / distance;
-        light += IRRADIATION_ALBEDO * size * size * facing * SurfaceLight(uSystem.surface[j].x) * uSystem.tint[j].rgb;
+        light += uSystem.flare[i].w * exp(-angle * angle) * FLARE_SHARE * BodyLight(i) * PlanckRatio(FLARE_TEMPERATURE, temperature);
     }
     return light;
 }
@@ -201,7 +229,7 @@ void main()
 
     vec3 light = vec3(0.0);
     if (hitBody >= 0)
-        light = ShadeSurface(hitBody, from + direction * nearest, direction);
+        light = ShadeSurface(hitBody, from + direction * nearest, direction, nearest);
 
     // Glows, and bodies too small to see as discs as points (not those behind the body hit)
     for (int i = 0; i < MAX_BODIES; i++)
@@ -218,7 +246,7 @@ void main()
         float impact = length(toCentre - along * direction);
         float angularRadius = radius / length(toCentre);
         float angle = impact / along;
-        vec3 surfaceLight = SurfaceLight(uSystem.surface[i].x) * uSystem.tint[i].rgb;
+        vec3 surfaceLight = BodyLight(i);
 
         // As a point: a Gaussian about a pixel across with the disc's light, fading out as the disc
         // grows. A distant star's light is spread over far less than a pixel, so it would be lost at

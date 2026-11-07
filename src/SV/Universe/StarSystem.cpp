@@ -29,8 +29,8 @@ namespace SV
 			std::array<glm::vec4, MAX_BODIES> position; // xyz = centre (render coordinates), w = radius
 			std::array<glm::vec4, MAX_BODIES> surface;  // x = temperature, y = kind, z = granulation, w = spots
 			std::array<glm::vec4, MAX_BODIES> stretch;  // xyz = the tides' axis, w = stretch along it
-			std::array<glm::vec4, MAX_BODIES> look;     // x = limb darkening, y = glow size, z = glow strength, w = rotation (radians)
-			std::array<glm::vec4, MAX_BODIES> tint;     // rgb = tint
+			std::array<glm::vec4, MAX_BODIES> look;     // x = granules' age (lifetimes), y = glow size, z = glow strength, w = rotation (radians)
+			std::array<glm::vec4, MAX_BODIES> tint;     // rgb = tint, w = surface luminance (relative to the Sun's)
 			std::array<glm::vec4, MAX_BODIES> flare;    // xyz = where (in the body's turning frame), w = brightness
 			glm::vec4 display;                          // x = point star gain
 			std::array<glm::vec4, BLACKBODY_TABLE_SIZE> blackbody;
@@ -45,6 +45,12 @@ namespace SV
 		constexpr double FLARE_RISE = 0.3;
 		constexpr double FLARE_FADE = 1.5;
 		constexpr float FLARE_BRIGHTNESS = 3.0f;
+		// Granules last about ten minutes on the Sun, and longer in proportion to their size on other
+		// stars (years on a red supergiant), but evolve no faster than this many lifetimes per real
+		// second however fast time passes
+		constexpr double SOLAR_GRANULE_LIFETIME = 10.0 / (24.0 * 60.0); // Days
+		constexpr double SOLAR_GRANULES = 460.0;                       // To a radius
+		constexpr double MAX_GRANULE_RATE = 0.3;
 		// The solar radius and the astronomical unit, in kilometres
 		constexpr double SOLAR_RADIUS_KM = 695700.0;
 		constexpr double AU_KM = 149597870.7;
@@ -83,44 +89,44 @@ namespace SV
 			std::array<StarSystemPreset, (size_t)StarSystemType::Count> presets;
 
 			// The nearest star to the Sun: a small, cool, spotted flare star
-			StellarBody proxima{ "Proxima Centauri", "M5.5 V red dwarf", StellarBodyKind::Star, 0.154f, 3042.0f, 0.122f, 83.0f, 30.0f, 0.35f, 0.7f };
+			StellarBody proxima{ "Proxima Centauri", "M5.5 V red dwarf", StellarBodyKind::Star, 0.154f, 3042.0f, 0.122f, 83.0f, 690.0f, 0.35f };
 			proxima.flareRate = 6.0f;
-			presets[(size_t)StarSystemType::RedDwarf] = Single("Red dwarf (Proxima Centauri)", proxima, 0.6f, 6.5f, 2.0f);
+			presets[(size_t)StarSystemType::RedDwarf] = Single("Red dwarf (Proxima Centauri)", proxima, 0.6f, 17.0f, 2.0f);
 
-			const StellarBody sun{ "Sun", "G2 V main sequence star", StellarBodyKind::Star, 1.0f, 5772.0f, 1.0f, 25.4f, 70.0f, 0.1f, 0.6f };
-			presets[(size_t)StarSystemType::Sun] = Single("Main sequence star (the Sun)", sun, 4.0f, 0.5f, 1.0f);
+			const StellarBody sun{ "Sun", "G2 V main sequence star", StellarBodyKind::Star, 1.0f, 5772.0f, 1.0f, 25.4f, 460.0f, 0.1f };
+			presets[(size_t)StarSystemType::Sun] = Single("Main sequence star (the Sun)", sun, 4.0f, 0.39f, 1.0f);
 
-			StellarBody aldebaran{ "Aldebaran", "K5 III red giant", StellarBodyKind::Star, 44.0f, 3900.0f, 1.16f, 520.0f, 9.0f, 0.0f, 0.8f };
+			StellarBody aldebaran{ "Aldebaran", "K5 III red giant", StellarBodyKind::Star, 44.0f, 3900.0f, 1.16f, 520.0f, 18.0f, 0.0f };
 			aldebaran.glowSize = 0.1f;
-			presets[(size_t)StarSystemType::RedGiant] = Single("Red giant (Aldebaran)", aldebaran, 170.0f, 2.4f, 20.0f);
+			presets[(size_t)StarSystemType::RedGiant] = Single("Red giant (Aldebaran)", aldebaran, 170.0f, 3.0f, 20.0f);
 
 			// A few huge convection cells, and a dusty envelope
-			StellarBody betelgeuse{ "Betelgeuse", "M1-2 Ia red supergiant", StellarBodyKind::Star, 760.0f, 3600.0f, 17.0f, 13000.0f, 3.5f, 0.0f, 0.85f };
+			StellarBody betelgeuse{ "Betelgeuse", "M1-2 Ia red supergiant", StellarBodyKind::Star, 760.0f, 3600.0f, 17.0f, 13000.0f, 1.8f, 0.0f };
 			betelgeuse.glowSize = 0.6f;
 			betelgeuse.glowStrength = 0.08f;
-			presets[(size_t)StarSystemType::RedSupergiant] = Single("Red supergiant (Betelgeuse)", betelgeuse, 3000.0f, 3.3f, 500.0f);
+			presets[(size_t)StarSystemType::RedSupergiant] = Single("Red supergiant (Betelgeuse)", betelgeuse, 3000.0f, 5.0f, 500.0f);
 
-			const StellarBody rigel{ "Rigel", "B8 Ia blue supergiant", StellarBodyKind::Star, 79.0f, 12100.0f, 21.0f, 160.0f, 25.0f, 0.0f, 0.35f };
-			presets[(size_t)StarSystemType::BlueGiant] = Single("Blue giant (Rigel)", rigel, 300.0f, 0.026f, 5.0f);
+			const StellarBody rigel{ "Rigel", "B8 Ia blue supergiant", StellarBodyKind::Star, 79.0f, 12100.0f, 21.0f, 160.0f, 25.0f, 0.0f };
+			presets[(size_t)StarSystemType::BlueGiant] = Single("Blue giant (Rigel)", rigel, 300.0f, 0.037f, 5.0f);
 
 			// About Jupiter's size, turning in 5.3 hours
-			StellarBody luhman{ "Luhman 16 B", "T0.5 brown dwarf", StellarBodyKind::BrownDwarf, 0.099f, 1210.0f, 0.03f, 0.22f, 0.0f, 0.0f, 0.4f };
+			StellarBody luhman{ "Luhman 16 B", "T0.5 brown dwarf", StellarBodyKind::BrownDwarf, 0.099f, 1210.0f, 0.03f, 0.22f, 0.0f, 0.0f };
 			luhman.glowStrength = 0.0f;
 			luhman.tint = { 1.0f, 0.4f, 0.85f };
-			presets[(size_t)StarSystemType::BrownDwarf] = Single("Brown dwarf (Luhman 16 B)", luhman, 0.4f, 300.0f, 0.05f);
+			presets[(size_t)StarSystemType::BrownDwarf] = Single("Brown dwarf (Luhman 16 B)", luhman, 0.4f, 2.0e6f, 0.05f);
 
 			// About the Earth's size, with the Sun's mass
-			StellarBody siriusB{ "Sirius B", "DA2 white dwarf", StellarBodyKind::WhiteDwarf, 0.0084f, 25000.0f, 1.02f, 1.0f, 0.0f, 0.0f, 0.2f };
+			StellarBody siriusB{ "Sirius B", "DA2 white dwarf", StellarBodyKind::WhiteDwarf, 0.0084f, 25000.0f, 1.02f, 1.0f, 0.0f, 0.0f };
 			siriusB.glowStrength = 0.02f;
-			presets[(size_t)StarSystemType::WhiteDwarf] = Single("White dwarf (Sirius B)", siriusB, 0.035f, 0.0014f, 0.2f);
+			presets[(size_t)StarSystemType::WhiteDwarf] = Single("White dwarf (Sirius B)", siriusB, 0.035f, 0.0092f, 0.2f);
 
 			// Two Sun-like stars 23 AU apart on an eccentric 80 year orbit
 			{
 				StarSystemPreset& preset = presets[(size_t)StarSystemType::AlphaCentauri];
 				preset.name = "Binary (Alpha Centauri A and B)";
 				preset.bodies = {
-					{ "Alpha Centauri A", "G2 V main sequence star", StellarBodyKind::Star, 1.22f, 5790.0f, 1.08f, 22.0f, 70.0f, 0.1f, 0.6f },
-					{ "Alpha Centauri B", "K1 V main sequence star", StellarBodyKind::Star, 0.86f, 5260.0f, 0.91f, 36.0f, 60.0f, 0.2f, 0.65f },
+					{ "Alpha Centauri A", "G2 V main sequence star", StellarBodyKind::Star, 1.22f, 5790.0f, 1.08f, 22.0f, 400.0f, 0.1f },
+					{ "Alpha Centauri B", "K1 V main sequence star", StellarBodyKind::Star, 0.86f, 5260.0f, 0.91f, 36.0f, 530.0f, 0.2f },
 				};
 				preset.nodes = {
 					{ "Alpha Centauri AB", -1, 1, 2, 23.4f * AU, 0.52f, 29200.0f, 0.0f, 2.0f },
@@ -129,7 +135,7 @@ namespace SV
 				};
 				preset.overviewPitch = 35.0f;
 				preset.overviewZoom = 15000.0f;
-				preset.brightness = 0.5f;
+				preset.brightness = 0.39f;
 				preset.daysPerSecond = 1500.0f;
 			}
 
@@ -138,8 +144,8 @@ namespace SV
 				StarSystemPreset& preset = presets[(size_t)StarSystemType::Spica];
 				preset.name = "Close binary (Spica)";
 				preset.bodies = {
-					{ "Spica A", "B1 III-IV blue giant", StellarBodyKind::Star, 7.47f, 25300.0f, 11.4f, 4.0f, 20.0f, 0.0f, 0.3f },
-					{ "Spica B", "B2 V main sequence star", StellarBodyKind::Star, 3.64f, 20900.0f, 7.2f, 4.0f, 25.0f, 0.0f, 0.3f },
+					{ "Spica A", "B1 III-IV blue giant", StellarBodyKind::Star, 7.47f, 25300.0f, 11.4f, 4.0f, 20.0f, 0.0f },
+					{ "Spica B", "B2 V main sequence star", StellarBodyKind::Star, 3.64f, 20900.0f, 7.2f, 4.0f, 25.0f, 0.0f },
 				};
 				preset.nodes = {
 					{ "Spica AB", -1, 1, 2, 26.6f, 0.13f, 4.0145f, 0.0f, 0.5f },
@@ -148,7 +154,7 @@ namespace SV
 				};
 				preset.overviewPitch = 12.0f;
 				preset.overviewZoom = 75.0f;
-				preset.brightness = 0.0015f;
+				preset.brightness = 0.01f;
 				preset.daysPerSecond = 0.4f;
 			}
 
@@ -157,7 +163,7 @@ namespace SV
 				StarSystemPreset& preset = presets[(size_t)StarSystemType::Sirius];
 				preset.name = "Binary with a white dwarf (Sirius A and B)";
 				preset.bodies = {
-					{ "Sirius A", "A0-1 V main sequence star", StellarBodyKind::Star, 1.711f, 9940.0f, 2.06f, 5.0f, 30.0f, 0.0f, 0.45f },
+					{ "Sirius A", "A0-1 V main sequence star", StellarBodyKind::Star, 1.711f, 9940.0f, 2.06f, 5.0f, 30.0f, 0.0f },
 					siriusB,
 				};
 				preset.nodes = {
@@ -167,7 +173,7 @@ namespace SV
 				};
 				preset.overviewPitch = 40.0f;
 				preset.overviewZoom = 12000.0f;
-				preset.brightness = 0.06f;
+				preset.brightness = 0.064f;
 				preset.daysPerSecond = 1000.0f;
 			}
 
@@ -177,9 +183,9 @@ namespace SV
 				StarSystemPreset& preset = presets[(size_t)StarSystemType::Algol];
 				preset.name = "Trinary (Algol)";
 				preset.bodies = {
-					{ "Algol A", "B8 V main sequence star", StellarBodyKind::Star, 2.73f, 12550.0f, 3.17f, 2.867f, 25.0f, 0.0f, 0.35f },
-					{ "Algol B", "K0 IV subgiant", StellarBodyKind::Star, 3.48f, 4500.0f, 0.70f, 2.867f, 20.0f, 0.15f, 0.7f },
-					{ "Algol C", "A7 m main sequence star", StellarBodyKind::Star, 1.73f, 7500.0f, 1.76f, 2.0f, 40.0f, 0.0f, 0.5f },
+					{ "Algol A", "B8 V main sequence star", StellarBodyKind::Star, 2.73f, 12550.0f, 3.17f, 2.867f, 25.0f, 0.0f },
+					{ "Algol B", "K0 IV subgiant", StellarBodyKind::Star, 3.48f, 4500.0f, 0.70f, 2.867f, 120.0f, 0.15f },
+					{ "Algol C", "A7 m main sequence star", StellarBodyKind::Star, 1.73f, 7500.0f, 1.76f, 2.0f, 360.0f, 0.0f },
 				};
 				preset.nodes = {
 					{ "Algol", -1, 1, 4, 2.69f * AU, 0.23f, 680.0f, 0.0f, 0.0f },
@@ -191,7 +197,7 @@ namespace SV
 				preset.focus = 1;
 				preset.overviewPitch = 8.0f;
 				preset.overviewZoom = 45.0f;
-				preset.brightness = 0.04f;
+				preset.brightness = 0.061f;
 				preset.daysPerSecond = 0.3f;
 			}
 			return presets;
@@ -242,6 +248,7 @@ namespace SV
 		daysPerSecond = preset.daysPerSecond;
 		days = 0.0;
 		seconds = 0.0;
+		granuleAges.assign(system.bodies.size(), 0.0);
 		Update(0.0);
 	}
 
@@ -299,6 +306,16 @@ namespace SV
 	{
 		days += deltaTime * (double)daysPerSecond;
 		seconds += deltaTime;
+		granuleAges.resize(system.bodies.size(), 0.0);
+		for (size_t i = 0; i < system.bodies.size(); i++)
+		{
+			const StellarBody& body = system.bodies[i];
+			if (body.granulation <= 0.0f)
+				continue;
+			const double lifetime = SOLAR_GRANULE_LIFETIME * SOLAR_GRANULES * body.radius / body.granulation;
+			// (Kept small, so it stays precise in a float)
+			granuleAges[i] = std::fmod(granuleAges[i] + deltaTime * std::min((double)daysPerSecond / lifetime, MAX_GRANULE_RATE), 1000.0);
+		}
 		nodePositions.assign(system.nodes.size(), glm::dvec3(0.0));
 		stretches.assign(system.bodies.size(), glm::vec4(0.0f, 1.0f, 0.0f, 1.0f));
 		if (!system.nodes.empty())
@@ -337,8 +354,8 @@ namespace SV
 			uniforms.position[i] = glm::vec4(glm::vec3(nodePositions[node] - view.origin), body.radius);
 			uniforms.surface[i] = glm::vec4(body.temperature, (float)body.kind, body.granulation, body.spots);
 			uniforms.stretch[i] = stretches[i];
-			uniforms.look[i] = glm::vec4(body.limbDarkening, body.glowSize, body.glowStrength, (float)rotation);
-			uniforms.tint[i] = glm::vec4(body.tint, 0.0f);
+			uniforms.look[i] = glm::vec4((float)granuleAges[i], body.glowSize, body.glowStrength, (float)rotation);
+			uniforms.tint[i] = glm::vec4(body.tint, BlackbodyLuminance(body.temperature));
 
 			// Flares: one at a time, at a random place, brightening quickly and fading
 			if (body.flareRate > 0.0f)

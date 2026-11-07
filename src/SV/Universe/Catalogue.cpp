@@ -460,9 +460,11 @@ namespace SV
 		// ---- Stars ------------------------------------------------------------------------------
 
 		// Stars named as landmarks beyond those with proper names: every star with a Bayer or
-		// Flamsteed designation, every star the eye can see (to this magnitude) and the nearby stars
-		// of the Gliese catalogue (within this many parsecs)
-		constexpr double NAKED_EYE_MAGNITUDE = 6.5;
+		// Flamsteed designation, every star to this magnitude (a little past what the eye can see,
+		// about the faintest drawn from the solar system at the default exposure, so any star seen
+		// there can be clicked on) and the nearby stars of the Gliese catalogue (within this many
+		// parsecs)
+		constexpr double LANDMARK_MAGNITUDE = 7.5;
 		constexpr double NEARBY_STAR_DISTANCE = 20.0;
 
 		// A Bayer letter as HYG abbreviates it ("Alp", "Pi-1") spelled out ("Alpha", "Pi1")
@@ -587,9 +589,9 @@ namespace SV
 					const std::string_view bayer = Trim(Get("bayer")), flamsteed = Trim(Get("flam"));
 					const std::string_view gliese = Trim(Get("gl"));
 					const double magnitude = ParseNumber(Get("mag"));
-					const bool nakedEye = IsNumber(magnitude) && magnitude < NAKED_EYE_MAGNITUDE;
+					const bool visible = IsNumber(magnitude) && magnitude < LANDMARK_MAGNITUDE;
 					const bool nearby = !gliese.empty() && distance < NEARBY_STAR_DISTANCE;
-					if (!proper.empty() || !bayer.empty() || !flamsteed.empty() || nakedEye || nearby)
+					if (!proper.empty() || !bayer.empty() || !flamsteed.empty() || visible || nearby)
 					{
 						std::vector<std::string> designations = StarDesignations(bayer, flamsteed, Trim(Get("con")), gliese, Trim(Get("hd")), Trim(Get("hip")));
 						if (designations.empty())
@@ -1089,7 +1091,7 @@ namespace SV
 				if (entry.known != nullptr || nebula.kind != CatalogueKind::HIIRegion)
 				{
 					const float priority = (entry.known != nullptr ? 3.0f : 0.0f) + std::log10(nebula.radius);
-					catalogue.landmarks.push_back({ nebula.name, nebula.description, nebula.kind, nebula.position, nebula.radius, 0.0f, priority });
+					catalogue.landmarks.push_back({ nebula.name, nebula.description, nebula.kind, nebula.position, nebula.radius, nebula.luminosity, priority });
 				}
 				else
 				{
@@ -1102,7 +1104,7 @@ namespace SV
 			for (const auto& [region, largest] : regions)
 			{
 				const ExtendedObject& nebula = catalogue.nebulae[largest.second];
-				catalogue.landmarks.push_back({ nebula.name, nebula.description, nebula.kind, nebula.position, nebula.radius, 0.0f,
+				catalogue.landmarks.push_back({ nebula.name, nebula.description, nebula.kind, nebula.position, nebula.radius, nebula.luminosity,
 												std::log10(nebula.radius) });
 			}
 		}

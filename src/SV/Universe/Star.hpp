@@ -22,6 +22,10 @@ namespace SV
 
 	// Colour of a blackbody at the given temperature (K): linear sRGB with a luminance of 1
 	glm::vec3 BlackbodyColour(float temperature);
+	// The luminance of a blackbody's surface at the given temperature (K), relative to the Sun's
+	// (5772 K): how bright it looks per unit area, which falls far faster than its total light as it
+	// cools (most of a cool star's light is infrared)
+	[[nodiscard]] float BlackbodyLuminance(float temperature);
 
 	// BlackbodyColour at this many temperatures, spaced evenly in log temperature between the two
 	// (K), for shaders to look up (mirrors BLACKBODY_* in Shaders/Include/Procedural.glsl)
@@ -48,6 +52,8 @@ namespace SV
 		float radius = 1.0f;
 		float starTemperature = 5772.0f;
 		glm::vec3 starColour;
+		// Convection cells (granules) across a stellar radius: the Sun's are about 1500 km across
+		float granulation = 460.0f;
 	};
 
 	namespace PresetStars
@@ -68,8 +74,16 @@ namespace SV
 		glm::vec2 viewportSize; // Pixels
 	};
 
-	// Draws stars (noise textured spheres, with flares) and their coronas, loops, chromospheres and
-	// prominences (additive camera facing quads), and the glare of stars too small on screen to show them (a lens flare)
+	// How a star's surface is shown
+	enum class StarSurfaceView
+	{
+		VisibleLight, // The photosphere, as through a solar filter (Shaders/Include/Photosphere.glsl)
+		Ultraviolet,  // The chromosphere and corona above it, as SDO images them in extreme ultraviolet
+	};
+
+	// Draws stars (spheres, their photospheres shaded in Star.frag, with flares) and their coronas,
+	// loops, chromospheres and prominences (additive camera facing quads), and the glare of stars too
+	// small on screen to show them (a lens flare)
 	class StarRenderer : public CelestrialRenderer<SV::Star>
 	{
 	public:
@@ -87,6 +101,9 @@ namespace SV
 		float hydrogenEmission = 1.0f;
 		// Brightness of solar flares on the disc and in the loops over the limb (0 for none)
 		float solarFlares = 1.0f;
+		StarSurfaceView surfaceView = StarSurfaceView::VisibleLight;
+		// Contrast of sunspots and faculae in visible light (0 for none)
+		float sunspots = 1.0f;
 		// Brightness of the flare (0 for none)
 		float flareIntensity = 1.0f;
 

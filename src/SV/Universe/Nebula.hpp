@@ -33,20 +33,50 @@ namespace SV
 		HIIRegion,
 		// Columns of dense, dark gas and dust (the Pillars of Creation) left standing as hot stars
 		// nearby blow away the thinner gas around them. Their faces towards the stars glow where
-		// they are being ionised and evaporated, against the glowing gas behind them.
+		// they are being ionised and evaporated, against the glowing gas behind them. Its clouds
+		// are the pillars.
 		Pillars,
+		// The gas a dying star has thrown off (the Blue Flash and Box nebulae), lit by the hot core
+		// left at its centre: a bright inner shell, lobes blown out along its axes (its clouds,
+		// each a thin walled shell) with knots at their tips, and a faint halo. Doubly ionised
+		// oxygen glows nearest the star, hydrogen and nitrogen further out.
+		PlanetaryNebula,
+		// The shock wave of a supernova long ago (the Veil), tens of parsecs across with nothing
+		// left glowing inside it: a thin, rippled sheet of gas heated as the shock sweeps it up,
+		// brightest where it meets denser clouds. Seen edge on, its folds are long braided
+		// filaments, with [O III] at the shock's front and hydrogen just behind it.
+		SupernovaShell,
+		// Gas ionised by hot stars, shaped by the dense clouds of dust around them (its clouds) and
+		// the cavity their winds blow (its bubble): the Bubble, North America, Carina, Rim, Rosette
+		// and Flaming Star nebulae. The clouds stand dark against the gas, with bright rims where
+		// they face the stars; the stars' light also scatters off the dust near them (blue).
+		EmissionNebula,
 	};
 
-	// A pillar of dense gas and dust: a column from its base to its head, narrowing towards the head
-	struct NebulaPillar
+	// A cloud of dense gas and dust: a column from its base to its head, narrowing (or widening)
+	// towards the head. A sphere when the two are at the same place. In a planetary nebula, a lobe.
+	struct NebulaCloud
 	{
 		glm::vec3 base{ 0.0f }; // pc
 		glm::vec3 head{ 0.0f };
 		float baseRadius = 0.2f;
 		float headRadius = 0.1f;
+		float density = 1.0f; // Its dust (or a lobe's brightness), relative to the others'
 	};
 
-	constexpr size_t MAX_NEBULA_PILLARS = 4;
+	constexpr size_t MAX_NEBULA_CLOUDS = 12;
+
+	// A cavity blown in an emission nebula's gas by a star's wind (the Bubble Nebula's, or the
+	// Rosette's): cleared inside, the gas swept up into a shell around it
+	struct NebulaBubble
+	{
+		glm::vec3 centre{ 0.0f }; // pc
+		float radius = 0.0f;      // pc (0 for none)
+		float thickness = 0.1f;   // pc, of the shell
+		float brightness = 1.0f;  // Of the shell
+		float clearing = 1.0f;    // How much of the gas inside is cleared (0 to 1)
+		float oxygen = 0.5f;      // The share of the shell's light from [O III] (0 to 1)
+	};
 
 	// A star in or near a nebula. Hot stars in an H II region ionise the gas around them.
 	struct NebulaStar
@@ -82,17 +112,24 @@ namespace SV
 		float dust = 1.0f;
 		// The scale of the gas's structure: noise tiles per parsec (larger for finer structure)
 		float detail = 0.35f;
-		// A supernova remnant's filaments: how bright and how thin (a higher power is thinner)
+		// Filaments: a supernova remnant's (how bright and how thin: a higher power is thinner), a
+		// supernova shell's (how bright, and how thin its sheet), and the share of an emission
+		// nebula's gas drawn out into wisps (0 for clumps), of the sharpness
 		float filaments = 1.0f;
 		float filamentSharpness = 10.0f;
 		// How far the gas's structure is pushed about (parsecs)
 		float turbulence = 0.5f;
+		// The gas's structure is drawn out along these axes (the nebula's x, y and z) by these
+		// factors, for streaming wisps
+		glm::vec3 stretch{ 1.0f };
 
 		std::vector<NebulaStar> stars;
 
-		// Pillars (up to MAX_NEBULA_PILLARS), and the direction of the stars lighting them
-		std::vector<NebulaPillar> pillars;
+		// Dense clouds of dust, pillars or lobes (up to MAX_NEBULA_CLOUDS), and the direction of the
+		// stars lighting pillars
+		std::vector<NebulaCloud> clouds;
 		glm::vec3 lightDirection{ 0.0f, 1.0f, 0.0f };
+		NebulaBubble bubble;
 
 		// Shows the emission lines in the Hubble palette, as in many of Hubble's images: [S II] as
 		// red, hydrogen as green and [O III] as blue (in place of their own colours)
@@ -104,6 +141,8 @@ namespace SV
 		float brightness = 1.0f;
 		// The fraction of the viewport's resolution the gas is raymarched at
 		float renderScale = 0.75f;
+		// The samples along each ray (more for thin structure in a large volume)
+		int steps = 160;
 	};
 
 	enum class NebulaType
@@ -111,6 +150,15 @@ namespace SV
 		Crab,
 		Orion,
 		PillarsOfCreation,
+		Bubble,
+		BlueFlash,
+		Box,
+		Veil,
+		NorthAmerica,
+		Carina,
+		Rim,
+		Rosette,
+		FlamingStar,
 		Count
 	};
 

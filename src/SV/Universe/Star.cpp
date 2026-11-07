@@ -21,6 +21,7 @@ namespace SV
 			glm::mat4 transform;  // Model to world
 			glm::vec4 properties; // x = detail octaves (0 for a plain disc), y = flare activity
 			glm::vec4 colour;     // rgb = photosphere colour
+			glm::vec4 surface;    // x = temperature, y = granules per radius, z = spot contrast, w = 1 in extreme ultraviolet
 		};
 
 		// Mirrors Shaders/Include/CoronaPushConstants.glsl
@@ -78,6 +79,13 @@ namespace SV
 			return r1 * r1 * a1 + r2 * r2 * a2 - 0.5f * kite;
 		}
 
+		// Planck's law, for a wavelength (nm) and temperature (K), up to a constant factor
+		double Planck(const double wavelength, const double temperature)
+		{
+			constexpr double C2 = 1.4388e7; // Second radiation constant, nm K
+			return 1.0 / (std::pow(wavelength, 5.0) * (std::exp(C2 / (wavelength * temperature)) - 1.0));
+		}
+
 		// CIE 1931 colour matching functions (the multi-lobe fit of Wyman, Sloan and Shirley 2013)
 		glm::dvec3 ColourMatching(const double wavelength)
 		{
@@ -91,6 +99,22 @@ namespace SV
 				1.217 * lobe(437.0, 11.8, 36.0) + 0.681 * lobe(459.0, 26.0, 13.8)
 			};
 		}
+
+		// Photopic luminance of a blackbody's surface (Planck's law integrated against the CIE y
+		// function), up to a constant factor
+		double SurfaceLuminance(const double temperature)
+		{
+			double y = 0.0;
+			for (double wavelength = 380.0; wavelength <= 780.0; wavelength += 5.0)
+				y += ColourMatching(wavelength).y * Planck(wavelength, std::max(temperature, 100.0));
+			return y;
+		}
+	}
+
+	float BlackbodyLuminance(const float temperature)
+	{
+		static const double sun = SurfaceLuminance(5772.0);
+		return (float)(SurfaceLuminance(temperature) / sun);
 	}
 
 	std::array<glm::vec4, BLACKBODY_TABLE_SIZE> BlackbodyTable()
@@ -107,13 +131,9 @@ namespace SV
 	glm::vec3 BlackbodyColour(const float temperature)
 	{
 		// Planck's law integrated against the colour matching functions
-		constexpr double C2 = 1.4388e7; // Second radiation constant, nm K
 		glm::dvec3 xyz(0.0);
 		for (double wavelength = 380.0; wavelength <= 780.0; wavelength += 5.0)
-		{
-			const double planck = 1.0 / (std::pow(wavelength, 5.0) * (std::exp(C2 / (wavelength * temperature)) - 1.0));
-			xyz += ColourMatching(wavelength) * planck;
-		}
+			xyz += ColourMatching(wavelength) * Planck(wavelength, temperature);
 		xyz /= xyz.y;
 
 		// XYZ to linear sRGB
@@ -199,7 +219,8 @@ namespace SV
 			const StarPushConstants pushConstants{
 				star.transformationMatrix,
 				glm::vec4(STAR_NOISE_OCTAVES, solarFlares, 0.0f, 0.0f),
-				glm::vec4(star.GetPhotosphereColour(), 1.0f)
+				glm::vec4(star.GetPhotosphereColour(), 1.0f),
+				glm::vec4(star.starTemperature, star.granulation, sunspots, surfaceView == StarSurfaceView::Ultraviolet ? 1.0f : 0.0f)
 			};
 			cmd.PushConstants(pushConstants);
 			sphereMesh->Draw(cmd);
