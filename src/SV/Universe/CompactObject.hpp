@@ -1,4 +1,7 @@
 #pragma once
+#include <cstdint>
+#include <vector>
+
 #include <glm/glm.hpp>
 
 #include "Dahlia/Utilities/Memory.h"
@@ -11,6 +14,8 @@ namespace DH
 	class CommandList;
 	class Framebuffer;
 	class GraphicsPipeline;
+	class Sampler;
+	class Texture2D;
 }
 
 namespace SV
@@ -35,6 +40,12 @@ namespace SV
 		float starRadius = 2.9f;
 		float starTemperature = 40000.0f; // As emitted (K)
 		float starBrightness = 2.0f;
+		// How much its surface's plasma shows its bright veins and cells (0 for a smooth surface)
+		float surfaceDetail = 1.0f;
+		// Its glare, as its light scatters in a camera's lens: a white glow at its limb inside a
+		// wide blue halo (the size scales both)
+		float glareBrightness = 1.5f;
+		float glareSize = 1.0f;
 		float hotSpotSize = 14.0f; // Angular radius (degrees)
 		float hotSpotBrightness = 6.0f;
 		// Its spin (real seconds per turn: real pulsars turn in milliseconds to seconds) and its
@@ -45,8 +56,8 @@ namespace SV
 		float beamBrightness = 1.0f; // 0 for none
 		float beamWidth = 7.0f;      // Half angle (degrees)
 		float beamLength = 40.0f;    // The beams fade over this length
-		// Glowing plasma along the closed magnetic field lines around it (0 for none)
-		float magnetosphere = 0.3f;
+		// Glowing plasma along the magnetic field lines around it (0 for none): each line's brightness
+		float magnetosphere = 1.0f;
 
 		// The disc: from discInnerRadius (for a black hole, 3: the innermost stable circular orbit,
 		// where the gas starts to fall in; for a neutron star, where its magnetic field takes over)
@@ -76,7 +87,7 @@ namespace SV
 		float jetOpeningAngle = 2.0f;  // Half angle (degrees)
 		float jetLength = 30.0f;       // Each jet fades over this length
 
-		// The sky behind: stars, and a faint glow
+		// The sky behind: sharp stars over the Milky Way, its dust and nebulae, and distant galaxies
 		float starFieldBrightness = 1.0f;
 		float skyBrightness = 1.0f;
 
@@ -92,6 +103,45 @@ namespace SV
 	[[nodiscard]] CompactObjectParameters GetBlackHolePreset();
 	// A pulsar feeding from a disc (an X-ray pulsar), with its beams and magnetosphere
 	[[nodiscard]] CompactObjectParameters GetPulsarPreset();
+
+	// The sky behind the objects, baked once into an octahedral map with its mip levels
+	// (Shaders/SkyBake.frag; laid out as in Shaders/Include/SkyMap.glsl) and shared by every
+	// renderer while any is alive. It is baked a few strips a frame, so it is ready a few frames
+	// after it is first needed (the sky is empty until then).
+	class SkyMap
+	{
+	public:
+		SkyMap();
+		~SkyMap();
+
+		// The map shared by every renderer, made when the first asks for it
+		static sRef<SkyMap> Get();
+
+		// Outside a render pass: bakes the next strips, if there are any left
+		void Bake(DH::CommandList& cmd);
+
+		[[nodiscard]] bool IsReady() const { return next >= work.size(); }
+		// The angle across a texel of its first level (radians)
+		[[nodiscard]] float GetTexelAngle() const;
+		[[nodiscard]] uint32_t GetLevelCount() const;
+
+		sRef<DH::Texture2D> texture;
+		sRef<DH::Sampler> sampler;
+
+	private:
+		// The rows of a level baked in one pass
+		struct Strip
+		{
+			uint32_t level;
+			uint32_t firstRow;
+			uint32_t rows;
+		};
+
+		std::vector<sRef<DH::Framebuffer>> levels;
+		sRef<DH::GraphicsPipeline> bakePipeline;
+		std::vector<Strip> work;
+		size_t next = 0;
+	};
 
 	// How the object is viewed this frame
 	struct CompactObjectView
@@ -127,6 +177,7 @@ namespace SV
 	private:
 		SceneContext context;
 		BloomCompositor compositor;
+		sRef<SkyMap> skyMap;
 		double time = 0.0;
 		double spinAngle = 0.0;
 

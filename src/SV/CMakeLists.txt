@@ -91,6 +91,7 @@ function(sv_add_executable TARGET)
       ${SV_SHADER_DIR}/GalaxyStars.frag
       ${SV_SHADER_DIR}/GalaxyComposite.frag
       ${SV_SHADER_DIR}/CompactObject.frag
+      ${SV_SHADER_DIR}/SkyBake.frag
       ${SV_SHADER_DIR}/Nebula.frag
       ${SV_SHADER_DIR}/StarSystem.frag
       ${SV_SHADER_DIR}/BloomComposite.frag

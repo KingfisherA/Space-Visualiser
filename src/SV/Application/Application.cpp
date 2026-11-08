@@ -1451,6 +1451,11 @@ namespace SV
 			ImGui::SliderFloat("Magnetic tilt", &p.magneticTilt, 0.0f, 90.0f, "%.0f deg");
 			ImGui::SetItemTooltip("Between the spin and magnetic axes: the beams sweep round a cone this wide, and the pulsar flashes as one passes the camera");
 			ImGui::SliderFloat("Star brightness", &p.starBrightness, 0.05f, 20.0f, "%.2f", ImGuiSliderFlags_Logarithmic);
+			ImGui::SliderFloat("Surface detail", &p.surfaceDetail, 0.0f, 2.0f, "%.2f");
+			ImGui::SetItemTooltip("The bright veins and cells of the boiling plasma on its surface (0 for a smooth surface)");
+			ImGui::SliderFloat("Glare", &p.glareBrightness, 0.0f, 10.0f, "%.2f");
+			ImGui::SetItemTooltip("Its light scattered in the camera's lens: a white glow at its limb in a wide blue halo");
+			ImGui::SliderFloat("Glare size", &p.glareSize, 0.2f, 4.0f, "%.2f", ImGuiSliderFlags_Logarithmic);
 			ImGui::SliderFloat("Hot spots", &p.hotSpotBrightness, 0.0f, 30.0f, "%.1f");
 			ImGui::SetItemTooltip("The magnetic poles, where gas falling along the field lines lands");
 			ImGui::SliderFloat("Hot spot size", &p.hotSpotSize, 2.0f, 40.0f, "%.0f deg");
@@ -1459,7 +1464,7 @@ namespace SV
 			ImGui::SliderFloat("Beam width", &p.beamWidth, 1.0f, 30.0f, "%.1f deg");
 			ImGui::SliderFloat("Beam length", &p.beamLength, 5.0f, 200.0f, "%.0f r_s");
 			ImGui::SliderFloat("Magnetosphere", &p.magnetosphere, 0.0f, 3.0f, "%.2f");
-			ImGui::SetItemTooltip("Plasma glowing along the closed magnetic field lines (0 for none)");
+			ImGui::SetItemTooltip("Plasma glowing along the magnetic field lines (0 for none)");
 			ImGui::SliderFloat("Star radius", &p.starRadius, 1.6f, 6.0f, "%.2f r_s");
 			ImGui::SetItemTooltip("12 km for 1.4 solar masses is 2.9 Schwarzschild radii. Light bends round it, so more than half of it is seen.");
 		}
@@ -1494,7 +1499,9 @@ namespace SV
 
 		ImGui::SeparatorText("Sky");
 		ImGui::SliderFloat("Stars", &p.starFieldBrightness, 0.0f, 10.0f, "%.2f");
-		ImGui::SliderFloat("Sky glow", &p.skyBrightness, 0.0f, 5.0f, "%.2f");
+		ImGui::SetItemTooltip("The sharp stars drawn over the sky (crowding into the Milky Way's band)");
+		ImGui::SliderFloat("Milky Way", &p.skyBrightness, 0.0f, 5.0f, "%.2f");
+		ImGui::SetItemTooltip("The sky's glow: the Milky Way's band, its dust and nebulae, and distant galaxies");
 		ImGui::SliderFloat("Resolution", &p.renderScale, 0.25f, 1.0f, "%.2f");
 		ImGui::SetItemTooltip("The fraction of the viewport's resolution the light rays are traced at");
 

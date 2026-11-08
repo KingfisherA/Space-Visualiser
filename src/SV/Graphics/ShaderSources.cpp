@@ -63,6 +63,9 @@ namespace
 	const uint32_t kCompactObjectFrag[] =
 #include "CompactObject.frag.inc"
 		;
+	const uint32_t kSkyBakeFrag[] =
+#include "SkyBake.frag.inc"
+		;
 	const uint32_t kNebulaFrag[] =
 #include "Nebula.frag.inc"
 		;
@@ -131,6 +134,7 @@ namespace
 		{ "GalaxyStars.frag", kGalaxyStarsFrag },
 		{ "GalaxyComposite.frag", kGalaxyCompositeFrag },
 		{ "CompactObject.frag", kCompactObjectFrag },
+		{ "SkyBake.frag", kSkyBakeFrag },
 		{ "Nebula.frag", kNebulaFrag },
 		{ "StarSystem.frag", kStarSystemFrag },
 		{ "BloomComposite.frag", kBloomCompositeFrag },
