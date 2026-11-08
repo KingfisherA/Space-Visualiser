@@ -58,9 +58,11 @@ namespace SV
 	//
 	// Close up, the test scenes' renderers take over, turned to look from the Sun as their presets
 	// do (as these objects are usually seen): the galaxies with presets (Andromeda, Triangulum, the
-	// Whirlpool, the Pinwheel, the Sombrero, NGC 1300 and the Rose Galaxy) as the galaxy model, the
+	// Whirlpool, the Pinwheel, the Sombrero, NGC 1300, the Rose Galaxy, the Fireworks, Sunflower,
+	// Spindle, Black Eye, Bode's, Needle, Sculptor, Cigar, Cartwheel, Fried Egg and Barnard's
+	// galaxies, Fornax A and NGC 4151) as the galaxy model, the
 	// nebulae with presets (the Crab, Orion, Eagle, Bubble, Blue Flash, Box, Veil, North America,
-	// Carina, Rim, Rosette and Flaming Star nebulae) as the nebula model, and any black hole or
+	// Carina, Rim, Rosette, Flaming Star and Lagoon nebulae) as the nebula model, and any black hole or
 	// neutron star the camera is centred on as the black hole or pulsar, each fading in over its
 	// sprite or marker.
 	class UniverseRenderer

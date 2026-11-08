@@ -110,9 +110,12 @@ Zooming out of the solar system shows the universe around it, built from publish
 
 Close up, the galaxy, nebula, black hole and pulsar renderers of the test scenes take over:
 
-- Andromeda, Triangulum, the Whirlpool, the Pinwheel, the Sombrero, NGC 1300 and the Rose Galaxy;
-- the Crab, Orion, Eagle, Bubble, Blue Flash, Box, Veil, North America, Carina, Rim, Rosette and
-  Flaming Star nebulae;
+- Andromeda, Triangulum, the Whirlpool, the Pinwheel, the Sombrero, NGC 1300, the Rose Galaxy, the
+  Fireworks, Sunflower, Spindle, Black Eye, Bode's, Needle, Sculptor, Cigar (with its H-alpha
+  wind), Cartwheel, Fried Egg and Barnard's galaxies, Fornax A and the Eye of Sauron (NGC 4151,
+  with its active nucleus);
+- the Crab, Orion, Eagle, Bubble, Blue Flash, Box, Veil, North America, Carina, Rim, Rosette,
+  Flaming Star and Lagoon nebulae;
 - any black hole or neutron star you go to.
 
 The catalogues aren't in the repository. Space Visualiser loads them from `Data Files/Catalogues`

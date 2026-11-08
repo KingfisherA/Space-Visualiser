@@ -21,8 +21,17 @@ namespace DH
 
 namespace SV
 {
-	// A smaller galaxy near the main one (such as M32 beside Andromeda), or a stream of stars pulled
-	// out of it: a blend of three Gaussians (its halo, core and nucleus), drawn out along `stretch`
+	// What a companion's light comes from
+	enum class GalaxyCompanionKind
+	{
+		Stars, // A galaxy or a stream of stars, drawn with stars of its own as well as its glow
+		Gas,   // Glowing gas, H-alpha red like the nebulae (such as a starburst's wind): only a glow
+		Point  // Light too concentrated to resolve (such as an active nucleus): only a glow
+	};
+
+	// A smaller galaxy near the main one (such as M32 beside Andromeda), a stream of stars pulled
+	// out of it, or gas or a bright nucleus within it: a blend of three Gaussians (its halo, core and
+	// nucleus), drawn out along `stretch`
 	struct GalaxyCompanion
 	{
 		std::string name; // Empty for no label
@@ -30,8 +39,9 @@ namespace SV
 		float radius = 500.0f;        // Standard deviation of its halo (pc)
 		glm::vec3 stretch{ 0.0f };    // Its halo is drawn out this far either way (one standard deviation)
 		float brightness = 1.0f;      // Its halo's brightness at its centre, like the glow's
-		float temperature = 4500.0f;  // The colour of its stars (K)
+		float temperature = 4500.0f;  // The colour of its stars (K; not used for gas)
 		float concentration = 1.0f;   // How bright its core and nucleus are (0 for a diffuse galaxy)
+		GalaxyCompanionKind kind = GalaxyCompanionKind::Stars;
 	};
 
 	// The shape and look of a spiral galaxy (by default the Milky Way). Lengths are in parsecs. The
@@ -94,6 +104,11 @@ namespace SV
 		// Smaller galaxies nearby (up to MAX_COMPANIONS)
 		std::vector<GalaxyCompanion> companions;
 
+		// How many of the stars are young stars and H II regions, relative to a spiral's (0 for a
+		// galaxy no longer forming stars, such as a lenticular, whose stars are then all old). Their
+		// glow is set by armGlow and nebulaGlow.
+		float youngStars = 1.0f;
+
 		// Individual stars, as points (with H II regions, as small nebulae, numbering 2% of them)
 		int starCount = 250000;
 		float starBrightness = 0.05f;
@@ -114,6 +129,19 @@ namespace SV
 		Ngc1300,
 		Triangulum,
 		Sombrero,
+		Fireworks,
+		Sunflower,
+		Spindle,
+		BlackEye,
+		Bodes,
+		Needle,
+		Sculptor,
+		FornaxA,
+		Cigar,
+		Cartwheel,
+		EyeOfSauron,
+		FriedEgg,
+		Barnards,
 		Count
 	};
 

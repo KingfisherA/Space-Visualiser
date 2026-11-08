@@ -45,7 +45,7 @@ namespace SV
 	// Space Visualiser: renders a planetary system into Dahlia's ImGui viewport, inside the universe
 	// of the star, galaxy, nebula and pulsar catalogues (seen as the camera zooms out past the solar
 	// system). The scene loads over the first few frames, behind a splash screen. The galaxy test shows a galaxy (the Milky Way,
-	// the Whirlpool or Andromeda) in place of the solar system, the black hole and pulsar tests a
+	// or one of the galaxies with presets in Galaxy.hpp) in place of the solar system, the black hole and pulsar tests a
 	// black hole or a neutron star, the nebula test a nebula, and the star test stars of each kind
 	// (single, binary and triple).
 	class Application final : public DH::GraphicsApp

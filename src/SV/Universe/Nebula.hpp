@@ -47,8 +47,8 @@ namespace SV
 		// filaments, with [O III] at the shock's front and hydrogen just behind it.
 		SupernovaShell,
 		// Gas ionised by hot stars, shaped by the dense clouds of dust around them (its clouds) and
-		// the cavity their winds blow (its bubble): the Bubble, North America, Carina, Rim, Rosette
-		// and Flaming Star nebulae. The clouds stand dark against the gas, with bright rims where
+		// the cavity their winds blow (its bubble): the Bubble, North America, Carina, Rim, Rosette,
+		// Flaming Star and Lagoon nebulae. The clouds stand dark against the gas, with bright rims where
 		// they face the stars; the stars' light also scatters off the dust near them (blue).
 		EmissionNebula,
 	};
@@ -159,6 +159,7 @@ namespace SV
 		Rim,
 		Rosette,
 		FlamingStar,
+		Lagoon,
 		Count
 	};
 

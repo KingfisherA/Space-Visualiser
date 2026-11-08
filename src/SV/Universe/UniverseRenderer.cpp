@@ -239,12 +239,16 @@ namespace SV
 		constexpr std::pair<const char*, GalaxyType> GALAXY_FEATURES[] = {
 			{ "M31", GalaxyType::Andromeda }, { "M33", GalaxyType::Triangulum }, { "M51", GalaxyType::Whirlpool },
 			{ "M101", GalaxyType::Pinwheel }, { "M104", GalaxyType::Sombrero }, { "NGC1300", GalaxyType::Ngc1300 },
-			{ "UGC1810", GalaxyType::RoseGalaxy } };
+			{ "UGC1810", GalaxyType::RoseGalaxy }, { "NGC6946", GalaxyType::Fireworks }, { "M63", GalaxyType::Sunflower },
+			{ "NGC3115", GalaxyType::Spindle }, { "M64", GalaxyType::BlackEye }, { "M81", GalaxyType::Bodes },
+			{ "NGC4565", GalaxyType::Needle }, { "NGC253", GalaxyType::Sculptor }, { "NGC1316", GalaxyType::FornaxA },
+			{ "M82", GalaxyType::Cigar }, { "ESO350-40", GalaxyType::Cartwheel }, { "NGC4151", GalaxyType::EyeOfSauron },
+			{ "NGC7742", GalaxyType::FriedEgg }, { "NGC6822", GalaxyType::Barnards } };
 		constexpr std::pair<const char*, NebulaType> NEBULA_FEATURES[] = {
 			{ "M1", NebulaType::Crab }, { "M42", NebulaType::Orion }, { "M16", NebulaType::PillarsOfCreation },
 			{ "NGC7635", NebulaType::Bubble }, { "NGC6905", NebulaType::BlueFlash }, { "NGC6309", NebulaType::Box },
 			{ "NGC6960", NebulaType::Veil }, { "NGC7000", NebulaType::NorthAmerica }, { "NGC3372", NebulaType::Carina },
-			{ "NGC6188", NebulaType::Rim }, { "NGC2238", NebulaType::Rosette }, { "IC405", NebulaType::FlamingStar } };
+			{ "NGC6188", NebulaType::Rim }, { "NGC2238", NebulaType::Rosette }, { "IC405", NebulaType::FlamingStar }, { "M8", NebulaType::Lagoon } };
 
 		// Whether a designation ("M31 / NGC 224, ...") includes an id ("M31"), ignoring spaces
 		bool HasDesignation(const std::string& designation, const char* id)

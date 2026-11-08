@@ -588,12 +588,64 @@ namespace SV
 			preset.overviewZoom = 8.0f;
 			return preset;
 		}
+
+		NebulaPreset Lagoon()
+		{
+			// M8 in Sagittarius, 1.25 kpc away: a large H II region (about 30 pc across) lit by 9
+			// Sagittarii and the young cluster NGC 6530 to its east. A lane of dust crossing it in
+			// front (the lagoon) parts the cluster from the bright west, where Herschel 36 lights the
+			// small, dense Hourglass. Dark globules lie around the cluster.
+			NebulaPreset preset;
+			preset.name = "Lagoon Nebula";
+			NebulaParameters& p = preset.parameters;
+			p.kind = NebulaKind::EmissionNebula;
+			p.size = { 16.0f, 9.0f, 6.0f };
+			p.hydrogen = 1.0f;
+			p.oxygen = 0.35f;
+			p.sulphur = 0.6f;
+			p.continuum = 0.15f;
+			p.dust = 1.0f;
+			p.detail = 0.15f;
+			p.turbulence = 2.0f;
+			p.filaments = 0.4f;
+			p.filamentSharpness = 5.0f;
+			p.clouds = {
+				// The lagoon, curving down through the nebula in front of it
+				{ { -2.5f, 7.5f, 2.5f }, { -1.5f, 0.0f, 2.5f }, 1.6f, 1.3f, 1.2f },
+				{ { -1.5f, 0.0f, 2.5f }, { -3.0f, -7.0f, 2.5f }, 1.3f, 1.6f, 1.2f },
+				// Around the Hourglass
+				{ { 3.4f, -0.8f, 1.0f }, { 3.6f, 1.0f, 1.0f }, 0.45f, 0.4f, 1.3f },
+				// Globules around the cluster
+				{ { -6.0f, 1.5f, 2.0f }, { -6.0f, 1.5f, 2.0f }, 0.3f, 0.3f, 1.5f },
+				{ { -5.0f, -2.0f, 1.5f }, { -5.0f, -2.0f, 1.5f }, 0.25f, 0.25f, 1.5f },
+				{ { -8.5f, -1.0f, 2.0f }, { -8.5f, -1.0f, 2.0f }, 0.35f, 0.35f, 1.5f },
+				// Thinner dust over the edges
+				{ { 10.0f, 5.0f, 3.0f }, { 13.0f, -3.0f, 3.0f }, 2.0f, 2.5f, 0.5f },
+			};
+			p.stars = {
+				// Herschel 36, at the heart of the Hourglass: a small, bright, dense region
+				{ "Herschel 36", { 3.5f, 0.0f, 0.5f }, 2.0f, 38000.0f, 2.5f, 1.2f },
+				{ "9 Sagittarii", { 1.0f, 3.5f, 0.0f }, 2.5f, 42000.0f, 9.0f, 0.6f },
+				// NGC 6530
+				{ "NGC 6530", { -7.0f, 0.5f, 0.0f }, 2.0f, 35000.0f, 8.0f, 0.5f },
+				{ "", { -6.2f, -0.8f, 0.5f }, 1.2f, 30000.0f, 5.0f, 0.3f },
+				{ "", { -7.8f, 1.6f, -0.4f }, 1.0f, 28000.0f },
+				{ "", { -6.5f, 2.2f, 0.8f }, 0.8f, 25000.0f },
+				{ "", { -8.4f, -0.4f, 0.3f }, 0.7f, 22000.0f },
+				{ "", { 9.0f, 6.0f, -3.0f }, 0.4f, 5000.0f },
+				{ "", { -12.0f, -5.0f, 4.0f }, 0.35f, 4300.0f },
+				{ "", { 13.0f, -6.0f, 2.0f }, 0.3f, 7000.0f },
+			};
+			p.brightness = 2.0f;
+			preset.overviewZoom = 50.0f;
+			return preset;
+		}
 	}
 
 	const NebulaPreset& GetNebulaPreset(const NebulaType type)
 	{
 		static const std::array<NebulaPreset, (size_t)NebulaType::Count> presets = {
-			Crab(), Orion(), PillarsOfCreation(), Bubble(), BlueFlash(), Box(), Veil(), NorthAmerica(), Carina(), Rim(), Rosette(), FlamingStar()
+			Crab(), Orion(), PillarsOfCreation(), Bubble(), BlueFlash(), Box(), Veil(), NorthAmerica(), Carina(), Rim(), Rosette(), FlamingStar(), Lagoon()
 		};
 		return presets[std::min((size_t)type, presets.size() - 1)];
 	}

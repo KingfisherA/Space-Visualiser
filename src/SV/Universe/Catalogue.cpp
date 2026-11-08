@@ -385,6 +385,21 @@ namespace SV
 			}
 		};
 
+		// Common names OpenNGC doesn't give, for galaxies shown close up (by normalised designation)
+		constexpr std::pair<const char*, const char*> EXTRA_COMMON_NAMES[] = {
+			{ "NGC4151", "Eye of Sauron Galaxy" }, { "NGC7742", "Fried Egg Galaxy" } };
+
+		std::string_view ExtraCommonName(std::string_view id)
+		{
+			const std::string normalised = NormaliseId(id);
+			for (const auto& [extraId, name] : EXTRA_COMMON_NAMES)
+			{
+				if (normalised == extraId)
+					return name;
+			}
+			return {};
+		}
+
 		NgcIndex LoadOpenNgc(const std::filesystem::path& path, std::vector<std::string>& report)
 		{
 			NgcIndex index;
@@ -436,6 +451,8 @@ namespace SV
 					std::string_view common = Trim(commonNames.front());
 					if (common.rfind("Great ", 0) == 0 && commonNames.size() > 1)
 						common = Trim(commonNames[1]);
+					if (common.empty())
+						common = ExtraCommonName(Get("Name"));
 					object.displayName = !common.empty() ? std::string(common) : !messierName.empty() ? messierName : name;
 
 					const size_t i = index.objects.size();
@@ -1159,8 +1176,26 @@ namespace SV
 			}
 		}
 
+		// Galaxies shown close up that the catalogues miss: the Cartwheel is too faint in Ks for the
+		// 2MRS, and not an NGC or IC object. Its distance is from its redshift, as the 2MRS's are; its
+		// size is its outer ring's, and its axis ratio and B magnitude are approximate.
+		struct ExtraGalaxy
+		{
+			const char* name;
+			const char* designation;
+			const char* kind;
+			double ra, dec;   // J2000 (degrees)
+			double cz;        // km/s
+			double radius;    // pc
+			double axisRatio;
+			double magnitude; // B
+			float typeCode;
+		};
+		constexpr ExtraGalaxy EXTRA_GALAXIES[] = {
+			{ "Cartwheel Galaxy", "ESO 350-40", "Ring galaxy", 9.42125, -33.71639, 9050.0, 22500.0, 0.8, 15.2, 5.0f } };
+
 		void FinishGalaxy(Catalogue& catalogue, ExtendedObject galaxy, const NgcObject* match, const std::string& designation, const bool label,
-						  std::unordered_map<const NgcObject*, bool>& named)
+						  std::unordered_map<const NgcObject*, bool>& named, const char* kind = nullptr)
 		{
 			// Each OpenNGC object names one galaxy
 			if (match != nullptr && !named.emplace(match, true).second)
@@ -1173,7 +1208,7 @@ namespace SV
 			}
 			char description[256];
 			std::snprintf(description, sizeof(description), "%s, %s\n%.3g kpc across, %.2g times the Sun's luminosity (B)\n%s",
-						  GalaxyKindName(galaxy.shape, galaxy.typeCode), FormatDistance(galaxy.distance).c_str(), 2.0 * galaxy.radius / 1000.0,
+						  kind != nullptr ? kind : GalaxyKindName(galaxy.shape, galaxy.typeCode), FormatDistance(galaxy.distance).c_str(), 2.0 * galaxy.radius / 1000.0,
 						  galaxy.luminosity, known.c_str());
 			galaxy.description = description;
 			galaxy.designation = known;
@@ -1314,6 +1349,31 @@ namespace SV
 			else
 			{
 				catalogue.report.push_back("2mrs.tsv: not found");
+			}
+
+			// And those they miss, named as OpenNGC's are (so kept until the end, while `named` is)
+			std::vector<NgcObject> extraNames;
+			extraNames.reserve(std::size(EXTRA_GALAXIES));
+			for (const ExtraGalaxy& extra : EXTRA_GALAXIES)
+			{
+				const glm::dvec3 direction = Universe::EquatorialDirectionToWorld(extra.ra, extra.dec);
+				const double distance = extra.cz / HUBBLE_CONSTANT * 1.0e6;
+				ExtendedObject galaxy;
+				galaxy.position = direction * distance;
+				galaxy.distance = (float)distance;
+				galaxy.seed = Seed(extra.designation);
+				galaxy.typeCode = extra.typeCode;
+				galaxy.shape = SpriteShape::SpiralGalaxy;
+				galaxy.radius = (float)extra.radius;
+				galaxy.axisRatio = (float)extra.axisRatio;
+				const double absolute = extra.magnitude - 5.0 * std::log10(distance / 10.0);
+				galaxy.luminosity = (float)std::pow(10.0, -0.4 * (absolute - SUN_ABSOLUTE_B));
+				galaxy.temperature = GalaxyTemperature(galaxy.typeCode, galaxy.shape);
+				Orient(galaxy, direction, 180.0 * galaxy.seed, InclinationFromAxisRatio(galaxy.axisRatio));
+				NgcObject& known = extraNames.emplace_back();
+				known.displayName = extra.name;
+				known.designation = extra.designation;
+				FinishGalaxy(catalogue, std::move(galaxy), &known, extra.designation, true, named, extra.kind);
 			}
 		}
 

@@ -79,6 +79,9 @@ namespace SV
 		constexpr float YOUNG_SHARE = 0.25f;
 		constexpr float NEBULA_SHARE = 0.02f;
 		constexpr float COMPANION_SHARE = 0.025f;
+		// The most the young stars' and nebulae's shares may be scaled up by (GalaxyParameters::
+		// youngStars), so the old stars keep some share
+		constexpr float MAX_YOUNG_STARS = 3.0f;
 		// Each companion is three nested Gaussians, its halo, core and nucleus: their sizes and
 		// shares of its light (mirrors CompanionLight in Shaders/Include/Galaxy.glsl)
 		constexpr std::array<float, 3> COMPANION_SCALES = { 1.0f, 0.3f, 0.08f };
@@ -103,6 +106,13 @@ namespace SV
 		float CompanionLuminosity(const GalaxyCompanion& companion)
 		{
 			return companion.brightness * 2.0f * PI * companion.radius * companion.radius / COMPANION_SHARES[0];
+		}
+
+		// The light of a companion's stars, for sharing out the companions' stars (gas and points of
+		// light have none)
+		float CompanionStarLight(const GalaxyCompanion& companion)
+		{
+			return companion.kind == GalaxyCompanionKind::Stars ? CompanionLuminosity(companion) : 0.0f;
 		}
 
 		float SmoothStep(const float edge0, const float edge1, const float x)
@@ -333,9 +343,14 @@ namespace SV
 				stars.push_back({ glm::vec4(position, luminosity), glm::vec4(colours(temperature), 0.0f) });
 		};
 
+		// Star formation moves stars between the young (and the nebulae) and the old, in the bar,
+		// bulge and disc in proportion to their shares
+		const float youngStars = std::clamp(p.youngStars, 0.0f, MAX_YOUNG_STARS);
+		const float oldScale = 1.0f + (YOUNG_SHARE + NEBULA_SHARE) * (1.0f - youngStars) / (BAR_SHARE + DISC_SHARE);
+
 		// The bar and bulge: old, cool stars, with a few bright red giants
 		const float barCos = std::cos(arms.angle), barSin = std::sin(arms.angle);
-		const size_t barCount = (size_t)(BAR_SHARE * (float)total);
+		const size_t barCount = (size_t)(BAR_SHARE * oldScale * (float)total);
 		for (size_t i = 0; i < barCount; i++)
 		{
 			glm::vec3 position;
@@ -358,7 +373,7 @@ namespace SV
 
 		// The disc: radii from its exponential surface density, then kept in proportion to its
 		// cut-offs and arms
-		const size_t discCount = (size_t)(DISC_SHARE * (float)total);
+		const size_t discCount = (size_t)(DISC_SHARE * oldScale * (float)total);
 		for (size_t i = 0; i < discCount;)
 		{
 			const float r = random.Gamma(2, p.discScaleLength);
@@ -390,7 +405,7 @@ namespace SV
 
 		// Young stars along the arms (and ring), in clusters and associations: hot and bright,
 		// with a few red supergiants
-		const size_t youngEnd = stars.size() + (size_t)(YOUNG_SHARE * (float)total);
+		const size_t youngEnd = stars.size() + (size_t)(YOUNG_SHARE * youngStars * (float)total);
 		while (stars.size() < youngEnd)
 		{
 			glm::vec3 centre;
@@ -431,7 +446,7 @@ namespace SV
 		// Nebulae (H II regions): the gas lit by the youngest clusters, in complexes along the inner
 		// edges of the arms (just past the dust lanes), with a few between them
 		const glm::vec3 nebulaColour = NEBULA_COLOUR / glm::dot(NEBULA_COLOUR, glm::vec3(0.2126f, 0.7152f, 0.0722f));
-		const size_t nebulaEnd = stars.size() + (size_t)(NEBULA_SHARE * (float)total);
+		const size_t nebulaEnd = stars.size() + (size_t)(NEBULA_SHARE * youngStars * (float)total);
 		while (stars.size() < nebulaEnd)
 		{
 			glm::vec3 centre;
@@ -474,12 +489,12 @@ namespace SV
 		float companionLight = 0.0f;
 		const size_t companionCount = std::min(p.companions.size(), MAX_COMPANIONS);
 		for (size_t c = 0; c < companionCount; c++)
-			companionLight += CompanionLuminosity(p.companions[c]);
+			companionLight += CompanionStarLight(p.companions[c]);
 		const size_t companionStars = companionLight > 0.0f ? (size_t)(COMPANION_SHARE * (float)total) : 0;
-		for (size_t c = 0; c < companionCount; c++)
+		for (size_t c = 0; companionStars > 0 && c < companionCount; c++)
 		{
 			const GalaxyCompanion& companion = p.companions[c];
-			const size_t count = (size_t)((float)companionStars * CompanionLuminosity(companion) / companionLight);
+			const size_t count = (size_t)((float)companionStars * CompanionStarLight(companion) / companionLight);
 			for (size_t i = 0; i < count; i++)
 			{
 				// As in the glow, the core and nucleus are weighted by its concentration
@@ -598,7 +613,9 @@ namespace SV
 			const GalaxyCompanion& companion = p.companions[c];
 			uniforms.companionCentre[c] = glm::vec4(companion.position, companion.radius);
 			uniforms.companionStretch[c] = glm::vec4(companion.stretch, CompanionLuminosity(companion) * p.companionGlow);
-			uniforms.companionColour[c] = glm::vec4(BlackbodyColour(companion.temperature), companion.concentration);
+			// Gas glows as the nebulae do; stars and points of light by their temperature
+			const glm::vec3 colour = companion.kind == GalaxyCompanionKind::Gas ? NEBULA_COLOUR / luminance : BlackbodyColour(companion.temperature);
+			uniforms.companionColour[c] = glm::vec4(colour, companion.concentration);
 		}
 		uniformBuffer->Update(&uniforms, sizeof(uniforms));
 
@@ -959,12 +976,615 @@ namespace SV
 			preset.fieldOfView = 25.0f;
 			return preset;
 		}
+
+		// A lenticular or elliptical has no spiral arms: arms far wider than the space between them
+		// add up to a smooth disc (brighter only where they begin, like a lenticular's lens)
+		constexpr float SMOOTH_ARM_WIDTH = 30000.0f;
+
+		// NGC 6946: a many-armed spiral, nearly face-on (33 degrees), forming stars so fast that ten
+		// supernovae have been seen in it in a century. Its arms are crowded with H II regions and
+		// young clusters around a small, bright nucleus.
+		GalaxyPreset Fireworks()
+		{
+			GalaxyPreset preset;
+			preset.name = "Fireworks Galaxy (NGC 6946)";
+			GalaxyParameters& p = preset.parameters;
+			p.barAngle = 20.0f;
+			p.barHalfLength = 1200.0f;
+			p.barWidthRatio = 0.5f;
+			p.barHeightRatio = 0.4f;
+			p.bulgeRadius = 300.0f;
+			p.barShare = 0.3f;
+			p.armCount = 4;
+			p.armPitch = 28.0f;
+			p.armRadius = 1500.0f;
+			p.armWidth = 600.0f;
+			p.minorArmStrength = 0.7f;
+			p.discScaleLength = 4000.0f;
+			p.discScaleHeight = 280.0f;
+			p.discRadius = 17000.0f;
+			p.youngScaleHeight = 90.0f;
+			p.dustScaleHeight = 110.0f;
+			p.dustLaneOffset = 200.0f;
+			p.bulgeGlow = 2.5f;
+			p.discGlow = 0.5f;
+			p.armGlow = 2.4f;
+			p.nebulaGlow = 2.6f;
+			p.dustDepth = 3.5f;
+			p.bulgeTemperature = 4700.0f;
+			p.discTemperature = 5400.0f;
+			p.youngTemperature = 20000.0f;
+			p.youngStars = 1.4f;
+			p.starCount = 300000;
+			preset.markers = { { "Nucleus", glm::vec3(0.0f) } };
+			preset.overviewPitch = 57.0f;
+			preset.overviewYaw = 0.0f;
+			preset.overviewZoom = 70000.0f;
+			preset.fieldOfView = 30.0f;
+			return preset;
+		}
+
+		// M63: a flocculent spiral, its arms broken into many short, patchy segments rather than a
+		// grand design, around a large yellow centre, seen 58 degrees from face-on
+		GalaxyPreset Sunflower()
+		{
+			GalaxyPreset preset;
+			preset.name = "Sunflower Galaxy (M63)";
+			GalaxyParameters& p = preset.parameters;
+			p.barAngle = 0.0f;
+			p.barHalfLength = 1500.0f;
+			p.barWidthRatio = 0.7f;
+			p.barHeightRatio = 0.5f;
+			p.bulgeRadius = 600.0f;
+			p.barShare = 0.1f;
+			// Many narrow, tightly wound arms, broken up by the glow's streaks and clumps
+			p.armCount = 8;
+			p.armPitch = 17.0f;
+			p.armRadius = 2000.0f;
+			p.armWidth = 380.0f;
+			p.minorArmStrength = 0.85f;
+			p.discScaleLength = 3200.0f;
+			p.discScaleHeight = 300.0f;
+			p.discRadius = 21000.0f;
+			p.dustLaneOffset = 150.0f;
+			p.bulgeGlow = 4.0f;
+			p.discGlow = 1.1f;
+			p.armGlow = 1.4f;
+			p.nebulaGlow = 1.2f;
+			p.dustDepth = 3.5f;
+			p.bulgeTemperature = 4500.0f;
+			p.discTemperature = 5000.0f;
+			p.youngTemperature = 16000.0f;
+			p.starCount = 300000;
+			preset.markers = { { "Nucleus", glm::vec3(0.0f) } };
+			preset.overviewPitch = 32.0f;
+			preset.overviewYaw = 0.0f;
+			preset.overviewZoom = 85000.0f;
+			preset.fieldOfView = 30.0f;
+			return preset;
+		}
+
+		// NGC 3115: a lenticular seen edge-on, a bright bulge and a thin disc of old stars with
+		// almost no dust or star formation left in it
+		GalaxyPreset Spindle()
+		{
+			GalaxyPreset preset;
+			preset.name = "Spindle Galaxy (NGC 3115)";
+			GalaxyParameters& p = preset.parameters;
+			// A round bulge, and a flattened lens (the "bar") around it in the disc
+			p.barAngle = 0.0f;
+			p.barHalfLength = 2500.0f;
+			p.barWidthRatio = 0.9f;
+			p.barHeightRatio = 0.3f;
+			p.bulgeRadius = 650.0f;
+			p.barShare = 0.3f;
+			p.armCount = 2;
+			p.armPitch = 20.0f;
+			p.armRadius = 3000.0f;
+			p.armWidth = SMOOTH_ARM_WIDTH;
+			p.minorArmStrength = 1.0f;
+			p.discScaleLength = 2000.0f;
+			p.discScaleHeight = 180.0f;
+			p.discRadius = 12000.0f;
+			p.dustLaneOffset = 0.0f;
+			p.bulgeGlow = 3.5f;
+			p.discGlow = 2.0f;
+			p.armGlow = 0.0f;
+			p.nebulaGlow = 0.0f;
+			p.dustDepth = 0.0f;
+			p.bulgeTemperature = 4300.0f;
+			p.discTemperature = 4500.0f;
+			p.youngTemperature = 9000.0f;
+			p.youngStars = 0.0f;
+			p.brightness = 0.4f;
+			preset.markers = { { "Nucleus", glm::vec3(0.0f) } };
+			preset.overviewPitch = 4.0f;
+			preset.overviewYaw = 0.0f;
+			preset.overviewZoom = 50000.0f;
+			preset.fieldOfView = 25.0f;
+			return preset;
+		}
+
+		// M64: smooth, tightly wound arms around a bright bulge, with a thick ring of dust across the
+		// inner disc. Seen 63 degrees from face-on, the near side of the ring lies in front of the
+		// bulge: the black eye.
+		GalaxyPreset BlackEye()
+		{
+			GalaxyPreset preset;
+			preset.name = "Black Eye Galaxy (M64)";
+			GalaxyParameters& p = preset.parameters;
+			// The bright centre is mostly a flattened inner disc (the "bar", nearly round) in the
+			// plane, around a small bulge, so the dust mixed in with it can darken it
+			p.barAngle = 0.0f;
+			p.barHalfLength = 1800.0f;
+			p.barWidthRatio = 0.8f;
+			p.barHeightRatio = 0.2f;
+			p.bulgeRadius = 300.0f;
+			p.barShare = 0.6f;
+			p.armCount = 2;
+			p.armPitch = 10.0f;
+			p.armRadius = 1500.0f;
+			p.armWidth = 450.0f;
+			p.minorArmStrength = 0.9f;
+			// The dust ring, over the bright inner disc, with a little star formation in it
+			p.ringRadius = 1100.0f;
+			p.ringWidth = 400.0f;
+			p.ringStrength = 3.0f;
+			p.discScaleLength = 1800.0f;
+			p.discScaleHeight = 250.0f;
+			p.discRadius = 9000.0f;
+			p.dustScaleHeight = 220.0f;
+			p.dustLaneOffset = 150.0f;
+			p.bulgeGlow = 5.0f;
+			p.discGlow = 1.8f;
+			p.armGlow = 0.3f;
+			p.nebulaGlow = 0.8f;
+			p.dustDepth = 5.0f;
+			p.bulgeTemperature = 4500.0f;
+			p.discTemperature = 4900.0f;
+			p.youngTemperature = 14000.0f;
+			p.youngStars = 0.6f;
+			preset.markers = { { "Nucleus", glm::vec3(0.0f) } };
+			preset.overviewPitch = 27.0f;
+			preset.overviewYaw = 0.0f;
+			preset.overviewZoom = 36000.0f;
+			preset.fieldOfView = 30.0f;
+			return preset;
+		}
+
+		// M81: a grand design spiral with a large, bright bulge and two smooth arms traced by thin
+		// dust lanes, seen 60 degrees from face-on
+		GalaxyPreset Bodes()
+		{
+			GalaxyPreset preset;
+			preset.name = "Bode's Galaxy (M81)";
+			GalaxyParameters& p = preset.parameters;
+			p.barAngle = 0.0f;
+			p.barHalfLength = 2000.0f;
+			p.barWidthRatio = 0.7f;
+			p.barHeightRatio = 0.55f;
+			p.bulgeRadius = 800.0f;
+			p.barShare = 0.15f;
+			p.armCount = 2;
+			p.armPitch = 14.0f;
+			p.armRadius = 3500.0f;
+			p.armWidth = 550.0f;
+			p.minorArmStrength = 1.0f;
+			p.discScaleLength = 3200.0f;
+			p.discScaleHeight = 300.0f;
+			p.discRadius = 15700.0f;
+			p.youngScaleHeight = 90.0f;
+			p.dustScaleHeight = 110.0f;
+			p.dustLaneOffset = 250.0f;
+			p.bulgeGlow = 7.0f;
+			p.discGlow = 0.8f;
+			p.armGlow = 1.3f;
+			p.nebulaGlow = 1.0f;
+			p.dustDepth = 3.5f;
+			p.bulgeTemperature = 4400.0f;
+			p.discTemperature = 4900.0f;
+			p.youngTemperature = 17000.0f;
+			p.starCount = 300000;
+			p.brightness = 0.7f;
+			preset.markers = { { "Nucleus", glm::vec3(0.0f) } };
+			preset.overviewPitch = 30.0f;
+			preset.overviewYaw = 0.0f;
+			preset.overviewZoom = 64000.0f;
+			preset.fieldOfView = 30.0f;
+			return preset;
+		}
+
+		// NGC 4565: a large spiral seen edge-on, long and slender, its dust lane running the length
+		// of the disc and a boxy bulge (a bar seen end-on) standing out of the middle
+		GalaxyPreset Needle()
+		{
+			GalaxyPreset preset;
+			preset.name = "Needle Galaxy (NGC 4565)";
+			GalaxyParameters& p = preset.parameters;
+			p.barAngle = 60.0f;
+			p.barHalfLength = 3500.0f;
+			p.barWidthRatio = 0.35f;
+			p.barHeightRatio = 0.3f;
+			p.bulgeRadius = 600.0f;
+			p.barShare = 0.7f;
+			p.armCount = 2;
+			p.armPitch = 12.0f;
+			p.armRadius = 4500.0f;
+			p.armWidth = 600.0f;
+			p.minorArmStrength = 0.8f;
+			p.ringRadius = 6000.0f;
+			p.ringWidth = 1200.0f;
+			p.ringStrength = 0.6f;
+			p.discScaleLength = 5500.0f;
+			p.discScaleHeight = 300.0f;
+			p.discRadius = 26000.0f;
+			p.youngScaleHeight = 80.0f;
+			p.dustScaleHeight = 90.0f;
+			p.dustLaneOffset = 250.0f;
+			p.bulgeGlow = 5.0f;
+			p.discGlow = 1.2f;
+			p.armGlow = 0.8f;
+			p.nebulaGlow = 0.5f;
+			p.dustDepth = 6.0f;
+			p.bulgeTemperature = 4400.0f;
+			p.discTemperature = 4900.0f;
+			p.youngTemperature = 15000.0f;
+			p.starCount = 350000;
+			p.brightness = 0.6f;
+			preset.markers = { { "Nucleus", glm::vec3(0.0f) } };
+			preset.overviewPitch = 2.5f;
+			preset.overviewYaw = 0.0f;
+			preset.overviewZoom = 95000.0f;
+			preset.fieldOfView = 25.0f;
+			return preset;
+		}
+
+		// NGC 253, the Sculptor (or Silver Coin) Galaxy: a dusty barred spiral seen 77 degrees from
+		// face-on, mottled with dust clouds, with a starburst at its centre blowing a wind of hot gas
+		// out either side of the disc
+		GalaxyPreset Sculptor()
+		{
+			GalaxyPreset preset;
+			preset.name = "Sculptor Filament (NGC 253)";
+			GalaxyParameters& p = preset.parameters;
+			p.barAngle = 30.0f;
+			p.barHalfLength = 3000.0f;
+			p.barWidthRatio = 0.3f;
+			p.barHeightRatio = 0.25f;
+			p.bulgeRadius = 300.0f;
+			p.barShare = 0.8f;
+			p.armCount = 2;
+			p.armPitch = 18.0f;
+			p.armRadius = 3200.0f;
+			p.armWidth = 800.0f;
+			p.minorArmStrength = 0.8f;
+			p.discScaleLength = 3500.0f;
+			p.discScaleHeight = 300.0f;
+			p.discRadius = 20000.0f;
+			p.youngScaleHeight = 100.0f;
+			p.dustScaleHeight = 140.0f;
+			p.dustLaneOffset = 250.0f;
+			p.bulgeGlow = 3.5f;
+			p.discGlow = 1.0f;
+			p.armGlow = 1.2f;
+			p.nebulaGlow = 1.4f;
+			p.dustDepth = 7.0f;
+			p.bulgeTemperature = 4600.0f;
+			p.discTemperature = 5300.0f;
+			p.youngTemperature = 16000.0f;
+			p.youngStars = 1.3f;
+			p.starCount = 300000;
+			p.brightness = 0.7f;
+			// The starburst's wind, along the disc's axis
+			p.companions = {
+				{ "", glm::vec3(0.0f), 250.0f, glm::vec3(0.0f, 450.0f, 0.0f), 0.6f, 0.0f, 0.0f, GalaxyCompanionKind::Gas },
+			};
+			preset.markers = { { "Nucleus", glm::vec3(0.0f) } };
+			preset.overviewPitch = 13.0f;
+			preset.overviewYaw = 0.0f;
+			preset.overviewZoom = 80000.0f;
+			preset.fieldOfView = 25.0f;
+			return preset;
+		}
+
+		// NGC 1316: the remnant of galaxies merging, a vast smooth spheroid of old stars (once a
+		// lenticular) with lanes and patches of dust left near its centre by the spiral it swallowed,
+		// and its small companion NGC 1317 to the north
+		GalaxyPreset FornaxA()
+		{
+			GalaxyPreset preset;
+			preset.name = "Fornax A (NGC 1316)";
+			GalaxyParameters& p = preset.parameters;
+			// A big round bulge, and an oval envelope around it (the "bar")
+			p.barAngle = 25.0f;
+			p.barHalfLength = 9000.0f;
+			p.barWidthRatio = 0.75f;
+			p.barHeightRatio = 0.65f;
+			p.bulgeRadius = 2000.0f;
+			p.barShare = 0.4f;
+			// Arms that don't glow, only carrying the dust lanes, which fade out within a few kpc
+			p.armCount = 2;
+			p.armPitch = 25.0f;
+			p.armRadius = 2500.0f;
+			p.armWidth = 500.0f;
+			p.minorArmStrength = 0.8f;
+			p.discScaleLength = 1800.0f;
+			p.discScaleHeight = 600.0f;
+			p.discRadius = 32000.0f;
+			p.dustScaleHeight = 150.0f;
+			p.dustLaneOffset = 0.0f;
+			p.bulgeGlow = 8.0f;
+			p.discGlow = 0.4f;
+			p.armGlow = 0.0f;
+			p.nebulaGlow = 0.0f;
+			p.dustDepth = 4.0f;
+			p.bulgeTemperature = 4300.0f;
+			p.discTemperature = 4600.0f;
+			p.youngTemperature = 9000.0f;
+			p.youngStars = 0.0f;
+			p.starBrightness = 0.03f;
+			p.brightness = 0.9f;
+			p.companions = {
+				{ "NGC 1317", glm::vec3(2000.0f, 15000.0f, -20000.0f), 1500.0f, glm::vec3(400.0f, 0.0f, 300.0f), 0.8f, 4800.0f, 1.2f },
+			};
+			preset.markers = { { "Nucleus", glm::vec3(0.0f) } };
+			preset.overviewPitch = 50.0f;
+			preset.overviewYaw = 0.0f;
+			preset.overviewZoom = 120000.0f;
+			preset.fieldOfView = 30.0f;
+			return preset;
+		}
+
+		// M82: a starburst galaxy seen nearly edge-on (80 degrees), its disc of young, white stars
+		// choked with dust. The starburst at its centre (stirred up by M81's passage) drives a wind of
+		// glowing hydrogen kiloparsecs out either side of the disc, red in H-alpha.
+		GalaxyPreset Cigar()
+		{
+			GalaxyPreset preset;
+			preset.name = "Cigar Galaxy (M82)";
+			GalaxyParameters& p = preset.parameters;
+			p.barAngle = 40.0f;
+			p.barHalfLength = 1000.0f;
+			p.barWidthRatio = 0.35f;
+			p.barHeightRatio = 0.3f;
+			p.bulgeRadius = 250.0f;
+			p.barShare = 0.6f;
+			p.armCount = 2;
+			p.armPitch = 14.0f;
+			p.armRadius = 1000.0f;
+			p.armWidth = 400.0f;
+			p.minorArmStrength = 1.0f;
+			// The ring of the starburst around the nucleus
+			p.ringRadius = 400.0f;
+			p.ringWidth = 150.0f;
+			p.ringStrength = 1.5f;
+			p.discScaleLength = 1200.0f;
+			p.discScaleHeight = 200.0f;
+			p.discRadius = 6600.0f;
+			p.youngScaleHeight = 90.0f;
+			p.dustScaleHeight = 120.0f;
+			p.dustLaneOffset = 100.0f;
+			p.bulgeGlow = 4.0f;
+			p.discGlow = 1.6f;
+			p.armGlow = 1.5f;
+			p.nebulaGlow = 2.0f;
+			p.dustDepth = 9.0f;
+			p.bulgeTemperature = 5200.0f;
+			p.discTemperature = 6500.0f;
+			p.youngTemperature = 16000.0f;
+			p.youngStars = 1.5f;
+			p.brightness = 0.8f;
+			// The wind: a lobe of gas either side of the disc, drawn out along its axis
+			p.companions = {
+				{ "", glm::vec3(0.0f, 900.0f, 0.0f), 550.0f, glm::vec3(0.0f, 650.0f, 0.0f), 0.6f, 0.0f, 0.0f, GalaxyCompanionKind::Gas },
+				{ "", glm::vec3(0.0f, -900.0f, 0.0f), 550.0f, glm::vec3(0.0f, 650.0f, 0.0f), 0.6f, 0.0f, 0.0f, GalaxyCompanionKind::Gas },
+			};
+			preset.markers = { { "Nucleus", glm::vec3(0.0f) } };
+			preset.overviewPitch = 10.0f;
+			preset.overviewYaw = 0.0f;
+			preset.overviewZoom = 26000.0f;
+			preset.fieldOfView = 25.0f;
+			return preset;
+		}
+
+		// ESO 350-40: a ring galaxy, made when a smaller galaxy plunged through the middle of a
+		// spiral. The ripple it set off has swept the gas into an expanding outer ring of young blue
+		// stars and pink nebulae, 45 kpc across, joined to the yellow hub by faint spokes. Two small
+		// galaxies (one of which may have been the intruder) lie beside it.
+		GalaxyPreset Cartwheel()
+		{
+			GalaxyPreset preset;
+			preset.name = "Cartwheel Galaxy (ESO 350-40)";
+			GalaxyParameters& p = preset.parameters;
+			p.barAngle = 0.0f;
+			p.barHalfLength = 1500.0f;
+			p.barWidthRatio = 0.8f;
+			p.barHeightRatio = 0.5f;
+			p.bulgeRadius = 1200.0f;
+			p.barShare = 0.0f;
+			// The spokes: many faint arms running almost straight out from the hub to the ring
+			p.armCount = 10;
+			p.armPitch = 70.0f;
+			p.armRadius = 5000.0f;
+			p.armWidth = 700.0f;
+			p.minorArmStrength = 1.0f;
+			p.ringRadius = 20000.0f;
+			p.ringWidth = 1300.0f;
+			p.ringStrength = 7.0f;
+			// The disc between them has been cleared out: faint, reaching out to the ring
+			p.discScaleLength = 10000.0f;
+			p.discScaleHeight = 400.0f;
+			p.discRadius = 24000.0f;
+			p.youngScaleHeight = 120.0f;
+			p.dustScaleHeight = 120.0f;
+			p.dustLaneOffset = 200.0f;
+			p.bulgeGlow = 3.0f;
+			p.discGlow = 0.15f;
+			p.armGlow = 0.35f;
+			p.nebulaGlow = 1.2f;
+			p.dustDepth = 0.35f;
+			p.bulgeTemperature = 4600.0f;
+			p.discTemperature = 5000.0f;
+			p.youngTemperature = 22000.0f;
+			p.starCount = 300000;
+			// The two companions: a blue irregular and a compact yellow galaxy
+			p.companions = {
+				{ "", glm::vec3(-33000.0f, -3000.0f, 12000.0f), 2800.0f, glm::vec3(800.0f, 0.0f, 600.0f), 0.6f, 9000.0f, 0.4f },
+				{ "", glm::vec3(-38000.0f, 4000.0f, -6000.0f), 2500.0f, glm::vec3(0.0f), 1.0f, 4600.0f, 1.5f },
+			};
+			preset.markers = { { "Nucleus", glm::vec3(0.0f) } };
+			preset.overviewPitch = 54.0f;
+			preset.overviewYaw = 0.0f;
+			preset.overviewZoom = 125000.0f;
+			preset.fieldOfView = 30.0f;
+			return preset;
+		}
+
+		// NGC 4151: a Seyfert galaxy, nearly face-on (21 degrees), its active nucleus a blazing point
+		// at the centre of a bright oval, ringed by faint, tightly wound arms: an eye
+		GalaxyPreset EyeOfSauron()
+		{
+			GalaxyPreset preset;
+			preset.name = "Eye of Sauron (NGC 4151)";
+			GalaxyParameters& p = preset.parameters;
+			p.barAngle = 30.0f;
+			p.barHalfLength = 3500.0f;
+			p.barWidthRatio = 0.55f;
+			p.barHeightRatio = 0.3f;
+			p.bulgeRadius = 500.0f;
+			p.barShare = 0.6f;
+			p.armCount = 2;
+			p.armPitch = 15.0f;
+			p.armRadius = 3500.0f;
+			p.armWidth = 800.0f;
+			p.minorArmStrength = 1.0f;
+			// The arms close into a ring around the oval
+			p.ringRadius = 6000.0f;
+			p.ringWidth = 900.0f;
+			p.ringStrength = 0.6f;
+			p.discScaleLength = 3000.0f;
+			p.discScaleHeight = 300.0f;
+			p.discRadius = 10000.0f;
+			p.dustLaneOffset = 200.0f;
+			// A soft, dim oval, so the nucleus stands out from it, and fainter arms
+			p.bulgeGlow = 1.6f;
+			p.discGlow = 0.3f;
+			p.armGlow = 0.35f;
+			p.nebulaGlow = 0.5f;
+			p.dustDepth = 2.0f;
+			p.bulgeTemperature = 4600.0f;
+			p.discTemperature = 5100.0f;
+			p.youngTemperature = 16000.0f;
+			p.youngStars = 0.4f;
+			// The active nucleus: far smaller than a pixel, so drawn as a point (widened to the
+			// glow's pixels), blue-white with the light of the accretion disc
+			p.companions = {
+				{ "", glm::vec3(0.0f), 20.0f, glm::vec3(0.0f), 1000.0f, 12000.0f, 0.0f, GalaxyCompanionKind::Point },
+			};
+			preset.markers = { { "Active nucleus", glm::vec3(0.0f) } };
+			preset.overviewPitch = 69.0f;
+			preset.overviewYaw = 0.0f;
+			preset.overviewZoom = 40000.0f;
+			preset.fieldOfView = 30.0f;
+			return preset;
+		}
+
+		// NGC 7742: a face-on spiral, its large yellow bulge (the yolk) surrounded by a ring of young
+		// blue clusters and pink nebulae (the white), with faint, tightly wound arms beyond
+		GalaxyPreset FriedEgg()
+		{
+			GalaxyPreset preset;
+			preset.name = "Fried Egg Galaxy (NGC 7742)";
+			GalaxyParameters& p = preset.parameters;
+			p.barAngle = 0.0f;
+			p.barHalfLength = 800.0f;
+			p.barWidthRatio = 0.8f;
+			p.barHeightRatio = 0.6f;
+			p.bulgeRadius = 350.0f;
+			p.barShare = 0.0f;
+			p.armCount = 2;
+			p.armPitch = 8.0f;
+			p.armRadius = 2000.0f;
+			p.armWidth = 500.0f;
+			p.minorArmStrength = 0.8f;
+			// The ring holds nearly all the young stars (and with armGlow, sets its brightness)
+			p.ringRadius = 1300.0f;
+			p.ringWidth = 250.0f;
+			p.ringStrength = 8.0f;
+			p.discScaleLength = 2200.0f;
+			p.discScaleHeight = 250.0f;
+			p.discRadius = 8000.0f;
+			p.dustLaneOffset = 150.0f;
+			p.bulgeGlow = 4.0f;
+			p.discGlow = 0.25f;
+			p.armGlow = 0.35f;
+			p.nebulaGlow = 1.5f;
+			p.dustDepth = 0.3f;
+			p.bulgeTemperature = 4100.0f;
+			p.discTemperature = 5000.0f;
+			p.youngTemperature = 18000.0f;
+			p.starCount = 200000;
+			p.brightness = 0.7f;
+			preset.markers = { { "Nucleus", glm::vec3(0.0f) } };
+			preset.overviewPitch = 75.0f;
+			preset.overviewYaw = 0.0f;
+			preset.overviewZoom = 28000.0f;
+			preset.fieldOfView = 30.0f;
+			return preset;
+		}
+
+		// NGC 6822: a barred irregular dwarf of the Local Group, 500 kpc away and only 3.4 kpc
+		// across. Its light is mostly a bar of stars, near enough that they are seen one by one,
+		// with clumps of young blue stars and bright H II regions scattered around it, and little dust.
+		GalaxyPreset Barnards()
+		{
+			GalaxyPreset preset;
+			preset.name = "Barnard's Galaxy (NGC 6822)";
+			GalaxyParameters& p = preset.parameters;
+			p.barAngle = 70.0f;
+			p.barHalfLength = 900.0f;
+			p.barWidthRatio = 0.35f;
+			p.barHeightRatio = 0.3f;
+			p.bulgeRadius = 150.0f;
+			p.barShare = 0.9f;
+			// No real arms: wide enough to smear into the disc, leaving its clumps and streaks
+			p.armCount = 2;
+			p.armPitch = 30.0f;
+			p.armRadius = 600.0f;
+			p.armWidth = 900.0f;
+			p.minorArmStrength = 0.8f;
+			p.discScaleLength = 700.0f;
+			p.discScaleHeight = 150.0f;
+			p.discRadius = 2200.0f;
+			p.youngScaleHeight = 80.0f;
+			p.dustScaleHeight = 90.0f;
+			p.dustLaneOffset = 100.0f;
+			p.bulgeGlow = 2.0f;
+			p.discGlow = 0.8f;
+			p.armGlow = 0.7f;
+			p.nebulaGlow = 2.0f;
+			p.dustDepth = 0.6f;
+			p.bulgeTemperature = 5200.0f;
+			p.discTemperature = 6000.0f;
+			p.youngTemperature = 18000.0f;
+			p.youngStars = 1.2f;
+			p.starCount = 200000;
+			p.starBrightness = 0.08f;
+			preset.markers = { { "Centre", glm::vec3(0.0f) } };
+			preset.overviewPitch = 57.0f;
+			preset.overviewYaw = 0.0f;
+			preset.overviewZoom = 9000.0f;
+			preset.fieldOfView = 30.0f;
+			return preset;
+		}
 	}
 
 	const GalaxyPreset& GetGalaxyPreset(const GalaxyType type)
 	{
-		static const std::array<GalaxyPreset, (size_t)GalaxyType::Count> presets = { MilkyWay(), Whirlpool(), Andromeda(), RoseGalaxy(),
-																								 Pinwheel(), Ngc1300(), Triangulum(), Sombrero() };
+		static const std::array<GalaxyPreset, (size_t)GalaxyType::Count> presets = {
+			MilkyWay(), Whirlpool(), Andromeda(), RoseGalaxy(), Pinwheel(), Ngc1300(), Triangulum(), Sombrero(),
+			Fireworks(), Sunflower(), Spindle(), BlackEye(), Bodes(), Needle(), Sculptor(), FornaxA(), Cigar(), Cartwheel(), EyeOfSauron(), FriedEgg(),
+			Barnards() };
 		return presets[std::min((size_t)type, presets.size() - 1)];
 	}
 }
