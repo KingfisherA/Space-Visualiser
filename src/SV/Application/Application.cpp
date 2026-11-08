@@ -764,6 +764,7 @@ namespace SV
 			for (const std::string& line : catalogue->report)
 				std::cout << "Catalogue: " << line << '\n';
 			universeRenderer = umake<UniverseRenderer>(sceneContext, *catalogue);
+			universeRenderer->starRenderer = starRenderer;
 			// Only the landmarks are kept: the rest is on the GPU
 			catalogue->stars = {};
 			catalogue->compactSources = {};
@@ -1669,7 +1670,11 @@ namespace SV
 							  "(blue stars and white dwarfs)");
 		ImGui::SliderFloat("Bloom", &renderer.bloom, 0.0f, 2.0f);
 		ImGui::SliderFloat("Time scale", &renderer.daysPerSecond, 0.001f, 10000.0f, "%.3g days/s", ImGuiSliderFlags_Logarithmic);
-		ImGui::SliderFloat("Surface detail", &renderer.surfaceDetail, 0.0f, 1.5f);
+		ImGui::Checkbox("Stylised stars", &renderer.stylised);
+		ImGui::SetItemTooltip("Draws the stars (not brown dwarfs) as the solar system draws the Sun: coloured by their temperatures "
+							  "(the Sun is white), with coronas as a total eclipse shows them. Off, they are drawn physically.");
+		if (!renderer.stylised)
+			ImGui::SliderFloat("Surface detail", &renderer.surfaceDetail, 0.0f, 1.5f);
 		ImGui::SetItemTooltip("The contrast of the granulation, spots and cloud bands. The Sun's granules are tiny: zoom in close to its surface to see them.");
 		ImGui::SliderFloat("Point stars", &renderer.pointGain, 0.0f, 200.0f, "%.0f", ImGuiSliderFlags_Logarithmic);
 		ImGui::SetItemTooltip("Raises the light of stars too far away to see as discs, so they show as points.\n"
@@ -1755,6 +1760,8 @@ namespace SV
 		view.zoom = (float)(camera.GetZoom() / PARSEC_IN_UNITS);
 		view.time = universeTime;
 		view.deltaTime = deltaTime;
+		view.times = glm::vec4((float)animationTime, (float)animationTime * 0.05f, 0.0f, 0.0f);
+		view.starExposure = exposure;
 		const double sunDistance = GetSunDistance() / Universe::AU_IN_UNITS;
 		const double t = std::clamp((sunDistance - SUN_POINT_START) / (SOLAR_SYSTEM_EXTENT - SUN_POINT_START), 0.0, 1.0);
 		view.sunVisibility = (float)(t * t * (3.0 - 2.0 * t));
@@ -2254,19 +2261,25 @@ namespace SV
 			{
 				ImGui::DragFloat("Exposure (-/=)", &exposure, 0.1f, 0.0f, 100.0f);
 				int surfaceView = (int)starRenderer->surfaceView;
-				const char* surfaceViews[] = { "Visible light", "Extreme ultraviolet" };
-				if (ImGui::Combo("Sun's surface", &surfaceView, surfaceViews, 2))
+				const char* surfaceViews[] = { "Visible light", "Extreme ultraviolet", "Stylised" };
+				if (ImGui::Combo("Star surfaces", &surfaceView, surfaceViews, 3))
 					starRenderer->surfaceView = (StarSurfaceView)surfaceView;
 				ImGui::SetItemTooltip("Visible light: the photosphere as through a solar filter, darker and redder towards the limb, "
 									  "with sunspots, faculae and granulation (zoom in close to see the granules).\n"
-									  "Extreme ultraviolet: the hot, glowing chromosphere and corona above it, as SDO sees them.");
+									  "Extreme ultraviolet: the hot, glowing chromosphere and corona above it, as SDO sees them.\n"
+									  "Stylised: a cinematic take on a star, coloured by its temperature (the Sun is white), with its corona as "
+									  "a total eclipse shows it.\n"
+									  "Every star close up (the catalogue's as you approach them) is drawn this way.");
 				if (starRenderer->surfaceView == StarSurfaceView::VisibleLight)
 					ImGui::SliderFloat("Sunspots", &starRenderer->sunspots, 0.0f, 1.5f);
 				ImGui::SliderFloat("H-alpha emission", &starRenderer->hydrogenEmission, 0.0f, 4.0f);
-				ImGui::SliderFloat("Solar flares", &starRenderer->solarFlares, 0.0f, 2.0f);
-				ImGui::SetItemTooltip("Brightness of the flares on the Sun's surface and in the loops over its limb (0 for none)");
-				ImGui::SliderFloat("Sun flare", &starRenderer->flareIntensity, 0.0f, 2.0f);
-				ImGui::SetItemTooltip("The Sun's glare and lens flare when it is far away (0 for none)");
+				if (starRenderer->surfaceView != StarSurfaceView::Stylised)
+				{
+					ImGui::SliderFloat("Solar flares", &starRenderer->solarFlares, 0.0f, 2.0f);
+					ImGui::SetItemTooltip("Brightness of the flares on the Sun's surface and in the loops over its limb (0 for none)");
+				}
+				ImGui::SliderFloat("Star flares", &starRenderer->flareIntensity, 0.0f, 2.0f);
+				ImGui::SetItemTooltip("The glare and lens flare of the Sun, and of other stars as the camera nears them, while they are small on screen (0 for none)");
 				ImGui::SliderFloat("Faint ring gain", &planetRenderer->diffuseRingGain, 0.0f, 3000.0f, "%.0f",
 								   ImGuiSliderFlags_Logarithmic);
 

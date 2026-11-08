@@ -1,6 +1,7 @@
 #include "UniverseRenderer.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstddef>
 #include <vector>
@@ -49,6 +50,9 @@ namespace SV
 			// parts of it the close-up draws): x = its radius across the line of sight from the Sun,
 			// y = its depth along it (pc)
 			glm::vec4 hiddenNebulaRegion;
+			// The stars shown close up (xyz = their positions' high parts), and how much of each of
+			// their points is still drawn (w)
+			glm::vec4 hiddenStars[UniverseRenderer::MAX_STAR_CLOSE_UPS];
 		};
 
 		// Mirrors UniversePushConstants in Shaders/Include/Universe.glsl
@@ -224,6 +228,25 @@ namespace SV
 		constexpr double COMPACT_CLOSE_UP_START = 1000.0;
 		constexpr double COMPACT_CLOSE_UP_END = 500.0;
 		constexpr double COMPACT_REACH = 50.0;
+		// And stars as the Sun is in the solar system: its point gives way to its flare as the camera
+		// closes from the first distance to the second (AU: Application.cpp's SOLAR_SYSTEM_EXTENT and
+		// SUN_POINT_START), and its flare to its disc as that grows (StarRenderer). A star is taken at
+		// the distance it would be at to look as bright as the Sun does, so brighter stars flare from
+		// further away. (Should a star's disc ever grow past the first size before its flare is in
+		// (pixels, as a radius), it fades in over its point by the second.) The closest zoom to a
+		// star the camera is centred on (its radii).
+		constexpr double STAR_FLARE_START = 20000.0;
+		constexpr double STAR_FLARE_END = 2000.0;
+		constexpr double AU_PER_PC = 206264.806;
+		constexpr float STAR_CLOSE_UP_START = 1.0f;
+		constexpr float STAR_CLOSE_UP_END = 3.0f;
+		constexpr double STAR_MIN_ZOOM = 1.3;
+		// The solar radius (pc), and the limits on stars' radii (solar radii) worked out from the
+		// catalogue's luminosities and temperatures
+		constexpr double SOLAR_RADIUS_PC = 6.957e5 / 3.0856776e13;
+		constexpr float MIN_STAR_RADIUS = 0.08f, MAX_STAR_RADIUS = 2000.0f;
+		// The billboard of a star's corona (stellar radii; Shaders/Include/CoronaPushConstants.glsl)
+		constexpr float CORONA_EXTENT = 4.0f;
 		// The closest zoom to them, and the zoom "Go to" ends at (Schwarzschild radii)
 		constexpr double BLACK_HOLE_MIN_ZOOM = 2.2;
 		constexpr double NEUTRON_STAR_MIN_ZOOM = 4.0;
@@ -324,6 +347,32 @@ namespace SV
 			points.push_back(point);
 		}
 		compactCount = catalogue.compactSources.size();
+
+		// The stars' radii, from their luminosities and temperatures (L = R^2 times the surface's
+		// luminosity), for their close-ups. The surface's luminosity is looked up in a table: it is
+		// slow to work out.
+		{
+			constexpr int TABLE_SIZE = 96;
+			constexpr float TABLE_MIN = 1500.0f, TABLE_MAX = 60000.0f;
+			std::array<float, TABLE_SIZE> table{};
+			for (int i = 0; i < TABLE_SIZE; i++)
+				table[i] = BlackbodyLuminance(TABLE_MIN * std::pow(TABLE_MAX / TABLE_MIN, (float)i / (TABLE_SIZE - 1)));
+			auto SurfaceLuminance = [&](const float temperature)
+			{
+				const float x = std::clamp(std::log(temperature / TABLE_MIN) / std::log(TABLE_MAX / TABLE_MIN), 0.0f, 1.0f) * (TABLE_SIZE - 1);
+				const int i = std::min((int)x, TABLE_SIZE - 2);
+				return table[i] + (table[i + 1] - table[i]) * (x - (float)i);
+			};
+			starPoints.reserve(catalogue.stars.size());
+			for (const CatalogueStar& star : catalogue.stars)
+			{
+				if (glm::length(star.position) < 1e-6)
+					continue; // The Sun (the solar system draws it)
+				const float radius = std::sqrt(std::max(star.luminosity, 0.0f) / std::max(SurfaceLuminance(star.temperature), 1e-12f));
+				starPoints.push_back({ star.position, (float)(std::clamp(radius, MIN_STAR_RADIUS, MAX_STAR_RADIUS) * SOLAR_RADIUS_PC),
+									   star.temperature, std::max(star.luminosity, 0.0f) });
+			}
+		}
 		points.push_back({ glm::vec4(0.0f, 0.0f, 0.0f, 1.0f), glm::vec4(0.0f, 0.0f, 0.0f, (float)PointKind::Sun), glm::vec4(BlackbodyColour(5772.0f), 0.0f) });
 		pointBuffer = DH::Buffer::Create({ points.size() * sizeof(PointInstance), DH::BufferUsage::Vertex, DH::BufferMemory::Static }, points.data());
 
@@ -421,6 +470,8 @@ namespace SV
 		featuredGalaxyFrame = CreateLocalFrame();
 		featuredNebulaFrame = CreateLocalFrame();
 		compactFrame = CreateLocalFrame();
+		for (LocalFrame& frame : starFrames)
+			frame = CreateLocalFrame();
 	}
 
 	UniverseRenderer::LocalFrame UniverseRenderer::CreateLocalFrame() const
@@ -433,7 +484,8 @@ namespace SV
 	}
 
 	void UniverseRenderer::UpdateLocalFrame(const LocalFrame& frame, const UniverseView& view, const glm::dmat3& modelToWorld, const glm::dvec3& centre,
-											const double unit, const float extent, const float aspect) const
+											const double unit, const float extent, const float aspect, const glm::vec4& times,
+											const glm::vec4& display) const
 	{
 		// The camera in the model's axes and units, from its offset from the render origin (precise
 		// even for neutron stars kiloparsecs from the Sun)
@@ -450,6 +502,8 @@ namespace SV
 		uniforms.projection = projection;
 		uniforms.cameraPosition = glm::vec4(camera, 1.0f);
 		uniforms.cameraCentre = glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);
+		uniforms.times = times;
+		uniforms.display = display;
 		frame.buffer->Update(&uniforms, sizeof(uniforms));
 	}
 
@@ -467,6 +521,56 @@ namespace SV
 			}
 		}
 		return nearest;
+	}
+
+	void UniverseRenderer::FindStarCloseUps(const UniverseView& view, const float pixelAngle)
+	{
+		starCloseUps.clear();
+		if (!showCloseUps || !showStars || starRenderer == nullptr)
+			return;
+
+		// Those near enough to flare, or (should one be) large enough on screen to show its disc
+		const double flareReach = STAR_FLARE_START / AU_PER_PC;
+		const double pixelAngle2 = (double)pixelAngle * pixelAngle;
+		for (const StarPoint& star : starPoints)
+		{
+			const glm::dvec3 relative = star.position - view.camera;
+			const double distance2 = glm::dot(relative, relative);
+			const double radius2 = (double)star.radius * star.radius;
+			if (distance2 >= flareReach * flareReach * star.luminosity && radius2 <= distance2 * pixelAngle2 * STAR_CLOSE_UP_START * STAR_CLOSE_UP_START)
+				continue;
+
+			StarCloseUp closeUp;
+			closeUp.star = &star;
+			closeUp.distance = std::max(std::sqrt(distance2), 1e-30);
+			const double equivalentAU = closeUp.distance * AU_PER_PC / std::sqrt(std::max((double)star.luminosity, 1e-12));
+			closeUp.flare = (float)SmoothStep(STAR_FLARE_START, STAR_FLARE_END, equivalentAU);
+			closeUp.disc = (float)SmoothStep(STAR_CLOSE_UP_START, STAR_CLOSE_UP_END, star.radius / closeUp.distance / pixelAngle);
+			// (Without flares, its point stays until its disc shows, as the stars' did before)
+			closeUp.hidden = std::max(closeUp.flare * std::min(starRenderer->flareIntensity, 1.0f), closeUp.disc);
+			starCloseUps.push_back(closeUp);
+		}
+
+		// The brightest few (as seen from here), then furthest first, so the nearer are drawn over them
+		auto Brightness = [](const StarCloseUp& closeUp) { return closeUp.star->luminosity / (closeUp.distance * closeUp.distance); };
+		std::sort(starCloseUps.begin(), starCloseUps.end(), [&](const StarCloseUp& a, const StarCloseUp& b) {
+			return std::max(a.flare, a.disc) != std::max(b.flare, b.disc) ? std::max(a.flare, a.disc) > std::max(b.flare, b.disc)
+																		   : Brightness(a) > Brightness(b);
+		});
+		if (starCloseUps.size() > MAX_STAR_CLOSE_UPS)
+			starCloseUps.resize(MAX_STAR_CLOSE_UPS);
+		std::sort(starCloseUps.begin(), starCloseUps.end(), [](const StarCloseUp& a, const StarCloseUp& b) { return a.distance > b.distance; });
+	}
+
+	const UniverseRenderer::StarPoint* UniverseRenderer::FindStarAt(const glm::dvec3& centre) const
+	{
+		for (const StarPoint& star : starPoints)
+		{
+			const glm::dvec3 relative = star.position - centre;
+			if (glm::dot(relative, relative) < (double)star.radius * star.radius)
+				return &star;
+		}
+		return nullptr;
 	}
 
 	const UniverseRenderer::Feature* UniverseRenderer::FindFeature(const std::vector<Feature>& features, const UniverseView& view,
@@ -503,9 +607,11 @@ namespace SV
 	double UniverseRenderer::GetMinZoom(const glm::dvec3& centre) const
 	{
 		const CompactPoint* point = showCloseUps ? FindCompactAt(centre) : nullptr;
-		if (point == nullptr)
-			return 0.0;
-		return (point->blackHole ? BLACK_HOLE_MIN_ZOOM : NEUTRON_STAR_MIN_ZOOM) * point->schwarzschildRadius;
+		if (point != nullptr)
+			return (point->blackHole ? BLACK_HOLE_MIN_ZOOM : NEUTRON_STAR_MIN_ZOOM) * point->schwarzschildRadius;
+		// Outside a star the camera is centred on
+		const StarPoint* star = showCloseUps && showStars ? FindStarAt(centre) : nullptr;
+		return star != nullptr ? STAR_MIN_ZOOM * star->radius : 0.0;
 	}
 
 	double UniverseRenderer::GetLandmarkZoom(const CatalogueLandmark& landmark) const
@@ -527,6 +633,19 @@ namespace SV
 		const double zoom = view.zoom;
 		const double distance = std::max(glm::distance(landmark.position, view.camera), 1e-9);
 		const float radiusPixels = (float)(landmark.radius / distance / pixelAngle);
+		// Hidden behind a star shown close up (not counting the star itself)
+		for (const StarCloseUp& closeUp : starCloseUps)
+		{
+			const StarPoint& star = *closeUp.star;
+			if (closeUp.hidden <= 0.5f)
+				continue;
+			const glm::dvec3 toStar = star.position - view.camera;
+			const double starDistance = glm::length(toStar);
+			const glm::dvec3 toLandmark = (landmark.position - view.camera) / distance;
+			const double across = glm::length(glm::cross(toLandmark, toStar));
+			if (distance > starDistance + star.radius && glm::dot(toLandmark, toStar) > 0.0 && across < star.radius)
+				return -1.0f;
+		}
 		switch (landmark.kind)
 		{
 		case CatalogueKind::Star:
@@ -657,12 +776,17 @@ namespace SV
 		closeUps.compactPresence = compact != nullptr
 									   ? (float)SmoothStep(COMPACT_CLOSE_UP_START, COMPACT_CLOSE_UP_END, view.zoom / compact->schwarzschildRadius)
 									   : 0.0f;
+		FindStarCloseUps(view, pixelAngle);
 
 		// The universe (unless a black hole or neutron star close up hides all of it)
 		if (closeUps.compactPresence < 1.0f)
 		{
 			RenderScene(cmd, scene, view, pixelAngle, aspect, closeUps);
 			compositor.Composite(cmd, target, exposure, bloom);
+
+			// The stars close up, over their points
+			for (size_t i = 0; i < starCloseUps.size(); i++)
+				RenderStarCloseUp(cmd, target, view, starCloseUps[i], starFrames[i], aspect);
 		}
 
 		// The nebula's light over it (its own background stars left out: the universe has them)
@@ -703,6 +827,47 @@ namespace SV
 		}
 	}
 
+	void UniverseRenderer::RenderStarCloseUp(DH::CommandList& cmd, DH::Framebuffer& target, const UniverseView& view, const StarCloseUp& closeUp,
+											 const LocalFrame& frame, const float aspect)
+	{
+		const StarPoint& star = *closeUp.star;
+		const float presence = std::max(closeUp.flare, closeUp.disc);
+		if (presence <= 0.0f)
+			return;
+
+		// In solar radii around the star, with the solar system's animation times and exposure
+		const float radius = (float)(star.radius / SOLAR_RADIUS_PC);
+		UpdateLocalFrame(frame, view, glm::dmat3(1.0), star.position, SOLAR_RADIUS_PC, CORONA_EXTENT * radius, aspect, view.times,
+						 glm::vec4(view.starExposure, 0.0f, 0.0f, 0.0f));
+
+		// Each star turned its own way, so their surfaces differ
+		const glm::dvec3 seed = glm::fract(star.position * glm::dvec3(12.9898, 78.233, 37.719));
+		const glm::mat4 transform = glm::rotate(glm::mat4(1.0f), (float)(seed.x * 6.2831853), glm::normalize(glm::vec3(seed) + glm::vec3(0.1f))) *
+									glm::scale(glm::mat4(1.0f), glm::vec3(radius));
+
+		DH::RenderPassDesc pass;
+		pass.target = &target;
+		pass.colourLoadOp = DH::LoadOp::Load;
+		cmd.BeginRenderPass(pass);
+		cmd.BindGroup(0, *frame.group);
+		starRenderer->RenderCloseUp(cmd, transform, star.temperature, presence);
+
+		// Its flare over it (as the Sun's, for the distance at which the Sun looks as bright), on
+		// its disc on screen in view units (half the viewport's height)
+		const glm::vec3 toStar((star.position - view.camera) / closeUp.distance);
+		const glm::mat4 projection = glm::perspective(view.fieldOfView, aspect, 1.0f, 2.0f);
+		const glm::vec4 clip = projection * glm::vec4(view.rotation * toStar, 1.0f);
+		if (clip.w > 0.0f)
+		{
+			const glm::vec2 centre(clip.x / clip.w * aspect, clip.y / clip.w);
+			const float discRadius = (float)(star.radius / closeUp.distance) / clip.w * projection[1][1];
+			const double distanceAU = closeUp.distance * AU_PER_PC / std::sqrt(std::max((double)star.luminosity, 1e-12));
+			starRenderer->RenderFlare(cmd, centre, discRadius, aspect, 2.0f / (float)std::max<size_t>(target.GetHeight(), 1), distanceAU,
+									  star.temperature, closeUp.flare);
+		}
+		cmd.EndRenderPass();
+	}
+
 	void UniverseRenderer::RenderScene(DH::CommandList& cmd, DH::Framebuffer& scene, const UniverseView& view, const float pixelAngle,
 									   const float aspect, const CloseUps& closeUps)
 	{
@@ -738,6 +903,10 @@ namespace SV
 		uniforms.hiddenGalaxy = closeUps.galaxy != nullptr ? Hidden(closeUps.galaxy->position, closeUps.galaxyPresence) : glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);
 		uniforms.hiddenNebula = closeUps.nebula != nullptr ? Hidden(closeUps.nebula->position, closeUps.nebulaPresence) : glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);
 		uniforms.hiddenPoint = closeUps.compact != nullptr ? Hidden(closeUps.compact->position, closeUps.compactPresence) : glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);
+		// (The stars' points cross fade with their flares, as the Sun's does)
+		for (size_t i = 0; i < MAX_STAR_CLOSE_UPS; i++)
+			uniforms.hiddenStars[i] = i < starCloseUps.size() ? glm::vec4(glm::vec3(starCloseUps[i].star->position), 1.0f - starCloseUps[i].hidden)
+															  : glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);
 		// The Milky Way: the galaxy model while it is large enough on screen, otherwise its sprite
 		// (the model's stars would pile up in a few pixels)
 		const double milkyWayPixels = MILKY_WAY_RADIUS / std::max(glm::distance(view.camera, GetGalacticCentre()), 1.0) / pixelAngle;

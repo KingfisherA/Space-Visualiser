@@ -32,7 +32,7 @@ namespace SV
 			std::array<glm::vec4, MAX_BODIES> look;     // x = granules' age (lifetimes), y = glow size, z = glow strength, w = rotation (radians)
 			std::array<glm::vec4, MAX_BODIES> tint;     // rgb = tint, w = surface luminance (relative to the Sun's)
 			std::array<glm::vec4, MAX_BODIES> flare;    // xyz = where (in the body's turning frame), w = brightness
-			glm::vec4 display;                          // x = point star gain
+			glm::vec4 display;                          // x = point star gain, y = 1 for stylised stars, z = 1 / exposure
 			std::array<glm::vec4, BLACKBODY_TABLE_SIZE> blackbody;
 		};
 
@@ -371,7 +371,7 @@ namespace SV
 				uniforms.flare[i] = glm::vec4(r * std::cos(angle), z, r * std::sin(angle), FLARE_BRIGHTNESS * strength);
 			}
 		}
-		uniforms.display = glm::vec4(pointGain, 0.0f, 0.0f, 0.0f);
+		uniforms.display = glm::vec4(pointGain, stylised ? 1.0f : 0.0f, 1.0f / std::max(brightness, 1e-6f), 0.0f);
 		uniforms.blackbody = BlackbodyTable();
 		uniformBuffer->Update(&uniforms, sizeof(uniforms));
 

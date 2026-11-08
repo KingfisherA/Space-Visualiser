@@ -5,6 +5,7 @@
 #include "StarPushConstants.glsl"
 #include "SolarActivity.glsl"
 #include "Photosphere.glsl"
+#include "StylisedStar.glsl"
 
 layout(location = 0) in vec3 vVertex;
 layout(location = 1) in vec3 vCamVector;
@@ -12,7 +13,7 @@ layout(location = 2) in vec3 vNormal;
 
 layout(location = 0) out vec4 fragColour;
 
-// The star's surface, seen one of two ways:
+// The star's surface, seen one of three ways:
 //
 //  - In visible light (the default), as through a solar filter: the photosphere of Photosphere.glsl,
 //    limb darkened and reddened, granulated, with sunspots and faculae in the active regions (those
@@ -21,8 +22,10 @@ layout(location = 0) out vec4 fragColour;
 //    white rather than the false colour of those images: the tangled chromospheric network, active
 //    regions threaded by bright loops, dark coronal holes and filaments, flares, and a limb
 //    brightened (not darkened) because the glow is optically thin.
+//  - Stylised, as a cinematic take on a star (StylisedStar.glsl): a churning surface in the star's
+//    colour, threaded by bright filaments and drifting clouds, with a bright rim.
 //
-// Both are display colours (the disc is far brighter than anything else in the scene, so it has
+// All are display colours (the disc is far brighter than anything else in the scene, so it has
 // its own exposure, as if seen through a filter).
 
 // ---- Visible light ---------------------------------------------------------------------------
@@ -179,12 +182,19 @@ void main()
     if (octaves == 0)
     {
         // A plain disc
-        fragColour = vec4(SoftClip(uStar.colour.rgb * PHOTOSPHERE_EXPOSURE), 1.0);
+        fragColour = vec4(SoftClip(uStar.colour.rgb * PHOTOSPHERE_EXPOSURE) * uStar.properties.z, 1.0);
         return;
     }
 
     vec3 p = normalize(vVertex);
     float mu = clamp(dot(normalize(vNormal), normalize(vCamVector)), 0.0, 1.0);
-    vec3 colour = uStar.surface.w > 0.5 ? UltravioletSurface(p, mu, flareActivity, octaves) : VisibleSurface(p, mu, flareActivity);
-    fragColour = vec4(colour, 1.0);
+    vec3 colour;
+    if (uStar.surface.w > 1.5)
+        colour = StylisedSurface(p, mu, uStar.colour.rgb, time, pixelSize);
+    else if (uStar.surface.w > 0.5)
+        colour = UltravioletSurface(p, mu, flareActivity, octaves);
+    else
+        colour = VisibleSurface(p, mu, flareActivity);
+    // (Close-ups of the catalogue's stars fade in from black over their points)
+    fragColour = vec4(colour * uStar.properties.z, 1.0);
 }

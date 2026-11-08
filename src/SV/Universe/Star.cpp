@@ -21,15 +21,15 @@ namespace SV
 			glm::mat4 transform;  // Model to world
 			glm::vec4 properties; // x = detail octaves (0 for a plain disc), y = flare activity
 			glm::vec4 colour;     // rgb = photosphere colour
-			glm::vec4 surface;    // x = temperature, y = granules per radius, z = spot contrast, w = 1 in extreme ultraviolet
+			glm::vec4 surface;    // x = temperature, y = granules per radius, z = spot contrast, w = view (StarSurfaceView)
 		};
 
 		// Mirrors Shaders/Include/CoronaPushConstants.glsl
 		struct CoronaPushConstants
 		{
 			glm::mat4 transform; // The star's model to world transform
-			glm::vec4 colour;    // rgb = photosphere colour, w = hydrogen emission intensity
-			glm::vec4 activity;  // x = flare activity
+			glm::vec4 colour;    // rgb = photosphere (or stylised) colour, w = hydrogen emission intensity
+			glm::vec4 activity;  // x = flare activity, y = 1 for the stylised star
 		};
 
 		// Mirrors Shaders/Include/FlarePushConstants.glsl
@@ -45,6 +45,8 @@ namespace SV
 
 		constexpr unsigned int SPHERE_SUBDIVISIONS = 20;
 		constexpr float STAR_NOISE_OCTAVES = 3.0f;
+		// Granules per stellar radius of the catalogue's stars close up (the Sun's)
+		constexpr float CLOSE_UP_GRANULATION = 460.0f;
 
 		// The flare fades in as the star's disc shrinks on screen from FLARE_START_RADIUS to
 		// FLARE_FULL_RADIUS pixels (the corona is barely visible by then). From Earth the Sun's disc
@@ -128,6 +130,13 @@ namespace SV
 		return table;
 	}
 
+	glm::vec3 StylisedStarColour(const float temperature)
+	{
+		static const glm::vec3 sun = BlackbodyColour(5772.0f);
+		const glm::vec3 ratio = glm::max(BlackbodyColour(temperature) / glm::max(sun, glm::vec3(1e-6f)), glm::vec3(1e-6f));
+		return glm::pow(ratio / std::max(std::max(ratio.r, ratio.g), ratio.b), glm::vec3(0.6f));
+	}
+
 	glm::vec3 BlackbodyColour(const float temperature)
 	{
 		// Planck's law integrated against the colour matching functions
@@ -191,6 +200,35 @@ namespace SV
 		flarePipeline = DH::GraphicsPipeline::Create(flareDesc);
 	}
 
+	glm::vec3 StarRenderer::GetSurfaceColour(const float temperature) const
+	{
+		return surfaceView == StarSurfaceView::Stylised ? StylisedStarColour(temperature) : BlackbodyColour(temperature);
+	}
+
+	void StarRenderer::DrawCorona(DH::CommandList& cmd, const glm::mat4& transform, const glm::vec3& colour, const float brightness) const
+	{
+		const CoronaPushConstants pushConstants{
+			transform,
+			glm::vec4(colour, hydrogenEmission),
+			glm::vec4(solarFlares, surfaceView == StarSurfaceView::Stylised ? 1.0f : 0.0f, brightness, 0.0f)
+		};
+		cmd.PushConstants(pushConstants);
+		quadMesh->Draw(cmd);
+	}
+
+	void StarRenderer::DrawSurface(DH::CommandList& cmd, const glm::mat4& transform, const glm::vec3& colour, const float temperature,
+								   const float granulation, const float brightness) const
+	{
+		const StarPushConstants pushConstants{
+			transform,
+			glm::vec4(STAR_NOISE_OCTAVES, solarFlares, brightness, 0.0f),
+			glm::vec4(colour, 1.0f),
+			glm::vec4(temperature, granulation, sunspots, (float)surfaceView)
+		};
+		cmd.PushConstants(pushConstants);
+		sphereMesh->Draw(cmd);
+	}
+
 	void StarRenderer::Render(DH::CommandList& cmd, const DH::PolygonMode polygonMode)
 	{
 		if (stars.empty()) return;
@@ -203,28 +241,63 @@ namespace SV
 		for (const auto& [distance, index] : distanceCache)
 		{
 			const Star& star = *stars[index];
-			const CoronaPushConstants pushConstants{
-				star.transformationMatrix,
-				glm::vec4(star.GetPhotosphereColour(), hydrogenEmission),
-				glm::vec4(solarFlares, 0.0f, 0.0f, 0.0f)
-			};
-			cmd.PushConstants(pushConstants);
-			quadMesh->Draw(cmd);
+			const glm::vec3 colour = surfaceView == StarSurfaceView::Stylised ? StylisedStarColour(star.starTemperature) : star.GetPhotosphereColour();
+			DrawCorona(cmd, star.transformationMatrix, colour, 1.0f);
 		}
 
 		cmd.BindPipeline(starPipeline.Get(polygonMode));
 		for (const auto& [distance, index] : distanceCache)
 		{
 			const Star& star = *stars[index];
-			const StarPushConstants pushConstants{
-				star.transformationMatrix,
-				glm::vec4(STAR_NOISE_OCTAVES, solarFlares, 0.0f, 0.0f),
-				glm::vec4(star.GetPhotosphereColour(), 1.0f),
-				glm::vec4(star.starTemperature, star.granulation, sunspots, surfaceView == StarSurfaceView::Ultraviolet ? 1.0f : 0.0f)
-			};
-			cmd.PushConstants(pushConstants);
-			sphereMesh->Draw(cmd);
+			const glm::vec3 colour = surfaceView == StarSurfaceView::Stylised ? StylisedStarColour(star.starTemperature) : star.GetPhotosphereColour();
+			DrawSurface(cmd, star.transformationMatrix, colour, star.starTemperature, star.granulation, 1.0f);
 		}
+	}
+
+	void StarRenderer::RenderCloseUp(DH::CommandList& cmd, const glm::mat4& transform, const float temperature, const float brightness)
+	{
+		const glm::vec3 colour = GetSurfaceColour(temperature);
+		cmd.BindPipeline(coronaPipeline.Get(DH::PolygonMode::Solid));
+		DrawCorona(cmd, transform, colour, brightness);
+		cmd.BindPipeline(starPipeline.Get(DH::PolygonMode::Solid));
+		DrawSurface(cmd, transform, colour, temperature, CLOSE_UP_GRANULATION, brightness);
+	}
+
+	float StarRenderer::GetFlareStrength(const glm::vec2& centre, const float radius, const float aspect, const float pixel) const
+	{
+		const float offScreen = std::max(std::abs(centre.x / aspect), std::abs(centre.y));
+		return flareIntensity * SmoothStep(FLARE_START_RADIUS, FLARE_FULL_RADIUS, radius / pixel) *
+			   (1.0f - SmoothStep(GLARE_FADE_START, GLARE_FADE_END, offScreen));
+	}
+
+	glm::vec3 StarRenderer::GetFlareColour(const float temperature, const glm::vec3& photosphere) const
+	{
+		if (surfaceView != StarSurfaceView::Stylised)
+			return photosphere;
+		// (The stylised colour, with a luminance of 1)
+		const glm::vec3 colour = StylisedStarColour(temperature);
+		return colour / std::max(glm::dot(colour, glm::vec3(0.2126f, 0.7152f, 0.0722f)), 1e-3f);
+	}
+
+	void StarRenderer::DrawFlare(DH::CommandList& cmd, const glm::vec2& centre, const float radius, const float aspect, const float pixel,
+								 const float strength, const double distanceAU, const glm::vec3& colour) const
+	{
+		const float offScreen = std::max(std::abs(centre.x / aspect), std::abs(centre.y));
+		const float size = std::clamp((float)std::pow(std::pow(std::max(distanceAU, 1e-6), -0.7), FLARE_SIZE_POWER), FLARE_MIN_SIZE, FLARE_MAX_SIZE);
+		const float ghostStrength = strength * (1.0f - SmoothStep(GHOST_FADE_START, GHOST_FADE_END, offScreen));
+		cmd.PushConstants(FlarePushConstants{ glm::vec4(centre, radius, aspect), glm::vec4(strength, size, pixel, ghostStrength),
+											  glm::vec4(colour, 0.0f) });
+		quadMesh->Draw(cmd);
+	}
+
+	void StarRenderer::RenderFlare(DH::CommandList& cmd, const glm::vec2& centre, const float radius, const float aspect, const float pixel,
+								   const double distanceAU, const float temperature, const float presence) const
+	{
+		const float strength = presence * GetFlareStrength(centre, radius, aspect, pixel);
+		if (strength <= 1e-3f)
+			return;
+		cmd.BindPipeline(*flarePipeline);
+		DrawFlare(cmd, centre, radius, aspect, pixel, strength, distanceAU, GetFlareColour(temperature, BlackbodyColour(temperature)));
 	}
 
 	void StarRenderer::RenderFlares(DH::CommandList& cmd, const FlareView& view,
@@ -256,11 +329,7 @@ namespace SV
 			if (disc.depth <= 0.0f)
 				continue; // Behind the camera
 
-			// Fade in as the disc shrinks, and out as the star leaves the view
-			const float radiusPixels = disc.radius / pixel;
-			const float offScreen = std::max(std::abs(disc.centre.x / aspect), std::abs(disc.centre.y));
-			float strength = flareIntensity * SmoothStep(FLARE_START_RADIUS, FLARE_FULL_RADIUS, radiusPixels) *
-							 (1.0f - SmoothStep(GLARE_FADE_START, GLARE_FADE_END, offScreen));
+			float strength = GetFlareStrength(disc.centre, disc.radius, aspect, pixel);
 			if (strength <= 0.0f)
 				continue;
 
@@ -281,19 +350,14 @@ namespace SV
 			if (strength <= 1e-3f)
 				continue;
 
-			const double distanceAU = glm::distance(star->GetTranslation(), view.cameraPosition) / Universe::AU_IN_UNITS;
-			const float size = std::clamp((float)std::pow(std::pow(distanceAU, -0.7), FLARE_SIZE_POWER), FLARE_MIN_SIZE, FLARE_MAX_SIZE);
-			const float ghostStrength = strength * (1.0f - SmoothStep(GHOST_FADE_START, GHOST_FADE_END, offScreen));
-
 			if (!bound)
 			{
 				cmd.BindPipeline(*flarePipeline);
 				bound = true;
 			}
-			cmd.PushConstants(FlarePushConstants{ glm::vec4(disc.centre, disc.radius, aspect),
-												  glm::vec4(strength, size, pixel, ghostStrength),
-												  glm::vec4(star->GetPhotosphereColour(), 0.0f) });
-			quadMesh->Draw(cmd);
+			const double distanceAU = glm::distance(star->GetTranslation(), view.cameraPosition) / Universe::AU_IN_UNITS;
+			DrawFlare(cmd, disc.centre, disc.radius, aspect, pixel, strength, distanceAU,
+					  GetFlareColour(star->starTemperature, star->GetPhotosphereColour()));
 		}
 	}
 }

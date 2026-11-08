@@ -6,6 +6,9 @@
 // remainder (high + low), so they can be taken from the camera's without losing precision far
 // from the Sun. Light is in units of a magnitude 0 star's flux.
 
+// Mirrors UniverseRenderer::MAX_STAR_CLOSE_UPS in src/SV/Universe/UniverseRenderer.hpp
+#define MAX_STAR_CLOSE_UPS 4
+
 // Mirrors UniverseUniforms in src/SV/Universe/UniverseRenderer.cpp (std140)
 layout(std140, set = 0, binding = 0) uniform UniverseUniforms
 {
@@ -26,6 +29,9 @@ layout(std140, set = 0, binding = 0) uniform UniverseUniforms
     // The nebula close up's region, whose other sprites are hidden as it fades in: x = its radius
     // across the line of sight from the Sun, y = its depth along it (pc)
     vec4 hiddenNebulaRegion;
+    // The stars shown close up (xyz = their positions' high parts), and how much of each of their
+    // points is still drawn (w)
+    vec4 hiddenStars[MAX_STAR_CLOSE_UPS];
 } uUniverse;
 
 // Four channels of tileable fBm, each spread evenly over [0, 1] (shared with the galaxy and nebulae)

@@ -151,6 +151,10 @@ namespace SV
 		float starFieldBrightness = 1.0f;
 		// Scales every body's convection cells' and spots' contrast (0 for smooth discs)
 		float surfaceDetail = 1.0f;
+		// Draws the stars (not brown dwarfs) as the solar system draws the Sun by default: stylised,
+		// coloured by their temperatures, with coronas as an eclipse shows them
+		// (Shaders/Include/StylisedStar.glsl)
+		bool stylised = true;
 		// Raises the light of bodies too small to see as discs, so distant stars show as points (0
 		// for their true share of a pixel's light)
 		float pointGain = 100.0f;

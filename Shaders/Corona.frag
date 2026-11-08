@@ -4,6 +4,7 @@
 #include "Frame.glsl"
 #include "CoronaPushConstants.glsl"
 #include "SolarActivity.glsl"
+#include "StylisedStar.glsl"
 
 layout(location = 0) in vec3 vWorldPosition;
 
@@ -22,6 +23,9 @@ layout(location = 0) out vec4 fragColour;
 //    first excited state (n = 2), emitting H-alpha at 656.3 nm; the weaker H-beta (n = 4 to 2,
 //    486.1 nm) and helium D3 (587.6 nm) turn that red to the pink seen at the limb in eclipses.
 //    The prominences are the filaments that Star.frag draws dark against the disc (SolarActivity.glsl).
+//
+// Or, for the stylised star, the corona as a total eclipse shows it, in the star's colour, with the
+// red hydrogen emission at the limb (StylisedCorona in StylisedStar.glsl).
 //
 // Positions are measured on the sky: b is a ray's closest approach to the star's centre (its
 // impact parameter) in stellar radii, so the limb is at b = 1 wherever the camera is. Structure
@@ -118,6 +122,16 @@ void main()
     vec3 direction = offset / b;
     float pixelAngle = pixelHeight / b;
 
+    // Fade out well before the billboard's edge
+    float fade = 1.0 - smoothstep(0.5 * CORONA_EXTENT, 0.95 * CORONA_EXTENT, b);
+
+    if (uCorona.activity.y > 0.5)
+    {
+        vec3 stylised = StylisedCorona(direction, ray, toModel, b, uCorona.colour.rgb, hydrogen, time, pixelHeight);
+        fragColour = vec4(stylised * fade * uCorona.activity.z, 0.0);
+        return;
+    }
+
     // Streamers bend as they rise, following the field: turn the direction on the sky by an angle
     // that grows with height
     float drift = time * STREAMER_RATE;
@@ -206,8 +220,6 @@ void main()
         }
     }
 
-    // Fade out well before the billboard's edge
-    float fade = 1.0 - smoothstep(0.5 * CORONA_EXTENT, 0.95 * CORONA_EXTENT, b);
     vec3 radiance = max(uCorona.colour.rgb * (kCorona + loopLight) + HYDROGEN_EMISSION * emission, 0.0) * fade;
-    fragColour = vec4(ToneMap(radiance), 0.0);
+    fragColour = vec4(ToneMap(radiance) * uCorona.activity.z, 0.0);
 }

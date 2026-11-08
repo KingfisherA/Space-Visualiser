@@ -4,6 +4,7 @@
 #include "Frame.glsl"
 #include "Procedural.glsl"
 #include "Photosphere.glsl"
+#include "StylisedStar.glsl"
 
 layout(location = 0) in vec2 vNdc;
 
@@ -21,8 +22,15 @@ layout(location = 0) out vec4 fragColour;
 //
 // Around each body is its glow, and a body smaller than a pixel or two is drawn as a point of the
 // same total light (so distant stars don't flicker or vanish). Behind them all are the sky's stars.
+//
+// Or the stars (not brown dwarfs) are stylised, as the solar system draws the Sun (StylisedStar.glsl):
+// their surfaces and coronas in display colours, turned into the radiance that the compositor shows
+// as those colours.
 
 const int MAX_BODIES = 4; // Mirrors MAX_STELLAR_BODIES in src/SV/Universe/StarSystem.hpp
+// The stylised coronas' extent (stellar radii), as Shaders/Include/CoronaPushConstants.glsl's
+const float CORONA_EXTENT = 4.0;
+const float CORONA_BLOOM_COMPENSATION = 0.7;
 
 // Mirrors StarSystemUniforms in src/SV/Universe/StarSystem.cpp (std140)
 layout(std140, set = 1, binding = 0) uniform StarSystemUniforms
@@ -34,7 +42,7 @@ layout(std140, set = 1, binding = 0) uniform StarSystemUniforms
     vec4 look[MAX_BODIES];     // x = granules' age (lifetimes), y = glow size, z = glow strength, w = rotation (radians)
     vec4 tint[MAX_BODIES];     // rgb = tint, w = surface luminance (relative to the Sun's)
     vec4 flare[MAX_BODIES];    // xyz = where (in the turning frame), w = brightness
-    vec4 display; // x = point star gain
+    vec4 display; // x = point star gain, y = 1 for stylised stars, z = 1 / exposure
     vec4 blackbody[BLACKBODY_SAMPLES]; // rgb = colour (luminance 1)
 } uSystem;
 
@@ -50,7 +58,7 @@ const float CONVECTIVE_GRAVITY_DARKENING = 0.08;
 const float CONVECTIVE_HEATING = 0.5;
 // A flare's size (radians across the surface), temperature (K), and the fraction of its patch
 // glowing at that temperature
-const float FLARE_SIZE = 0.12;
+const float BODY_FLARE_SIZE = 0.12;
 const float FLARE_TEMPERATURE = 9000.0;
 const float FLARE_SHARE = 0.05;
 // A brown dwarf's cloud bands: how many from pole to pole
@@ -66,6 +74,25 @@ vec3 Blackbody(float temperature)
 vec3 StarColour(float temperature)
 {
     return Blackbody(temperature);
+}
+
+// Whether body i is drawn stylised
+bool IsStylised(int i)
+{
+    return uSystem.display.y > 0.5 && int(uSystem.surface[i].y + 0.5) != 1;
+}
+
+// The radiance the compositor shows as a display colour (before bloom)
+vec3 FromDisplay(vec3 colour)
+{
+    vec3 linear = min(pow(max(colour, vec3(0.0)), vec3(2.2)), vec3(0.999));
+    return -log(vec3(1.0) - linear) * uSystem.display.z;
+}
+
+// Body i's stylised colour, from its temperature
+vec3 StylisedBodyColour(int i)
+{
+    return StylisedColour(Blackbody(uSystem.surface[i].x) * uSystem.tint[i].rgb, Blackbody(5772.0));
 }
 
 // The light of body i's surface on average (a blackbody's at its temperature)
@@ -146,6 +173,9 @@ vec3 ShadeSurface(int i, vec3 hit, vec3 direction, float distance)
     float radiative = smoothstep(6500.0, 7500.0, temperature);
     float pattern = 1.0;
 
+    if (IsStylised(i))
+        return FromDisplay(StylisedSurface(turning, mu, StylisedBodyColour(i), uFrame.times.y, uSystem.info.y * distance / radius));
+
     // Gravity darkening: tides stretch the star, and its surface gravity (the gradient of the
     // potential the ellipsoid stands for, relative to a sphere's) is weaker at the stretched ends
     float gravity = length(gradient) / radius;
@@ -198,7 +228,7 @@ vec3 ShadeSurface(int i, vec3 hit, vec3 direction, float distance)
     // A flare: a small, hot, bright patch
     if (uSystem.flare[i].w > 0.0)
     {
-        float angle = acos(clamp(dot(turning, normalize(uSystem.flare[i].xyz)), -1.0, 1.0)) / FLARE_SIZE;
+        float angle = acos(clamp(dot(turning, normalize(uSystem.flare[i].xyz)), -1.0, 1.0)) / BODY_FLARE_SIZE;
         light += uSystem.flare[i].w * exp(-angle * angle) * FLARE_SHARE * BodyLight(i) * PlanckRatio(FLARE_TEMPERATURE, temperature);
     }
     return light;
@@ -263,8 +293,24 @@ void main()
         float width = pixel * (1.0 + 0.5 * log(1.0 + gain * sqrt(luminance)));
         light += (1.0 - discShown) * pointLight * exp(-(angle / width) * (angle / width));
 
+        // The stylised corona and hydrogen emission beyond its edge
+        if (impact > radius && IsStylised(i) && discShown > 0.0)
+        {
+            vec3 offset = -(toCentre - along * direction);
+            float b = impact / radius;
+            if (b < CORONA_EXTENT)
+            {
+                mat3 toModel = mat3(ToTurningFrame(vec3(1.0, 0.0, 0.0), i), ToTurningFrame(vec3(0.0, 1.0, 0.0), i),
+                                    ToTurningFrame(vec3(0.0, 0.0, 1.0), i));
+                float fade = 1.0 - smoothstep(0.5 * CORONA_EXTENT, 0.95 * CORONA_EXTENT, b);
+                vec3 corona = StylisedCorona(offset / impact, direction, toModel, b, StylisedBodyColour(i), 1.0, uFrame.times.y,
+                                             pixel * along / radius);
+                // (Dimmed a little: the compositor's bloom spreads it further, unlike the solar system's)
+                light += discShown * fade * CORONA_BLOOM_COMPENSATION * FromDisplay(corona);
+            }
+        }
         // The glow beyond its edge
-        if (impact > radius && uSystem.look[i].z > 0.0)
+        else if (impact > radius && uSystem.look[i].z > 0.0)
         {
             float height = (impact - radius) / (uSystem.look[i].y * radius);
             light += discShown * uSystem.look[i].z * surfaceLight * exp(-height) / (1.0 + 4.0 * height);

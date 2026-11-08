@@ -1,4 +1,5 @@
 #pragma once
+#include <array>
 #include <cstddef>
 #include <vector>
 
@@ -25,6 +26,7 @@ namespace SV
 	class CompactObjectRenderer;
 	class GalaxyRenderer;
 	class NebulaRenderer;
+	class StarRenderer;
 
 	// How the universe is viewed this frame. Positions are in parsecs from the Sun along the world's
 	// axes (as the catalogue's), in doubles: the camera may be anywhere from inside the solar system
@@ -43,6 +45,9 @@ namespace SV
 		double deltaTime = 0.0;      // Since the last frame (s), for the close-ups' motion
 		// How much of the Sun to draw as a point: 0 while the solar system draws it
 		float sunVisibility = 0.0f;
+		// For the stars close up: the scene's animation times (FrameUniforms::times) and exposure
+		glm::vec4 times{ 0.0f };
+		float starExposure = 10.0f;
 	};
 
 	// Draws the catalogue's universe into a viewport framebuffer: the Milky Way (the galaxy model,
@@ -56,6 +61,12 @@ namespace SV
 	// the sky), turning into points as they shrink below a few pixels. Neutron stars and black holes
 	// give out next to no light that could be seen: they are drawn as markers, pulsars pulsing.
 	//
+	// Close up, each star is drawn as the solar system draws the Sun (StarRenderer), with its radius
+	// from its luminosity and temperature. As the camera nears one, its point gives way to a lens
+	// flare, and the flare to its surface and corona as its disc grows, at the distances the Sun's
+	// do for a star as bright (so a brighter star flares from further away). The few nearest (by
+	// their brightness) are shown so at once, so both stars of a close binary flare.
+	//
 	// Close up, the test scenes' renderers take over, turned to look from the Sun as their presets
 	// do (as these objects are usually seen): the galaxies with presets (Andromeda, Triangulum, the
 	// Whirlpool, the Pinwheel, the Sombrero, NGC 1300, the Rose Galaxy, the Fireworks, Sunflower,
@@ -68,6 +79,9 @@ namespace SV
 	class UniverseRenderer
 	{
 	public:
+		// The most stars shown close up at once (mirrors MAX_STAR_CLOSE_UPS in Shaders/Include/Universe.glsl)
+		static constexpr size_t MAX_STAR_CLOSE_UPS = 4;
+
 		UniverseRenderer(const SceneContext& context, const Catalogue& catalogue);
 		~UniverseRenderer();
 
@@ -105,6 +119,8 @@ namespace SV
 		bool showNeutronStars = true;
 		bool showBlackHoles = true;
 		bool showCloseUps = true;
+		// Draws the catalogue's stars close up (as the solar system draws the Sun): set to show them
+		sRef<StarRenderer> starRenderer;
 
 	private:
 		// A camera of its own for a renderer drawing in its own axes and units
@@ -133,6 +149,25 @@ namespace SV
 			bool blackHole = false;
 		};
 
+		// A star, for close-ups
+		struct StarPoint
+		{
+			glm::dvec3 position{ 0.0 };
+			float radius = 0.0f; // pc
+			float temperature = 5772.0f;
+			float luminosity = 1.0f; // Visual, in the Sun's
+		};
+
+		// A star shown close up this frame, and how far each of its stages has faded in (0 to 1)
+		struct StarCloseUp
+		{
+			const StarPoint* star = nullptr;
+			double distance = 0.0; // From the camera (pc)
+			float flare = 0.0f;    // Its flare (with its disc under it), in place of its point
+			float disc = 0.0f;     // Its disc, large enough on screen to see
+			float hidden = 0.0f;   // How much of its point is hidden
+		};
+
 		// What is shown close up this frame, and how far each has faded in (0 to 1)
 		struct CloseUps
 		{
@@ -151,11 +186,19 @@ namespace SV
 		// Sets a frame's camera for a model centred at `centre` (pc), turned by modelToWorld and in
 		// units of `unit` pc, where `extent` (in its units) takes in all of it
 		void UpdateLocalFrame(const LocalFrame& frame, const UniverseView& view, const glm::dmat3& modelToWorld, const glm::dvec3& centre,
-							  double unit, float extent, float aspect) const;
+							  double unit, float extent, float aspect, const glm::vec4& times = glm::vec4(0.0f),
+							  const glm::vec4& display = glm::vec4(0.0f)) const;
 		// Whether a position is within the region a nebula close-up hides the other sprites of
 		[[nodiscard]] static bool IsInNebulaRegion(const Feature& nebula, const glm::dvec3& position);
 		// The black hole or neutron star the camera is centred on, if any
 		[[nodiscard]] const CompactPoint* FindCompactAt(const glm::dvec3& centre) const;
+		// The stars to show close up (into starCloseUps), furthest first
+		void FindStarCloseUps(const UniverseView& view, float pixelAngle);
+		// The star the camera is centred within, if any
+		[[nodiscard]] const StarPoint* FindStarAt(const glm::dvec3& centre) const;
+		// Draws a star close up over `target` (its surface, corona and flare), in its own frame
+		void RenderStarCloseUp(DH::CommandList& cmd, DH::Framebuffer& target, const UniverseView& view, const StarCloseUp& closeUp,
+							   const LocalFrame& frame, float aspect);
 		// The galaxy or nebula with a preset that is largest on screen, and its size (pixels)
 		[[nodiscard]] static const Feature* FindFeature(const std::vector<Feature>& features, const UniverseView& view, float pixelAngle,
 														float& radiusPixels);
@@ -200,6 +243,11 @@ namespace SV
 		// The nebula shown close up in the last frame, and how far it had faded in (for its labels)
 		const Feature* hiddenNebula = nullptr;
 		float hiddenNebulaPresence = 0.0f;
+		// The catalogue's stars, kept for their close-ups (the catalogue keeps only its landmarks)
+		std::vector<StarPoint> starPoints;
+		// The stars shown close up this frame (and in the last, for their labels), and a frame each
+		std::vector<StarCloseUp> starCloseUps;
+		std::array<LocalFrame, MAX_STAR_CLOSE_UPS> starFrames;
 		uRef<CompactObjectRenderer> compactCloseUp;
 		bool compactCloseUpIsBlackHole = false;
 		LocalFrame compactFrame;

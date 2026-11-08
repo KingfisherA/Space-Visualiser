@@ -74,6 +74,8 @@ void main()
     }
 
     light *= Shown(aHigh.xyz, uUniverse.hiddenPoint);
+    for (int i = 0; i < MAX_STAR_CLOSE_UPS; i++)
+        light *= Shown(aHigh.xyz, uUniverse.hiddenStars[i]);
     vec4 clip = uUniverse.viewProjection * vec4(relative, 1.0);
     if (light * uUniverse.markers.w < MIN_LIGHT || clip.w <= 0.0)
     {
